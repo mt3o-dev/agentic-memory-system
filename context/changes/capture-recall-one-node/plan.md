@@ -326,24 +326,24 @@ Not a concern for Slice 1. The NFR (500ms p95 for queries) is trivially met by a
 
 #### Automated
 
-- [x] 2.1 Write→read roundtrip preserves all fields
-- [x] 2.2 Reading a non-existent ID returns `None`
-- [x] 2.3 Written node has non-None `created_at`
+- [x] 2.1 Write→read roundtrip preserves all fields — 15d5b4e
+- [x] 2.2 Reading a non-existent ID returns `None` — 15d5b4e
+- [x] 2.3 Written node has non-None `created_at` — 15d5b4e
 
 #### Manual
 
-- [x] 2.4 Inspect `context/memory-graph.db` with sqlite3 CLI; row present with correct columns
-- [x] 2.5 WAL files (`.db-wal`, `.db-shm`) appear after first write
+- [x] 2.4 Inspect `context/memory-graph.db` with sqlite3 CLI; row present with correct columns — 15d5b4e
+- [x] 2.5 WAL files (`.db-wal`, `.db-shm`) appear after first write — 15d5b4e
 
 ### Phase 3: Serialization
 
 #### Automated
 
-- [ ] 3.1 `test_serialize_header_format` passes
+- [x] 3.1 `test_serialize_header_format` passes
 
 #### Manual
 
-- [ ] 3.2 Serialized output is human-readable; body follows blank line; ID line is first
+- [x] 3.2 Serialized output is human-readable; body follows blank line; ID line is first
 
 ### Phase 4: Tests and Public API
 
