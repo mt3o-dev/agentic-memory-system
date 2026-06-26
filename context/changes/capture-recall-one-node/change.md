@@ -1,7 +1,7 @@
 ---
 change_id: capture-recall-one-node
 title: Capture and recall a single semantic node end-to-end
-status: implementing
+status: implemented
 created: 2026-06-25
 updated: 2026-06-26
 archived_at: null

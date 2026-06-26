@@ -349,10 +349,10 @@ Not a concern for Slice 1. The NFR (500ms p95 for queries) is trivially met by a
 
 #### Automated
 
-- [x] 4.1 `uv run pytest` — all 7 tests pass
-- [x] 4.2 `from agentic_memory_system import Node, NodeType, Tier, MemoryStore, serialize_node` succeeds
+- [x] 4.1 `uv run pytest` — all 7 tests pass — 9455163
+- [x] 4.2 `from agentic_memory_system import Node, NodeType, Tier, MemoryStore, serialize_node` succeeds — 9455163
 
 #### Manual
 
-- [x] 4.3 End-to-end demo: write a decision node, read back, serialize, print — output is correct
-- [x] 4.4 `context/memory-graph.db` does NOT appear after running pytest (tests use `:memory:`)
+- [x] 4.3 End-to-end demo: write a decision node, read back, serialize, print — output is correct — 9455163
+- [x] 4.4 `context/memory-graph.db` does NOT appear after running pytest (tests use `:memory:`) — 9455163
