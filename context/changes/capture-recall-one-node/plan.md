@@ -313,27 +313,27 @@ Not a concern for Slice 1. The NFR (500ms p95 for queries) is trivially met by a
 
 #### Automated
 
-- [x] 1.1 `uv sync` installs without errors
-- [x] 1.2 `Node(type="invalid", ...)` raises `ValidationError`
-- [x] 1.3 `Node(type=NodeType.decision, ...)` constructs with `needs_review=False`
+- [x] 1.1 `uv sync` installs without errors — 4bc353a
+- [x] 1.2 `Node(type="invalid", ...)` raises `ValidationError` — 4bc353a
+- [x] 1.3 `Node(type=NodeType.decision, ...)` constructs with `needs_review=False` — 4bc353a
 
 #### Manual
 
-- [x] 1.4 Confirm all 5 node types and 4 tiers present in schema.py
-- [x] 1.5 Confirm `needs_review` defaults `False` and `id` defaults `None`
+- [x] 1.4 Confirm all 5 node types and 4 tiers present in schema.py — 4bc353a
+- [x] 1.5 Confirm `needs_review` defaults `False` and `id` defaults `None` — 4bc353a
 
 ### Phase 2: Storage Layer
 
 #### Automated
 
-- [ ] 2.1 Write→read roundtrip preserves all fields
-- [ ] 2.2 Reading a non-existent ID returns `None`
-- [ ] 2.3 Written node has non-None `created_at`
+- [x] 2.1 Write→read roundtrip preserves all fields
+- [x] 2.2 Reading a non-existent ID returns `None`
+- [x] 2.3 Written node has non-None `created_at`
 
 #### Manual
 
-- [ ] 2.4 Inspect `context/memory-graph.db` with sqlite3 CLI; row present with correct columns
-- [ ] 2.5 WAL files (`.db-wal`, `.db-shm`) appear after first write
+- [x] 2.4 Inspect `context/memory-graph.db` with sqlite3 CLI; row present with correct columns
+- [x] 2.5 WAL files (`.db-wal`, `.db-shm`) appear after first write
 
 ### Phase 3: Serialization
 
