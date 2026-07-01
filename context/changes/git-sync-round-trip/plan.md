@@ -360,26 +360,26 @@ Not a concern for Slice 4. The filter runs at `git add` / checkout time on a sma
 
 #### Automated
 
-- [x] 1.1 `uv run pytest` — all 23 tests pass after WAL checkpoint addition
-- [x] 1.2 `MemoryStore(':memory:').close()` exits without error
+- [x] 1.1 `uv run pytest` — all 23 tests pass after WAL checkpoint addition — 503173a
+- [x] 1.2 `MemoryStore(':memory:').close()` exits without error — 503173a
 
 #### Manual
 
-- [x] 1.3 `storage.py:close()` has `PRAGMA wal_checkpoint(TRUNCATE)` before `self._conn.close()`
-- [x] 1.4 `.gitignore` contains `*.db-wal` and `*.db-shm`
+- [x] 1.3 `storage.py:close()` has `PRAGMA wal_checkpoint(TRUNCATE)` before `self._conn.close()` — 503173a
+- [x] 1.4 `.gitignore` contains `*.db-wal` and `*.db-shm` — 503173a
 
 ### Phase 2: Serialization Extension
 
 #### Automated
 
-- [ ] 2.1 `dump_node(node, [edge])` contains `created_at:`, `retrieval_weight:`, `trust_weight:` headers
-- [ ] 2.2 `dump_node(node, [edge])` edge line contains `@ <iso-ts>`
-- [ ] 2.3 `parse_dump(dump_all([(node, [edge])]))` round-trips all fields correctly
-- [ ] 2.4 `parse_dump(dump_all([]))` returns `[]`
+- [x] 2.1 `dump_node(node, [edge])` contains `created_at:`, `retrieval_weight:`, `trust_weight:` headers
+- [x] 2.2 `dump_node(node, [edge])` edge line contains `@ <iso-ts>`
+- [x] 2.3 `parse_dump(dump_all([(node, [edge])]))` round-trips all fields correctly
+- [x] 2.4 `parse_dump(dump_all([]))` returns `[]`
 
 #### Manual
 
-- [ ] 2.5 Print `dump_all([(node, [])])` for a real node — output is human-readable and matches expected format
+- [x] 2.5 Print `dump_all([(node, [])])` for a real node — output is human-readable and matches expected format
 
 ### Phase 3: Filter Scripts + Git Wiring
 
