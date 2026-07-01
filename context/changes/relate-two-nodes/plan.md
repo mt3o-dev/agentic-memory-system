@@ -329,10 +329,10 @@ Not a concern for Slice 2. Two nodes and one recursive CTE over a trivially smal
 
 #### Automated
 
-- [x] 4.1 `uv run pytest` — all 15 tests pass, 0 failures
-- [x] 4.2 `context/memory-graph.db` NOT created after running pytest
+- [x] 4.1 `uv run pytest` — all 15 tests pass, 0 failures — f5c07bf
+- [x] 4.2 `context/memory-graph.db` NOT created after running pytest — f5c07bf
 
 #### Manual
 
-- [x] 4.3 End-to-end demo: write 2 nodes + edge, traverse, serialize — output matches expected wire format
-- [x] 4.4 `serialize_node(node)` with no edges still produces Slice 1 format (no regression)
+- [x] 4.3 End-to-end demo: write 2 nodes + edge, traverse, serialize — output matches expected wire format — f5c07bf
+- [x] 4.4 `serialize_node(node)` with no edges still produces Slice 1 format (no regression) — f5c07bf
