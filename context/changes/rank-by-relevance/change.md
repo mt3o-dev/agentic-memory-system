@@ -4,6 +4,7 @@ title: Rank recalled nodes by relevance using effective_score
 status: implementing
 created: 2026-06-25
 updated: 2026-07-01
+
 archived_at: null
 ---
 

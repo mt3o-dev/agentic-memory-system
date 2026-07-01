@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS edges (
 )
 """
 
+_ALPHA = 0.5
+_BETA = 0.3
+_GAMMA = 0.2
+_HOP_HALFLIFE = 3.0
+_RECENCY_HALFLIFE_DAYS = 7.0
+
 _TRAVERSE_CTE = """
 WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) AS (
     SELECT ?, NULL, NULL, NULL, NULL
@@ -136,6 +142,24 @@ class MemoryStore:
                 )
             result.append((node, incoming))
         return result
+
+    def recall(self, seed_id: str) -> list[tuple[Node, float]]:
+        raw = self.traverse(seed_id)
+        if not raw:
+            return []
+        now = datetime.now(timezone.utc)
+        depths: dict[str, int] = {raw[0][0].id: 0}
+        for node, edge in raw[1:]:
+            depths[node.id] = depths.get(edge.source_id, 0) + 1  # type: ignore[union-attr]
+
+        def _score(node: Node, depth: int) -> float:
+            hop_decay = _HOP_HALFLIFE / (depth + _HOP_HALFLIFE)
+            age_days = (now - node.created_at).total_seconds() / 86400 if node.created_at else 0.0
+            recency = _RECENCY_HALFLIFE_DAYS / (age_days + _RECENCY_HALFLIFE_DAYS)
+            return hop_decay * (_ALPHA * node.retrieval_weight + _BETA * node.trust_weight + _GAMMA * recency)
+
+        scored = [(node, _score(node, depths[node.id])) for node, _ in raw]
+        return sorted(scored, key=lambda x: x[1], reverse=True)
 
     def close(self) -> None:
         self._conn.close()

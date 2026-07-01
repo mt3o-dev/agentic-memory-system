@@ -283,28 +283,28 @@ Existing `context/memory-graph.db` is upgraded automatically on the first connec
 
 #### Automated
 
-- [x] 1.1 `Node(...)` without weights has `retrieval_weight==1.0`, `trust_weight==1.0`
-- [x] 1.2 `Node(..., retrieval_weight=1.5)` write then read roundtrip preserves value
-- [x] 1.3 `uv run pytest` — all 15 existing tests pass with no test file changes
+- [x] 1.1 `Node(...)` without weights has `retrieval_weight==1.0`, `trust_weight==1.0` — 50a5a43
+- [x] 1.2 `Node(..., retrieval_weight=1.5)` write then read roundtrip preserves value — 50a5a43
+- [x] 1.3 `uv run pytest` — all 15 existing tests pass with no test file changes — 50a5a43
 
 #### Manual
 
-- [x] 1.4 Confirm `Node` has both weight fields with float defaults of 1.0
-- [x] 1.5 Confirm ALTER TABLE loop runs after CREATE block and swallows OperationalError
+- [x] 1.4 Confirm `Node` has both weight fields with float defaults of 1.0 — 50a5a43
+- [x] 1.5 Confirm ALTER TABLE loop runs after CREATE block and swallows OperationalError — 50a5a43
 
 ### Phase 2: Recall Method
 
 #### Automated
 
-- [ ] 2.1 `recall(seed_id)` single-node graph returns one tuple with positive float score
-- [ ] 2.2 `recall(A)` on A→B puts A before B (depth-0 beats depth-1 with equal weights)
-- [ ] 2.3 Node with `retrieval_weight=3.0` at depth 1 outscores default node at depth 0
-- [ ] 2.4 Newer node outscores 30-day-old node at same depth and weights
-- [ ] 2.5 `recall("nonexistent_id")` returns `[]`
+- [x] 2.1 `recall(seed_id)` single-node graph returns one tuple with positive float score
+- [x] 2.2 `recall(A)` on A→B puts A before B (depth-0 beats depth-1 with equal weights)
+- [x] 2.3 Node with `retrieval_weight=3.0` at depth 1 outscores default node at depth 0
+- [x] 2.4 Newer node outscores 30-day-old node at same depth and weights
+- [x] 2.5 `recall("nonexistent_id")` returns `[]`
 
 #### Manual
 
-- [ ] 2.6 REPL demo: scores are floats in (0,1], list is sorted descending, both nodes appear
+- [x] 2.6 REPL demo: scores are floats in (0,1], list is sorted descending, both nodes appear
 
 ### Phase 3: Tests
 
