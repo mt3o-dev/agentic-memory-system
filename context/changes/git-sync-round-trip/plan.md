@@ -385,25 +385,25 @@ Not a concern for Slice 4. The filter runs at `git add` / checkout time on a sma
 
 #### Automated
 
-- [x] 3.1 `python -c "import ast; ast.parse(open('scripts/dump_db.py').read())"` exits 0
-- [x] 3.2 `python -c "import ast; ast.parse(open('scripts/restore_db.py').read())"` exits 0
-- [x] 3.3 `bash -n scripts/setup-git-filter.sh` exits 0
-- [x] 3.4 `.gitattributes` contains `context/memory-graph.db filter=memory-db`
+- [x] 3.1 `python -c "import ast; ast.parse(open('scripts/dump_db.py').read())"` exits 0 — f445cf7
+- [x] 3.2 `python -c "import ast; ast.parse(open('scripts/restore_db.py').read())"` exits 0 — f445cf7
+- [x] 3.3 `bash -n scripts/setup-git-filter.sh` exits 0 — f445cf7
+- [x] 3.4 `.gitattributes` contains `context/memory-graph.db filter=memory-db` — f445cf7
 
 #### Manual
 
-- [x] 3.5 `bash scripts/setup-git-filter.sh` prints `memory-db filter registered.`
-- [x] 3.6 `git check-attr filter context/memory-graph.db` shows `filter: memory-db`
-- [x] 3.7 Pipe demo: dump → restore → sqlite3 COUNT matches original
+- [x] 3.5 `bash scripts/setup-git-filter.sh` prints `memory-db filter registered.` — f445cf7
+- [x] 3.6 `git check-attr filter context/memory-graph.db` shows `filter: memory-db` — f445cf7
+- [x] 3.7 Pipe demo: dump → restore → sqlite3 COUNT matches original — f445cf7
 
 ### Phase 4: Tests
 
 #### Automated
 
-- [ ] 4.1 `uv run pytest` — all 31 tests pass (23 existing + 8 new), 0 failures
-- [ ] 4.2 `context/memory-graph.db` NOT created after running pytest
+- [x] 4.1 `uv run pytest` — all 31 tests pass (23 existing + 8 new), 0 failures
+- [x] 4.2 `context/memory-graph.db` NOT created after running pytest
 
 #### Manual
 
-- [ ] 4.3 Full pipe round-trip: node data survives dump→restore intact
-- [ ] 4.4 `git diff context/memory-graph.db` shows readable text output after filter is active
+- [x] 4.3 Full pipe round-trip: node data survives dump→restore intact
+- [x] 4.4 `git diff context/memory-graph.db` shows readable text output after filter is active
