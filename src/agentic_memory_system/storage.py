@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS nodes (
     path        TEXT    NOT NULL,
     body        TEXT    NOT NULL,
     created_at  TEXT    NOT NULL,
-    needs_review INTEGER NOT NULL DEFAULT 0
+    needs_review     INTEGER NOT NULL DEFAULT 0,
+    retrieval_weight REAL    NOT NULL DEFAULT 1.0,
+    trust_weight     REAL    NOT NULL DEFAULT 1.0
 )
 """
 
@@ -37,7 +39,8 @@ WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) 
     JOIN reachable r ON e.source_id = r.node_id
 )
 SELECT r.node_id, r.source_id, r.target_id, r.etype, r.edge_created_at,
-       n.id, n.type, n.tier, n.path, n.body, n.created_at, n.needs_review
+       n.id, n.type, n.tier, n.path, n.body, n.created_at, n.needs_review,
+       n.retrieval_weight, n.trust_weight
 FROM reachable r
 JOIN nodes n ON n.id = r.node_id
 """
@@ -51,14 +54,21 @@ class MemoryStore:
         with self._conn:
             self._conn.execute(_CREATE_NODES)
             self._conn.execute(_CREATE_EDGES)
+        for col in ("retrieval_weight", "trust_weight"):
+            try:
+                self._conn.execute(
+                    f"ALTER TABLE nodes ADD COLUMN {col} REAL NOT NULL DEFAULT 1.0"
+                )
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
     def write_node(self, node: Node) -> Node:
         node_id = node.id if node.id is not None else str(uuid.uuid4())
         created_at = node.created_at if node.created_at is not None else datetime.now(timezone.utc)
         with self._conn:
             self._conn.execute(
-                "INSERT INTO nodes (id, type, tier, path, body, created_at, needs_review) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     node_id,
                     node.type.value,
@@ -67,13 +77,15 @@ class MemoryStore:
                     node.body,
                     created_at.isoformat(),
                     int(node.needs_review),
+                    node.retrieval_weight,
+                    node.trust_weight,
                 ),
             )
         return node.model_copy(update={"id": node_id, "created_at": created_at})
 
     def read_node(self, node_id: str) -> Node | None:
         row = self._conn.execute(
-            "SELECT id, type, tier, path, body, created_at, needs_review FROM nodes WHERE id = ?",
+            "SELECT id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight FROM nodes WHERE id = ?",
             (node_id,),
         ).fetchone()
         if row is None:
@@ -86,6 +98,8 @@ class MemoryStore:
             body=row[4],
             created_at=datetime.fromisoformat(row[5]),
             needs_review=bool(row[6]),
+            retrieval_weight=row[7],
+            trust_weight=row[8],
         )
 
     def write_edge(self, edge: Edge) -> Edge:
@@ -109,6 +123,8 @@ class MemoryStore:
                 body=row[9],
                 created_at=datetime.fromisoformat(row[10]),
                 needs_review=bool(row[11]),
+                retrieval_weight=row[12],
+                trust_weight=row[13],
             )
             incoming: Edge | None = None
             if row[1] is not None:

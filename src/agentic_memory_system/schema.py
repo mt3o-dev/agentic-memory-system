@@ -27,6 +27,8 @@ class Node(BaseModel):
     body: str
     created_at: datetime | None = None
     needs_review: bool = False
+    retrieval_weight: float = 1.0
+    trust_weight: float = 1.0
 
 
 class EdgeType(str, Enum):
