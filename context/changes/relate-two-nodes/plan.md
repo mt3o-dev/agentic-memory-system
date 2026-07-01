@@ -316,23 +316,23 @@ Not a concern for Slice 2. Two nodes and one recursive CTE over a trivially smal
 
 #### Automated
 
-- [x] 3.1 `serialize_node(node, outgoing_edges=[edge])` contains `-> DEPENDS_ON [node:<target-id>]`
-- [x] 3.2 Edge-line appears between `needs_review` line and blank line (checked by index)
-- [x] 3.3 `serialize_node(node)` with no edges is unchanged from Slice 1 format
-- [x] 3.4 `serialize_node(node, outgoing_edges=[])` also unchanged
+- [x] 3.1 `serialize_node(node, outgoing_edges=[edge])` contains `-> DEPENDS_ON [node:<target-id>]` — 8da4265
+- [x] 3.2 Edge-line appears between `needs_review` line and blank line (checked by index) — 8da4265
+- [x] 3.3 `serialize_node(node)` with no edges is unchanged from Slice 1 format — 8da4265
+- [x] 3.4 `serialize_node(node, outgoing_edges=[])` also unchanged — 8da4265
 
 #### Manual
 
-- [x] 3.5 Wire format is readable; agent can identify node ID, relationship, target, and body
+- [x] 3.5 Wire format is readable; agent can identify node ID, relationship, target, and body — 8da4265
 
 ### Phase 4: Tests
 
 #### Automated
 
-- [ ] 4.1 `uv run pytest` — all 15 tests pass, 0 failures
-- [ ] 4.2 `context/memory-graph.db` NOT created after running pytest
+- [x] 4.1 `uv run pytest` — all 15 tests pass, 0 failures
+- [x] 4.2 `context/memory-graph.db` NOT created after running pytest
 
 #### Manual
 
-- [ ] 4.3 End-to-end demo: write 2 nodes + edge, traverse, serialize — output matches expected wire format
-- [ ] 4.4 `serialize_node(node)` with no edges still produces Slice 1 format (no regression)
+- [x] 4.3 End-to-end demo: write 2 nodes + edge, traverse, serialize — output matches expected wire format
+- [x] 4.4 `serialize_node(node)` with no edges still produces Slice 1 format (no regression)
