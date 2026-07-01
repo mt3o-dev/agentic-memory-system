@@ -372,29 +372,29 @@ Not a concern for Slice 4. The filter runs at `git add` / checkout time on a sma
 
 #### Automated
 
-- [x] 2.1 `dump_node(node, [edge])` contains `created_at:`, `retrieval_weight:`, `trust_weight:` headers
-- [x] 2.2 `dump_node(node, [edge])` edge line contains `@ <iso-ts>`
-- [x] 2.3 `parse_dump(dump_all([(node, [edge])]))` round-trips all fields correctly
-- [x] 2.4 `parse_dump(dump_all([]))` returns `[]`
+- [x] 2.1 `dump_node(node, [edge])` contains `created_at:`, `retrieval_weight:`, `trust_weight:` headers — c374ca5
+- [x] 2.2 `dump_node(node, [edge])` edge line contains `@ <iso-ts>` — c374ca5
+- [x] 2.3 `parse_dump(dump_all([(node, [edge])]))` round-trips all fields correctly — c374ca5
+- [x] 2.4 `parse_dump(dump_all([]))` returns `[]` — c374ca5
 
 #### Manual
 
-- [x] 2.5 Print `dump_all([(node, [])])` for a real node — output is human-readable and matches expected format
+- [x] 2.5 Print `dump_all([(node, [])])` for a real node — output is human-readable and matches expected format — c374ca5
 
 ### Phase 3: Filter Scripts + Git Wiring
 
 #### Automated
 
-- [ ] 3.1 `python -c "import ast; ast.parse(open('scripts/dump_db.py').read())"` exits 0
-- [ ] 3.2 `python -c "import ast; ast.parse(open('scripts/restore_db.py').read())"` exits 0
-- [ ] 3.3 `bash -n scripts/setup-git-filter.sh` exits 0
-- [ ] 3.4 `.gitattributes` contains `context/memory-graph.db filter=memory-db`
+- [x] 3.1 `python -c "import ast; ast.parse(open('scripts/dump_db.py').read())"` exits 0
+- [x] 3.2 `python -c "import ast; ast.parse(open('scripts/restore_db.py').read())"` exits 0
+- [x] 3.3 `bash -n scripts/setup-git-filter.sh` exits 0
+- [x] 3.4 `.gitattributes` contains `context/memory-graph.db filter=memory-db`
 
 #### Manual
 
-- [ ] 3.5 `bash scripts/setup-git-filter.sh` prints `memory-db filter registered.`
-- [ ] 3.6 `git check-attr filter context/memory-graph.db` shows `filter: memory-db`
-- [ ] 3.7 Pipe demo: dump → restore → sqlite3 COUNT matches original
+- [x] 3.5 `bash scripts/setup-git-filter.sh` prints `memory-db filter registered.`
+- [x] 3.6 `git check-attr filter context/memory-graph.db` shows `filter: memory-db`
+- [x] 3.7 Pipe demo: dump → restore → sqlite3 COUNT matches original
 
 ### Phase 4: Tests
 
