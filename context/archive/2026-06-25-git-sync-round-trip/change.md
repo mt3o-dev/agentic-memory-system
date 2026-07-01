@@ -1,10 +1,10 @@
 ---
 change_id: git-sync-round-trip
 title: Git sync round-trip — dump DB to text, diff, merge on clone
-status: impl_reviewed
+status: archived
 created: 2026-06-25
 updated: 2026-07-01
-archived_at: null
+archived_at: 2026-07-01T16:50:48Z
 ---
 
 ## Notes
