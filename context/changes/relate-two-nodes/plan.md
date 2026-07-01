@@ -290,27 +290,27 @@ Not a concern for Slice 2. Two nodes and one recursive CTE over a trivially smal
 
 #### Automated
 
-- [x] 1.1 `Edge(source_id='a', target_id='b', type=EdgeType.depends_on)` constructs with `created_at=None`
-- [x] 1.2 `Edge(source_id='a', target_id='b', type='INVALID')` raises `ValidationError`
-- [x] 1.3 `from agentic_memory_system import Edge, EdgeType` exits without error
+- [x] 1.1 `Edge(source_id='a', target_id='b', type=EdgeType.depends_on)` constructs with `created_at=None` — 6306f1d
+- [x] 1.2 `Edge(source_id='a', target_id='b', type='INVALID')` raises `ValidationError` — 6306f1d
+- [x] 1.3 `from agentic_memory_system import Edge, EdgeType` exits without error — 6306f1d
 
 #### Manual
 
-- [x] 1.4 Confirm `EdgeType` has exactly one value (`DEPENDS_ON`) and `Edge` has 4 fields
+- [x] 1.4 Confirm `EdgeType` has exactly one value (`DEPENDS_ON`) and `Edge` has 4 fields — 6306f1d
 
 ### Phase 2: Storage Extension
 
 #### Automated
 
-- [ ] 2.1 `write_edge()` returns edge with `created_at` set
-- [ ] 2.2 `traverse(A_id)` returns `(A, None)` and `(B, edge_A_to_B)` for a two-node graph
-- [ ] 2.3 `traverse(A_id)` returns three elements for chain A→B→C
-- [ ] 2.4 Writing edge with non-existent `source_id` raises an exception (FK constraint)
+- [x] 2.1 `write_edge()` returns edge with `created_at` set
+- [x] 2.2 `traverse(A_id)` returns `(A, None)` and `(B, edge_A_to_B)` for a two-node graph
+- [x] 2.3 `traverse(A_id)` returns three elements for chain A→B→C
+- [x] 2.4 Writing edge with non-existent `source_id` raises an exception (FK constraint)
 
 #### Manual
 
-- [ ] 2.5 Inspect `context/memory-graph.db` edges table via sqlite3 CLI — row present
-- [ ] 2.6 FK violation confirmed via sqlite3 CLI on bad node ID
+- [x] 2.5 Inspect `context/memory-graph.db` edges table via sqlite3 CLI — row present
+- [x] 2.6 FK violation confirmed via sqlite3 CLI on bad node ID
 
 ### Phase 3: Serialization Update
 
