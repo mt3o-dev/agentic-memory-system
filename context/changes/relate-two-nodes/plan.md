@@ -302,28 +302,28 @@ Not a concern for Slice 2. Two nodes and one recursive CTE over a trivially smal
 
 #### Automated
 
-- [x] 2.1 `write_edge()` returns edge with `created_at` set
-- [x] 2.2 `traverse(A_id)` returns `(A, None)` and `(B, edge_A_to_B)` for a two-node graph
-- [x] 2.3 `traverse(A_id)` returns three elements for chain A→B→C
-- [x] 2.4 Writing edge with non-existent `source_id` raises an exception (FK constraint)
+- [x] 2.1 `write_edge()` returns edge with `created_at` set — 01646c6
+- [x] 2.2 `traverse(A_id)` returns `(A, None)` and `(B, edge_A_to_B)` for a two-node graph — 01646c6
+- [x] 2.3 `traverse(A_id)` returns three elements for chain A→B→C — 01646c6
+- [x] 2.4 Writing edge with non-existent `source_id` raises an exception (FK constraint) — 01646c6
 
 #### Manual
 
-- [x] 2.5 Inspect `context/memory-graph.db` edges table via sqlite3 CLI — row present
-- [x] 2.6 FK violation confirmed via sqlite3 CLI on bad node ID
+- [x] 2.5 Inspect `context/memory-graph.db` edges table via sqlite3 CLI — row present — 01646c6
+- [x] 2.6 FK violation confirmed via sqlite3 CLI on bad node ID — 01646c6
 
 ### Phase 3: Serialization Update
 
 #### Automated
 
-- [ ] 3.1 `serialize_node(node, outgoing_edges=[edge])` contains `-> DEPENDS_ON [node:<target-id>]`
-- [ ] 3.2 Edge-line appears between `needs_review` line and blank line (checked by index)
-- [ ] 3.3 `serialize_node(node)` with no edges is unchanged from Slice 1 format
-- [ ] 3.4 `serialize_node(node, outgoing_edges=[])` also unchanged
+- [x] 3.1 `serialize_node(node, outgoing_edges=[edge])` contains `-> DEPENDS_ON [node:<target-id>]`
+- [x] 3.2 Edge-line appears between `needs_review` line and blank line (checked by index)
+- [x] 3.3 `serialize_node(node)` with no edges is unchanged from Slice 1 format
+- [x] 3.4 `serialize_node(node, outgoing_edges=[])` also unchanged
 
 #### Manual
 
-- [ ] 3.5 Wire format is readable; agent can identify node ID, relationship, target, and body
+- [x] 3.5 Wire format is readable; agent can identify node ID, relationship, target, and body
 
 ### Phase 4: Tests
 
