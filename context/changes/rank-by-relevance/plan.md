@@ -296,24 +296,24 @@ Existing `context/memory-graph.db` is upgraded automatically on the first connec
 
 #### Automated
 
-- [x] 2.1 `recall(seed_id)` single-node graph returns one tuple with positive float score
-- [x] 2.2 `recall(A)` on A→B puts A before B (depth-0 beats depth-1 with equal weights)
-- [x] 2.3 Node with `retrieval_weight=3.0` at depth 1 outscores default node at depth 0
-- [x] 2.4 Newer node outscores 30-day-old node at same depth and weights
-- [x] 2.5 `recall("nonexistent_id")` returns `[]`
+- [x] 2.1 `recall(seed_id)` single-node graph returns one tuple with positive float score — e7e470e
+- [x] 2.2 `recall(A)` on A→B puts A before B (depth-0 beats depth-1 with equal weights) — e7e470e
+- [x] 2.3 Node with `retrieval_weight=3.0` at depth 1 outscores default node at depth 0 — e7e470e
+- [x] 2.4 Newer node outscores 30-day-old node at same depth and weights — e7e470e
+- [x] 2.5 `recall("nonexistent_id")` returns `[]` — e7e470e
 
 #### Manual
 
-- [x] 2.6 REPL demo: scores are floats in (0,1], list is sorted descending, both nodes appear
+- [x] 2.6 REPL demo: scores are floats in (0,1], list is sorted descending, both nodes appear — e7e470e
 
 ### Phase 3: Tests
 
 #### Automated
 
-- [ ] 3.1 `uv run pytest` — all 23 tests pass (15 existing + 8 new), 0 failures
-- [ ] 3.2 `context/memory-graph.db` NOT created after running pytest
+- [x] 3.1 `uv run pytest` — all 23 tests pass (15 existing + 8 new), 0 failures
+- [x] 3.2 `context/memory-graph.db` NOT created after running pytest
 
 #### Manual
 
-- [ ] 3.3 Three-node demo: A→B→C where C has `retrieval_weight=5.0`; printed ranking makes sense
-- [ ] 3.4 `sqlite3` confirms `retrieval_weight` and `trust_weight` columns with DEFAULT 1.0 on existing rows
+- [x] 3.3 Three-node demo: A→B→C where C has `retrieval_weight=5.0`; printed ranking makes sense
+- [x] 3.4 `sqlite3` confirms `retrieval_weight` and `trust_weight` columns with DEFAULT 1.0 on existing rows
