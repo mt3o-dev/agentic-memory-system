@@ -400,10 +400,10 @@ Not a concern for Slice 4. The filter runs at `git add` / checkout time on a sma
 
 #### Automated
 
-- [x] 4.1 `uv run pytest` — all 31 tests pass (23 existing + 8 new), 0 failures
-- [x] 4.2 `context/memory-graph.db` NOT created after running pytest
+- [x] 4.1 `uv run pytest` — all 31 tests pass (23 existing + 8 new), 0 failures — 36f6c11
+- [x] 4.2 `context/memory-graph.db` NOT created after running pytest — 36f6c11
 
 #### Manual
 
-- [x] 4.3 Full pipe round-trip: node data survives dump→restore intact
-- [x] 4.4 `git diff context/memory-graph.db` shows readable text output after filter is active
+- [x] 4.3 Full pipe round-trip: node data survives dump→restore intact — 36f6c11
+- [x] 4.4 `git diff context/memory-graph.db` shows readable text output after filter is active — 36f6c11
