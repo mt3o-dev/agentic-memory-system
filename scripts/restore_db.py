@@ -12,7 +12,8 @@ from agentic_memory_system.storage import MemoryStore
 def main() -> None:
     text = sys.stdin.read()
 
-    tmp_path = tempfile.mktemp(suffix=".db")
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".db")
+    os.close(tmp_fd)
     try:
         pairs = parse_dump(text)
         store = MemoryStore(tmp_path)
@@ -34,10 +35,11 @@ def main() -> None:
         print(f"restore_db error: {exc}", file=sys.stderr)
         sys.exit(1)
     finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+        for suffix in ("", "-wal", "-shm"):
+            try:
+                os.unlink(tmp_path + suffix)
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

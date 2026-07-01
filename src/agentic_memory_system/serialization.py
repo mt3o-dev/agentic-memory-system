@@ -35,7 +35,10 @@ def dump_node(node: Node, outgoing_edges: list[Edge] | None = None) -> str:
         edge_ts = edge.created_at.isoformat() if edge.created_at else ""
         lines.append(f"-> {edge.type.value} [node:{edge.target_id}] @ {edge_ts}")
     lines.append("")
-    lines.append(node.body)
+    escaped_body = "\n".join(
+        "\\---" if line == "---" else line for line in node.body.split("\n")
+    )
+    lines.append(escaped_body)
     return "\n".join(lines)
 
 
@@ -87,7 +90,7 @@ def parse_dump(text: str) -> list[tuple[Node, list[Edge]]]:
 
         for line in block_lines[1:]:
             if in_body:
-                body_lines.append(line)
+                body_lines.append("---" if line == "\\---" else line)
             elif line == "":
                 in_body = True
             else:

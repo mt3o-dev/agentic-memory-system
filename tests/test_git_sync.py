@@ -95,25 +95,7 @@ def test_store_roundtrip(store):
     n2 = store.write_node(_node(id=None, path="/b", body="Beta"))
     edge = store.write_edge(_edge(source_id=n1.id, target_id=n2.id))
 
-    rows = store._conn.execute(
-        "SELECT id FROM nodes ORDER BY created_at ASC, id ASC"
-    ).fetchall()
-    pairs = []
-    from datetime import datetime
-    from agentic_memory_system.schema import EdgeType as ET
-    for (nid,) in rows:
-        node = store.read_node(nid)
-        er = store._conn.execute(
-            "SELECT source_id, target_id, type, created_at FROM edges WHERE source_id = ?",
-            (nid,),
-        ).fetchall()
-        edges = [
-            Edge(source_id=r[0], target_id=r[1], type=ET(r[2]), created_at=datetime.fromisoformat(r[3]))
-            for r in er
-        ]
-        pairs.append((node, edges))
-
-    text = dump_all(pairs)
+    text = dump_all(store.dump_pairs())
     parsed_pairs = parse_dump(text)
 
     store2 = MemoryStore(":memory:")

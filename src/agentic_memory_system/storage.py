@@ -161,6 +161,29 @@ class MemoryStore:
         scored = [(node, _score(node, depths[node.id])) for node, _ in raw]
         return sorted(scored, key=lambda x: x[1], reverse=True)
 
+    def dump_pairs(self) -> list[tuple[Node, list[Edge]]]:
+        rows = self._conn.execute(
+            "SELECT id FROM nodes ORDER BY created_at ASC, id ASC"
+        ).fetchall()
+        result: list[tuple[Node, list[Edge]]] = []
+        for (node_id,) in rows:
+            node = self.read_node(node_id)
+            edge_rows = self._conn.execute(
+                "SELECT source_id, target_id, type, created_at FROM edges WHERE source_id = ?",
+                (node_id,),
+            ).fetchall()
+            edges = [
+                Edge(
+                    source_id=r[0],
+                    target_id=r[1],
+                    type=EdgeType(r[2]),
+                    created_at=datetime.fromisoformat(r[3]),
+                )
+                for r in edge_rows
+            ]
+            result.append((node, edges))
+        return result
+
     def close(self) -> None:
         self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         self._conn.close()
