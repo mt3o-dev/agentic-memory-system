@@ -1,0 +1,10 @@
+# SQLite WAL/SHM sidecar files (context/memory-graph.db is tracked via filter)
+*.db-wal
+*.db-shm
+
+# Python caches
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/

@@ -162,4 +162,5 @@ class MemoryStore:
         return sorted(scored, key=lambda x: x[1], reverse=True)
 
     def close(self) -> None:
+        self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         self._conn.close()
