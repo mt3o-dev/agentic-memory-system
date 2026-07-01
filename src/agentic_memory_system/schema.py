@@ -27,3 +27,14 @@ class Node(BaseModel):
     body: str
     created_at: datetime | None = None
     needs_review: bool = False
+
+
+class EdgeType(str, Enum):
+    depends_on = "DEPENDS_ON"
+
+
+class Edge(BaseModel):
+    source_id: str
+    target_id: str
+    type: EdgeType
+    created_at: datetime | None = None
