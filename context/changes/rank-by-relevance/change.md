@@ -1,7 +1,7 @@
 ---
 change_id: rank-by-relevance
 title: Rank recalled nodes by relevance using effective_score
-status: implementing
+status: implemented
 created: 2026-06-25
 updated: 2026-07-01
 

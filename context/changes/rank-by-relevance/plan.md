@@ -310,10 +310,10 @@ Existing `context/memory-graph.db` is upgraded automatically on the first connec
 
 #### Automated
 
-- [x] 3.1 `uv run pytest` — all 23 tests pass (15 existing + 8 new), 0 failures
-- [x] 3.2 `context/memory-graph.db` NOT created after running pytest
+- [x] 3.1 `uv run pytest` — all 23 tests pass (15 existing + 8 new), 0 failures — edb225e
+- [x] 3.2 `context/memory-graph.db` NOT created after running pytest — edb225e
 
 #### Manual
 
-- [x] 3.3 Three-node demo: A→B→C where C has `retrieval_weight=5.0`; printed ranking makes sense
-- [x] 3.4 `sqlite3` confirms `retrieval_weight` and `trust_weight` columns with DEFAULT 1.0 on existing rows
+- [x] 3.3 Three-node demo: A→B→C where C has `retrieval_weight=5.0`; printed ranking makes sense — edb225e
+- [x] 3.4 `sqlite3` confirms `retrieval_weight` and `trust_weight` columns with DEFAULT 1.0 on existing rows — edb225e
