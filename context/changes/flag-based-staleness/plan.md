@@ -167,40 +167,40 @@ The comparison doc (Phase 5) carries worked numeric examples for each.
 
 ### Phase 1: Schema + edge type
 #### Automated
-- [x] 1.1 Add `EdgeType.contradicts = "CONTRADICTS"` to schema.py
-- [x] 1.2 Widen `_CREATE_EDGES` SQL CHECK to include `'CONTRADICTS'`
-- [x] 1.3 CONTRADICTS edge writes, reads, and round-trips through dump/parse
+- [x] 1.1 Add `EdgeType.contradicts = "CONTRADICTS"` to schema.py — 9415b50
+- [x] 1.2 Widen `_CREATE_EDGES` SQL CHECK to include `'CONTRADICTS'` — 9415b50
+- [x] 1.3 CONTRADICTS edge writes, reads, and round-trips through dump/parse — 9415b50
 
 ### Phase 2: Contradiction write path
 #### Automated
 - [x] 2.1 `raise_contradiction()` — edge + flag + contradiction_raised event, atomic
 - [x] 2.2 `clear_contradiction()` — unset flag + contradiction_cleared event
-- [x] 2.3 `_latest_severity()` helper
+- [x] 2.3 `_latest_severity()` helper — 9415b50
 
 ### Phase 3: PenaltyStrategy port + recall integration
 #### Automated
-- [x] 3.1 penalty.py: `compute_penalty`, `ScoreComponents`, `PenaltyStrategy` Protocol
-- [x] 3.2 Adapters: TrustTermPenalty (default), WholeScorePenalty, TrustRetrievalPenalty
-- [x] 3.3 `MemoryStore(penalty_strategy=...)` wiring, default TrustTermPenalty
-- [x] 3.4 recall() builds ScoreComponents + penalty, delegates composition; unflagged unchanged
+- [x] 3.1 penalty.py: `compute_penalty`, `ScoreComponents`, `PenaltyStrategy` Protocol — 9415b50
+- [x] 3.2 Adapters: TrustTermPenalty (default), WholeScorePenalty, TrustRetrievalPenalty — 9415b50
+- [x] 3.3 `MemoryStore(penalty_strategy=...)` wiring, default TrustTermPenalty — 9415b50
+- [x] 3.4 recall() builds ScoreComponents + penalty, delegates composition; unflagged unchanged — 9415b50
 
 ### Phase 4: Resolver ladder (ports; rules real, rest stubbed)
 #### Automated
-- [x] 4.1 resolver.py: `ResolverVerdict`, `Resolver` Protocol
-- [x] 4.2 `RulesResolver` (real deterministic rules)
-- [x] 4.3 `EvaluatorResolver` + `HumanResolver` stubs
-- [x] 4.4 `LadderResolver` chaining with lifetime-tier gating
+- [x] 4.1 resolver.py: `ResolverVerdict`, `Resolver` Protocol — 9415b50
+- [x] 4.2 `RulesResolver` (real deterministic rules) — 9415b50
+- [x] 4.3 `EvaluatorResolver` + `HumanResolver` stubs — 9415b50
+- [x] 4.4 `LadderResolver` chaining with lifetime-tier gating — 9415b50
 
 ### Phase 5: Penalty-strategies ADR
 #### Automated
-- [x] 5.1 Write penalty-strategies.md (comparison + worked numeric examples)
-- [x] 5.2 Docstrings on each adapter pointing to the ADR
+- [x] 5.1 Write penalty-strategies.md (comparison + worked numeric examples) — 9415b50
+- [x] 5.2 Docstrings on each adapter pointing to the ADR — 9415b50
 
 ### Phase 6: Tests
 #### Automated
-- [x] 6.1 test_penalty_strategies.py (Hypothesis property tests per strategy)
-- [x] 6.2 test_contradiction_flow.py (integration: exact-restore invariant + round-trip)
-- [x] 6.3 test_resolver.py (rules verdicts, stub verdicts, ladder tier gating)
-- [x] 6.4 Full existing suite still green
+- [x] 6.1 test_penalty_strategies.py (Hypothesis property tests per strategy) — 9415b50
+- [x] 6.2 test_contradiction_flow.py (integration: exact-restore invariant + round-trip) — 9415b50
+- [x] 6.3 test_resolver.py (rules verdicts, stub verdicts, ladder tier gating) — 9415b50
+- [x] 6.4 Full existing suite still green — 9415b50
 #### Manual
 - [ ] 6.5 Eyeball a recall() ordering before/after raise+clear on a small graph
