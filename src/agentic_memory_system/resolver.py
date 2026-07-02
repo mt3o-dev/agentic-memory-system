@@ -16,6 +16,7 @@ on a schedule or at review time is Slice 9/10 / MT3-27 territory.
 """
 
 from enum import Enum
+from typing import Protocol
 
 from .schema import Node, Event, EventType, Tier
 
@@ -24,6 +25,16 @@ class ResolverVerdict(str, Enum):
     auto_clear = "auto_clear"
     defer = "defer"
     needs_human = "needs_human"
+
+
+class Resolver(Protocol):
+    """Decide what should happen to a flagged node's contradiction.
+
+    Mirrors the port style of ``FoldStrategy`` and ``PenaltyStrategy``: a single-method
+    interface the tiers below (and ``LadderResolver``) all conform to structurally.
+    """
+
+    def resolve(self, node: Node, events: list[Event]) -> ResolverVerdict: ...
 
 
 # Event types that carry trust signal for the rules tier.

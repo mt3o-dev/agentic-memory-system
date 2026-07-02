@@ -95,6 +95,37 @@ class MemoryStore:
                 )
             except sqlite3.OperationalError:
                 pass  # column already exists
+        self._migrate_edges_check()
+
+    def _migrate_edges_check(self) -> None:
+        """Widen the edges ``type`` CHECK on DBs created before CONTRADICTS existed.
+
+        SQLite can't ``ALTER`` a CHECK constraint in place and ``CREATE TABLE IF NOT
+        EXISTS`` won't touch a table that already exists, so a DB created with the old
+        ``CHECK(type IN ('DEPENDS_ON'))`` would reject a CONTRADICTS edge. Detect that
+        case and rebuild the table (rename → recreate with the current schema → copy →
+        drop), following SQLite's recommended table-alteration procedure with foreign
+        keys disabled for the duration. A no-op on fresh DBs (whose CHECK already lists
+        CONTRADICTS) and on already-migrated DBs.
+        """
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='edges'"
+        ).fetchone()
+        if row is None or row[0] is None or "CONTRADICTS" in row[0]:
+            return
+        # PRAGMA foreign_keys must be toggled outside any open transaction.
+        self._conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            with self._conn:
+                self._conn.execute("ALTER TABLE edges RENAME TO _edges_old")
+                self._conn.execute(_CREATE_EDGES)
+                self._conn.execute(
+                    "INSERT INTO edges (source_id, target_id, type, created_at) "
+                    "SELECT source_id, target_id, type, created_at FROM _edges_old"
+                )
+                self._conn.execute("DROP TABLE _edges_old")
+        finally:
+            self._conn.execute("PRAGMA foreign_keys=ON")
 
     def write_node(self, node: Node) -> Node:
         node_id = node.id if node.id is not None else str(uuid.uuid4())
@@ -184,8 +215,11 @@ class MemoryStore:
         )
         event_id = str(uuid.uuid4())
         with self._conn:
+            # INSERT OR IGNORE: re-raising on an existing pair is idempotent for the edge
+            # (it's a set-membership fact) while the flag update + event below still apply,
+            # so the contradiction_raised event log carries the severity history.
             self._conn.execute(
-                "INSERT INTO edges (source_id, target_id, type, created_at) VALUES (?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO edges (source_id, target_id, type, created_at) VALUES (?, ?, ?, ?)",
                 (source_id, target_id, EdgeType.contradicts.value, created_at.isoformat()),
             )
             self._conn.execute(
