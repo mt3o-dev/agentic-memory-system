@@ -34,6 +34,7 @@ class Node(BaseModel):
 
 class EdgeType(str, Enum):
     depends_on = "DEPENDS_ON"
+    contradicts = "CONTRADICTS"
 
 
 class Edge(BaseModel):

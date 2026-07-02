@@ -5,6 +5,12 @@ from pathlib import Path
 
 from .schema import Node, NodeType, Tier, Edge, EdgeType, Event, EventType
 from .fold import FoldStrategy, SumAndClampFold
+from .penalty import (
+    PenaltyStrategy,
+    TrustTermPenalty,
+    ScoreComponents,
+    compute_penalty,
+)
 
 _CREATE_NODES = """
 CREATE TABLE IF NOT EXISTS nodes (
@@ -25,7 +31,7 @@ _CREATE_EDGES = """
 CREATE TABLE IF NOT EXISTS edges (
     source_id   TEXT NOT NULL REFERENCES nodes(id),
     target_id   TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON')),
+    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON','CONTRADICTS')),
     created_at  TEXT NOT NULL,
     PRIMARY KEY (source_id, target_id, type)
 )
@@ -71,11 +77,13 @@ class MemoryStore:
         self,
         db_path: str | Path = "context/memory-graph.db",
         fold_strategy: FoldStrategy | None = None,
+        penalty_strategy: PenaltyStrategy | None = None,
     ) -> None:
         self._conn = sqlite3.connect(str(db_path))
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._fold_strategy = fold_strategy or SumAndClampFold()
+        self._penalty_strategy = penalty_strategy or TrustTermPenalty()
         with self._conn:
             self._conn.execute(_CREATE_NODES)
             self._conn.execute(_CREATE_EDGES)
@@ -136,6 +144,99 @@ class MemoryStore:
                 (edge.source_id, edge.target_id, edge.type.value, created_at.isoformat()),
             )
         return edge.model_copy(update={"created_at": created_at})
+
+    def _latest_severity(self, node_id: str) -> float:
+        """Weight of the most recent contradiction_raised event, or 1.0 if none.
+
+        This is the severity term the query-time penalty reads. It is deliberately
+        *not* folded into trust_weight — a contradiction flags, it does not decrement
+        (MT3-23). trust_weight is only ever changed by an explicit recompute_trust call.
+        """
+        row = self._conn.execute(
+            "SELECT weight FROM events WHERE node_id = ? AND type = ? "
+            "ORDER BY created_at DESC, id DESC LIMIT 1",
+            (node_id, EventType.contradiction_raised.value),
+        ).fetchone()
+        return row[0] if row is not None else 1.0
+
+    def raise_contradiction(
+        self,
+        source_id: str,
+        target_id: str,
+        *,
+        severity: float = 1.0,
+        source: str,
+        reason: str,
+    ) -> Edge:
+        """Flag ``target_id`` as needing review because ``source_id`` contradicts it.
+
+        Atomically writes a CONTRADICTS edge, sets the target's needs_review flag, and
+        appends a contradiction_raised event (carrying ``severity`` as its weight, for
+        the query-time penalty). Does NOT touch trust_weight — the demotion is entirely
+        flag-driven at recall time, so clear_contradiction can restore the score for free.
+        """
+        created_at = datetime.now(timezone.utc)
+        edge = Edge(
+            source_id=source_id,
+            target_id=target_id,
+            type=EdgeType.contradicts,
+            created_at=created_at,
+        )
+        event_id = str(uuid.uuid4())
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO edges (source_id, target_id, type, created_at) VALUES (?, ?, ?, ?)",
+                (source_id, target_id, EdgeType.contradicts.value, created_at.isoformat()),
+            )
+            self._conn.execute(
+                "UPDATE nodes SET needs_review = 1 WHERE id = ?", (target_id,)
+            )
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id,
+                    target_id,
+                    EventType.contradiction_raised.value,
+                    severity,
+                    -1,
+                    source,
+                    reason,
+                    created_at.isoformat(),
+                ),
+            )
+        return edge
+
+    def clear_contradiction(self, target_id: str, *, source: str, reason: str) -> None:
+        """Confirm a false alarm: clear the review flag and log the clearance.
+
+        Atomically unsets needs_review and appends a contradiction_cleared event whose
+        weight mirrors the latest contradiction's severity (polarity +1), so that a
+        later fold cancels the raise. Because the recall penalty is flag-driven and
+        trust_weight was never decremented, clearing the flag restores the node's
+        effective score exactly, at no cost.
+        """
+        created_at = datetime.now(timezone.utc)
+        event_id = str(uuid.uuid4())
+        severity = self._latest_severity(target_id)
+        with self._conn:
+            self._conn.execute(
+                "UPDATE nodes SET needs_review = 0 WHERE id = ?", (target_id,)
+            )
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id,
+                    target_id,
+                    EventType.contradiction_cleared.value,
+                    severity,
+                    1,
+                    source,
+                    reason,
+                    created_at.isoformat(),
+                ),
+            )
 
     def append_event(self, event: Event) -> Event:
         event_id = event.id if event.id is not None else str(uuid.uuid4())
@@ -230,7 +331,24 @@ class MemoryStore:
             hop_decay = _HOP_HALFLIFE / (depth + _HOP_HALFLIFE)
             age_days = (now - node.created_at).total_seconds() / 86400 if node.created_at else 0.0
             recency = _RECENCY_HALFLIFE_DAYS / (age_days + _RECENCY_HALFLIFE_DAYS)
-            return hop_decay * (_ALPHA * node.retrieval_weight + _BETA * node.trust_weight + _GAMMA * recency)
+            # Penalty is flag-driven and applied only at query time. Unflagged nodes get
+            # penalty 0, so every strategy reduces to the original formula (no regression);
+            # severity is looked up only for the few flagged nodes.
+            penalty = (
+                compute_penalty(node, self._latest_severity(node.id))
+                if node.needs_review
+                else 0.0
+            )
+            components = ScoreComponents(
+                hop_decay=hop_decay,
+                alpha=_ALPHA,
+                retrieval=node.retrieval_weight,
+                beta=_BETA,
+                trust=node.trust_weight,
+                gamma=_GAMMA,
+                recency=recency,
+            )
+            return self._penalty_strategy.apply(components, penalty)
 
         scored = [(node, _score(node, depths[node.id])) for node, _ in raw]
         return sorted(scored, key=lambda x: x[1], reverse=True)

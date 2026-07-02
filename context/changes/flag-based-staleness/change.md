@@ -1,9 +1,9 @@
 ---
 change_id: flag-based-staleness
 title: Flag-based staleness — CONTRADICTS edge sets needs_review with scoring penalty
-status: new
+status: implementing
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-07-02
 archived_at: null
 ---
 
