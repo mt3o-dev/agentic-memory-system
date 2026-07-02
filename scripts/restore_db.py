@@ -18,14 +18,19 @@ def main() -> None:
         pairs = parse_dump(text)
         store = MemoryStore(tmp_path)
 
-        # nodes first (FK constraint requires all nodes before any edges)
-        for node, _edges in pairs:
+        # nodes first (FK constraint requires all nodes before any edges/events)
+        for node, _edges, _events in pairs:
             store.write_node(node)
 
         # edges second
-        for _node, edges in pairs:
+        for _node, edges, _events in pairs:
             for edge in edges:
                 store.write_edge(edge)
+
+        # events third
+        for _node, _edges, events in pairs:
+            for event in events:
+                store.append_event(event)
 
         store.close()
 

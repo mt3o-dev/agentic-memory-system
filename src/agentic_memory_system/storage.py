@@ -3,7 +3,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .schema import Node, NodeType, Tier, Edge, EdgeType
+from .schema import Node, NodeType, Tier, Edge, EdgeType, Event, EventType
+from .fold import FoldStrategy, SumAndClampFold
 
 _CREATE_NODES = """
 CREATE TABLE IF NOT EXISTS nodes (
@@ -30,6 +31,19 @@ CREATE TABLE IF NOT EXISTS edges (
 )
 """
 
+_CREATE_EVENTS = """
+CREATE TABLE IF NOT EXISTS events (
+    id          TEXT PRIMARY KEY,
+    node_id     TEXT NOT NULL REFERENCES nodes(id),
+    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change')),
+    weight      REAL NOT NULL,
+    polarity    INTEGER NOT NULL CHECK(polarity IN (-1, 1)),
+    source      TEXT NOT NULL,
+    reason      TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+)
+"""
+
 _ALPHA = 0.5
 _BETA = 0.3
 _GAMMA = 0.2
@@ -53,13 +67,19 @@ JOIN nodes n ON n.id = r.node_id
 
 
 class MemoryStore:
-    def __init__(self, db_path: str | Path = "context/memory-graph.db") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "context/memory-graph.db",
+        fold_strategy: FoldStrategy | None = None,
+    ) -> None:
         self._conn = sqlite3.connect(str(db_path))
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        self._fold_strategy = fold_strategy or SumAndClampFold()
         with self._conn:
             self._conn.execute(_CREATE_NODES)
             self._conn.execute(_CREATE_EDGES)
+            self._conn.execute(_CREATE_EVENTS)
         for col in ("retrieval_weight", "trust_weight"):
             try:
                 self._conn.execute(
@@ -117,6 +137,60 @@ class MemoryStore:
             )
         return edge.model_copy(update={"created_at": created_at})
 
+    def append_event(self, event: Event) -> Event:
+        event_id = event.id if event.id is not None else str(uuid.uuid4())
+        created_at = event.created_at if event.created_at is not None else datetime.now(timezone.utc)
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id,
+                    event.node_id,
+                    event.type.value,
+                    event.weight,
+                    event.polarity,
+                    event.source,
+                    event.reason,
+                    created_at.isoformat(),
+                ),
+            )
+        return event.model_copy(update={"id": event_id, "created_at": created_at})
+
+    def read_events(self, node_id: str) -> list[Event]:
+        rows = self._conn.execute(
+            "SELECT id, node_id, type, weight, polarity, source, reason, created_at "
+            "FROM events WHERE node_id = ? ORDER BY created_at ASC, id ASC",
+            (node_id,),
+        ).fetchall()
+        return [
+            Event(
+                id=r[0],
+                node_id=r[1],
+                type=EventType(r[2]),
+                weight=r[3],
+                polarity=r[4],
+                source=r[5],
+                reason=r[6],
+                created_at=datetime.fromisoformat(r[7]),
+            )
+            for r in rows
+        ]
+
+    def recompute_trust(self, node_id: str, strategy: FoldStrategy | None = None) -> float:
+        events = self.read_events(node_id)
+        trust_weight = (strategy or self._fold_strategy).fold(events)
+        with self._conn:
+            self._conn.execute(
+                "UPDATE nodes SET trust_weight = ? WHERE id = ?", (trust_weight, node_id)
+            )
+        return trust_weight
+
+    def compact_events(self, node_id: str) -> None:
+        # Deliberate no-op stub: compaction strategy is an open design question
+        # (MT3-28), deferred beyond this slice.
+        pass
+
     def traverse(self, node_id: str) -> list[tuple[Node, Edge | None]]:
         rows = self._conn.execute(_TRAVERSE_CTE, (node_id,)).fetchall()
         result: list[tuple[Node, Edge | None]] = []
@@ -161,11 +235,11 @@ class MemoryStore:
         scored = [(node, _score(node, depths[node.id])) for node, _ in raw]
         return sorted(scored, key=lambda x: x[1], reverse=True)
 
-    def dump_pairs(self) -> list[tuple[Node, list[Edge]]]:
+    def dump_pairs(self) -> list[tuple[Node, list[Edge], list[Event]]]:
         rows = self._conn.execute(
             "SELECT id FROM nodes ORDER BY created_at ASC, id ASC"
         ).fetchall()
-        result: list[tuple[Node, list[Edge]]] = []
+        result: list[tuple[Node, list[Edge], list[Event]]] = []
         for (node_id,) in rows:
             node = self.read_node(node_id)
             edge_rows = self._conn.execute(
@@ -181,7 +255,8 @@ class MemoryStore:
                 )
                 for r in edge_rows
             ]
-            result.append((node, edges))
+            events = self.read_events(node_id)
+            result.append((node, edges, events))
         return result
 
     def close(self) -> None:

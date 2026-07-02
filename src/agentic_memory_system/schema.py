@@ -1,5 +1,6 @@
 from enum import Enum
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -39,4 +40,23 @@ class Edge(BaseModel):
     source_id: str
     target_id: str
     type: EdgeType
+    created_at: datetime | None = None
+
+
+class EventType(str, Enum):
+    contradiction_raised = "contradiction_raised"
+    contradiction_cleared = "contradiction_cleared"
+    confirmation_added = "confirmation_added"
+    manual_review = "manual_review"
+    tier_change = "tier_change"
+
+
+class Event(BaseModel):
+    id: str | None = None
+    node_id: str
+    type: EventType
+    weight: float
+    polarity: Literal[-1, 1]
+    source: str
+    reason: str
     created_at: datetime | None = None

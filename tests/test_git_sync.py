@@ -44,22 +44,22 @@ def test_dump_node_edge_has_timestamp():
 
 
 def test_dump_all_header():
-    out = dump_all([(_node(), [])])
+    out = dump_all([(_node(), [], [])])
     assert out.startswith("# agentic-memory-system dump")
 
 
 def test_dump_all_separator():
     n1 = _node(id="n1", path="/a")
     n2 = _node(id="n2", path="/b")
-    out = dump_all([(n1, []), (n2, [])])
+    out = dump_all([(n1, [], []), (n2, [], [])])
     assert "\n---\n" in out
 
 
 def test_parse_dump_roundtrip_node():
     node = _node(retrieval_weight=1.5, trust_weight=0.8)
-    parsed = parse_dump(dump_all([(node, [])]))
+    parsed = parse_dump(dump_all([(node, [], [])]))
     assert len(parsed) == 1
-    pn, pe = parsed[0]
+    pn, pe, pev = parsed[0]
     assert pn.id == node.id
     assert pn.type == node.type
     assert pn.tier == node.tier
@@ -70,14 +70,15 @@ def test_parse_dump_roundtrip_node():
     assert pn.retrieval_weight == 1.5
     assert pn.trust_weight == 0.8
     assert pe == []
+    assert pev == []
 
 
 def test_parse_dump_roundtrip_edge():
     node = _node()
     edge = _edge()
-    parsed = parse_dump(dump_all([(node, [edge])]))
+    parsed = parse_dump(dump_all([(node, [edge], [])]))
     assert len(parsed) == 1
-    _, pe = parsed[0]
+    _, pe, _ = parsed[0]
     assert len(pe) == 1
     assert pe[0].source_id == edge.source_id
     assert pe[0].target_id == edge.target_id
@@ -99,9 +100,9 @@ def test_store_roundtrip(store):
     parsed_pairs = parse_dump(text)
 
     store2 = MemoryStore(":memory:")
-    for node, _ in parsed_pairs:
+    for node, _edges, _events in parsed_pairs:
         store2.write_node(node)
-    for _, edges in parsed_pairs:
+    for _node_, edges, _events in parsed_pairs:
         for e in edges:
             store2.write_edge(e)
 

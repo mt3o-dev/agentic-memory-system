@@ -1,9 +1,9 @@
 ---
 change_id: journal-event-sourced-trust
 title: Append-only event journal with trust computed by folding events
-status: new
+status: planned
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-07-02
 archived_at: null
 ---
 
