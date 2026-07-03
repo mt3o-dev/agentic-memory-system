@@ -64,12 +64,13 @@ WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) 
     SELECT e.target_id, e.source_id, e.target_id, e.type, e.created_at
     FROM edges e
     JOIN reachable r ON e.source_id = r.node_id
+    WHERE e.type IN ('DEPENDS_ON','CONTRADICTS')
 )
 SELECT r.node_id, r.source_id, r.target_id, r.etype, r.edge_created_at,
        n.id, n.type, n.tier, n.path, n.body, n.created_at, n.needs_review,
        n.retrieval_weight, n.trust_weight, n.archived
 FROM reachable r
-JOIN nodes n ON n.id = r.node_id
+JOIN nodes n ON n.id = r.node_id AND n.archived = 0 AND n.type != 'slice'
 """
 
 
@@ -515,6 +516,12 @@ class MemoryStore:
         return changed
 
     def traverse(self, node_id: str) -> list[tuple[Node, Edge | None]]:
+        # Content channel: an archived (dormant) or slice (anchor) seed yields nothing,
+        # so a dormant node's live neighbours don't leak back in via seeding. The CTE
+        # itself excludes SCOPED_TO edges and archived/slice nodes from the results.
+        seed = self.read_node(node_id)
+        if seed is None or seed.archived or seed.type == NodeType.slice:
+            return []
         rows = self._conn.execute(_TRAVERSE_CTE, (node_id,)).fetchall()
         result: list[tuple[Node, Edge | None]] = []
         for row in rows:

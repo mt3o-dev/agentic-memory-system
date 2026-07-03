@@ -335,22 +335,22 @@ Three CHECK-widening rebuilds + one `ADD COLUMN` bring an existing `context/memo
 ### Phase 2: Slice Lifecycle, Root Set & Mark-Sweep
 
 #### Automated
-- [x] 2.1 Lifecycle/root-set/sweep Phase 2 tests pass
-- [x] 2.2 `activate`/`deactivate` → `is_slice_active` latest-wins
+- [x] 2.1 Lifecycle/root-set/sweep Phase 2 tests pass — b379b26
+- [x] 2.2 `activate`/`deactivate` → `is_slice_active` latest-wins — b379b26
 
 #### Manual
-- [x] 2.3 Hand-built graph: active→sweep archives nothing; inactive→sweep archives details, foundation untouched; reactivate→sweep restores
-- [x] 2.4 `recompute_trust` unchanged by weight-0 archival/lifecycle events
+- [x] 2.3 Hand-built graph: active→sweep archives nothing; inactive→sweep archives details, foundation untouched; reactivate→sweep restores — b379b26
+- [x] 2.4 `recompute_trust` unchanged by weight-0 archival/lifecycle events — b379b26
 
 ### Phase 3: Retrieval Channel Separation
 
 #### Automated
-- [ ] 3.1 Channel/recall/seed Phase 3 tests pass
-- [ ] 3.2 Existing retrieval tests (`rank_by_relevance`, `relate_two_nodes`, `capture_recall`) unchanged
+- [x] 3.1 Channel/recall/seed Phase 3 tests pass
+- [x] 3.2 Existing retrieval tests (`rank_by_relevance`, `relate_two_nodes`, `capture_recall`) unchanged
 
 #### Manual
-- [ ] 3.3 `SCOPED_TO` absent from `recall` traversal; `DEPENDS_ON` still present
-- [ ] 3.4 `recall(archived)` and `recall(slice)` both return `[]`
+- [x] 3.3 `SCOPED_TO` absent from `recall` traversal; `DEPENDS_ON` still present
+- [x] 3.4 `recall(archived)` and `recall(slice)` both return `[]`
 
 ### Phase 4: Serialization Round-Trip
 

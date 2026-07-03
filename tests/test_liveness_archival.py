@@ -119,3 +119,42 @@ def test_archival_events_are_trust_neutral(store):
     store.activate_slice(sl.id)
     store.sweep()
     assert store.recompute_trust(detail.id) == trust_before  # archival events don't perturb trust
+
+
+# --- retrieval channel separation ---
+
+def test_scoped_to_hidden_from_recall(store):
+    d1 = store.write_node(_node("d1", "detail1"))
+    d2 = store.write_node(_node("d2", "detail2"))
+    f = store.write_node(_node("f", "found", type=NodeType.concept, tier=Tier.long_term))
+    store.write_edge(Edge(source_id=d1.id, target_id=f.id, type=EdgeType.depends_on))
+    _scoped(store, d1.id, d2.id)  # d1 -> d2 via SCOPED_TO (liveness channel)
+    ids = {n.id for n, _ in store.recall(d1.id)}
+    assert d1.id in ids  # seed
+    assert f.id in ids   # DEPENDS_ON is followed
+    assert d2.id not in ids  # SCOPED_TO is NOT followed by content recall
+
+
+def test_recall_excludes_archived_result(store):
+    sl = store.write_node(_slice())
+    archived = store.write_node(_node("a", "archived-detail"))
+    _scoped(store, sl.id, archived.id)  # scoped to an inactive slice -> will archive
+    live = store.write_node(_node("live", "live", type=NodeType.concept, tier=Tier.long_term))
+    store.write_edge(Edge(source_id=live.id, target_id=archived.id, type=EdgeType.depends_on))
+    store.sweep()
+    assert store.read_node(archived.id).archived is True
+    ids = {n.id for n, _ in store.recall(live.id)}
+    assert live.id in ids
+    assert archived.id not in ids  # archived node filtered from results
+
+
+def test_archived_and_slice_seed_return_empty(store):
+    sl = store.write_node(_slice())
+    detail = store.write_node(_node("d", "detail"))
+    _scoped(store, sl.id, detail.id)
+    store.sweep()  # slice inactive -> detail archived
+    assert store.read_node(detail.id).archived is True
+    assert store.recall(detail.id) == []  # archived seed -> []
+    assert store.recall(sl.id) == []      # slice seed -> []
+    assert store.traverse(detail.id) == []
+    assert store.traverse(sl.id) == []
