@@ -197,3 +197,45 @@ def test_archived_defaults_false_when_header_absent():
     )
     parsed = parse_dump(older_dump)
     assert parsed[0][0].archived is False
+
+
+# --- vertical demo (runnable definition-of-done artifact) ---
+
+def test_full_slice_demo(store):
+    # Foundation (long-term root), a slice, two details scoped to it; the details
+    # depend on the foundation via a content edge so they're recall-able when live.
+    foundation = store.write_node(_node("f", "foundation", type=NodeType.concept, tier=Tier.long_term))
+    sl = store.write_node(_slice())
+    d1 = store.write_node(_node("d1", "detail1"))
+    d2 = store.write_node(_node("d2", "detail2"))
+    _scoped(store, sl.id, d1.id)
+    _scoped(store, sl.id, d2.id)
+    store.write_edge(Edge(source_id=d1.id, target_id=foundation.id, type=EdgeType.depends_on))
+    store.write_edge(Edge(source_id=d2.id, target_id=foundation.id, type=EdgeType.depends_on))
+
+    # active → sweep archives nothing; a detail recalls the foundation it depends on
+    store.activate_slice(sl.id)
+    store.sweep()
+    assert store.read_node(d1.id).archived is False
+    assert foundation.id in {n.id for n, _ in store.recall(d1.id)}
+
+    # deactivate → sweep: details archive, foundation survives, details drop out of recall
+    store.deactivate_slice(sl.id)
+    store.sweep()
+    assert store.read_node(foundation.id).archived is False
+    assert store.read_node(d1.id).archived is True
+    assert store.read_node(d2.id).archived is True
+    assert store.recall(d1.id) == []  # archived seed is dormant
+
+    # reactivate → sweep: details come back wholesale
+    store.activate_slice(sl.id)
+    store.sweep()
+    assert store.read_node(d1.id).archived is False
+    assert store.read_node(d2.id).archived is False
+
+    # the final state round-trips losslessly through the git-sync codec
+    by_id = {n.id: n for n, _, _ in parse_dump(dump_all(store.dump_pairs()))}
+    assert by_id[sl.id].type == NodeType.slice
+    assert by_id[foundation.id].archived is False
+    assert by_id[d1.id].archived is False
+    assert by_id[d2.id].archived is False

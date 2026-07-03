@@ -355,21 +355,21 @@ Three CHECK-widening rebuilds + one `ADD COLUMN` bring an existing `context/memo
 ### Phase 4: Serialization Round-Trip
 
 #### Automated
-- [x] 4.1 Serialization/round-trip Phase 4 tests pass
-- [x] 4.2 Slice + `SCOPED_TO` + `archived=True` + `slice_deactivated` round-trip field-by-field
-- [x] 4.3 `tests/test_git_sync.py` still passes
+- [x] 4.1 Serialization/round-trip Phase 4 tests pass — fc5289d
+- [x] 4.2 Slice + `SCOPED_TO` + `archived=True` + `slice_deactivated` round-trip field-by-field — fc5289d
+- [x] 4.3 `tests/test_git_sync.py` still passes — fc5289d
 
 #### Manual
-- [x] 4.4 `dump_db.py`/`restore_db.py` round-trip preserves slice/`SCOPED_TO`/`archived` counts
+- [x] 4.4 `dump_db.py`/`restore_db.py` round-trip preserves slice/`SCOPED_TO`/`archived` counts — fc5289d
 
 ### Phase 5: Tests & Vertical Demo
 
 #### Automated
-- [ ] 5.1 All `tests/test_liveness_archival.py` tests pass (incl. both canonical confirmations, transitivity, idempotence)
-- [ ] 5.2 Full suite green
+- [x] 5.1 All `tests/test_liveness_archival.py` tests pass (incl. both canonical confirmations, transitivity, idempotence)
+- [x] 5.2 Full suite green
 
 #### Manual
-- [ ] 5.3 `test_full_slice_demo` reads as the runnable-demo definition-of-done artifact
+- [x] 5.3 `test_full_slice_demo` reads as the runnable-demo definition-of-done artifact
 
 ### Post-implementation
 - [ ] 6.1 Update MT3-18 with what was decided and why (materialized-archived via explicit sweep, journal lifecycle events, slice→detail SCOPED_TO, liveness-only channel, archive-only scope)
