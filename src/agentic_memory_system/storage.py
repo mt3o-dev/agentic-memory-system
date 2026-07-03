@@ -408,6 +408,112 @@ class MemoryStore:
         # (MT3-28), deferred beyond this slice.
         pass
 
+    # --- slice lifecycle (active-state derived by folding journal events) ---
+
+    def activate_slice(self, slice_id: str, *, source: str = "lifecycle", reason: str = "") -> Event:
+        """Mark a slice active by appending a trust-neutral ``slice_activated`` event."""
+        return self.append_event(
+            Event(
+                node_id=slice_id,
+                type=EventType.slice_activated,
+                weight=0.0,
+                polarity=1,
+                source=source,
+                reason=reason,
+            )
+        )
+
+    def deactivate_slice(self, slice_id: str, *, source: str = "lifecycle", reason: str = "") -> Event:
+        """Mark a slice inactive by appending a trust-neutral ``slice_deactivated`` event."""
+        return self.append_event(
+            Event(
+                node_id=slice_id,
+                type=EventType.slice_deactivated,
+                weight=0.0,
+                polarity=-1,
+                source=source,
+                reason=reason,
+            )
+        )
+
+    def is_slice_active(self, slice_id: str) -> bool:
+        """Fold a slice's lifecycle events: active iff the latest is ``slice_activated``.
+
+        No lifecycle events → inactive (a slice must be explicitly activated).
+        """
+        row = self._conn.execute(
+            "SELECT type FROM events WHERE node_id = ? "
+            "AND type IN ('slice_activated','slice_deactivated') "
+            "ORDER BY created_at DESC, id DESC LIMIT 1",
+            (slice_id,),
+        ).fetchone()
+        return row is not None and row[0] == EventType.slice_activated.value
+
+    # --- liveness / archival (mark-sweep reachability from the root set) ---
+
+    def _active_slice_ids(self) -> list[str]:
+        slice_ids = [
+            r[0]
+            for r in self._conn.execute(
+                "SELECT id FROM nodes WHERE type = 'slice'"
+            ).fetchall()
+        ]
+        return [sid for sid in slice_ids if self.is_slice_active(sid)]
+
+    def sweep(self, *, source: str = "sweep", reason: str = "mark-sweep liveness") -> dict[str, bool]:
+        """Recompute liveness and materialize each content node's ``archived`` state.
+
+        Root set = long-term/lifetime content nodes ∪ currently-active slices. The live
+        set is the root set plus everything reachable from an active-slice root by
+        following ``SCOPED_TO`` edges (slice → detail) transitively. Content nodes not in
+        the live set are archived; nodes not scoped to any active slice therefore go
+        dormant, while foundations (root tiers) stay live regardless. Slice nodes are
+        never archived. Each archived/reactivated transition is journaled with a
+        trust-neutral (weight-0) event. Returns the ``{node_id: archived}`` map of nodes
+        whose state changed.
+        """
+        active = self._active_slice_ids()
+        placeholders = ",".join("?" for _ in active) if active else "NULL"
+        mark_query = (
+            "WITH RECURSIVE live(node_id) AS ("
+            "  SELECT id FROM nodes WHERE tier IN ('long-term','lifetime') AND type != 'slice'"
+            f"  UNION SELECT id FROM nodes WHERE id IN ({placeholders})"
+            "  UNION SELECT e.target_id FROM edges e JOIN live l ON e.source_id = l.node_id"
+            "        WHERE e.type = 'SCOPED_TO'"
+            ") SELECT node_id FROM live"
+        )
+        live = {r[0] for r in self._conn.execute(mark_query, active).fetchall()}
+
+        rows = self._conn.execute(
+            "SELECT id, archived FROM nodes WHERE type != 'slice'"
+        ).fetchall()
+        changed: dict[str, bool] = {}
+        with self._conn:
+            for node_id, archived_old in rows:
+                archived_new = node_id not in live
+                if bool(archived_old) == archived_new:
+                    continue
+                self._conn.execute(
+                    "UPDATE nodes SET archived = ? WHERE id = ?",
+                    (int(archived_new), node_id),
+                )
+                self._conn.execute(
+                    "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        str(uuid.uuid4()),
+                        node_id,
+                        (EventType.archived if archived_new else EventType.reactivated).value,
+                        0.0,
+                        -1 if archived_new else 1,
+                        source,
+                        reason,
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                changed[node_id] = archived_new
+        return changed
+
     def traverse(self, node_id: str) -> list[tuple[Node, Edge | None]]:
         rows = self._conn.execute(_TRAVERSE_CTE, (node_id,)).fetchall()
         result: list[tuple[Node, Edge | None]] = []

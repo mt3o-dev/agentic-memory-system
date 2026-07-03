@@ -325,22 +325,22 @@ Three CHECK-widening rebuilds + one `ADD COLUMN` bring an existing `context/memo
 ### Phase 1: Schema, DDL & Migrations
 
 #### Automated
-- [x] 1.1 Enums present (`NodeType.slice`, `EdgeType.scoped_to`, `EventType.archived` et al.)
-- [x] 1.2 Full pre-existing suite still green after additive schema change
-- [x] 1.3 Fresh `MemoryStore` creates `nodes` with an `archived` column
+- [x] 1.1 Enums present (`NodeType.slice`, `EdgeType.scoped_to`, `EventType.archived` et al.) — b7d7b06
+- [x] 1.2 Full pre-existing suite still green after additive schema change — b7d7b06
+- [x] 1.3 Fresh `MemoryStore` creates `nodes` with an `archived` column — b7d7b06
 
 #### Manual
-- [x] 1.4 A copy of the committed old-schema DB opens with CHECKs widened + `archived` added, zero data loss
+- [x] 1.4 A copy of the committed old-schema DB opens with CHECKs widened + `archived` added, zero data loss — b7d7b06
 
 ### Phase 2: Slice Lifecycle, Root Set & Mark-Sweep
 
 #### Automated
-- [ ] 2.1 Lifecycle/root-set/sweep Phase 2 tests pass
-- [ ] 2.2 `activate`/`deactivate` → `is_slice_active` latest-wins
+- [x] 2.1 Lifecycle/root-set/sweep Phase 2 tests pass
+- [x] 2.2 `activate`/`deactivate` → `is_slice_active` latest-wins
 
 #### Manual
-- [ ] 2.3 Hand-built graph: active→sweep archives nothing; inactive→sweep archives details, foundation untouched; reactivate→sweep restores
-- [ ] 2.4 `recompute_trust` unchanged by weight-0 archival/lifecycle events
+- [x] 2.3 Hand-built graph: active→sweep archives nothing; inactive→sweep archives details, foundation untouched; reactivate→sweep restores
+- [x] 2.4 `recompute_trust` unchanged by weight-0 archival/lifecycle events
 
 ### Phase 3: Retrieval Channel Separation
 
