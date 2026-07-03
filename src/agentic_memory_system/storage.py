@@ -15,14 +15,15 @@ from .penalty import (
 _CREATE_NODES = """
 CREATE TABLE IF NOT EXISTS nodes (
     id          TEXT    PRIMARY KEY,
-    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant')),
+    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant','slice')),
     tier        TEXT    NOT NULL CHECK(tier IN ('short-term','mid-term','long-term','lifetime')),
     path        TEXT    NOT NULL,
     body        TEXT    NOT NULL,
     created_at  TEXT    NOT NULL,
     needs_review     INTEGER NOT NULL DEFAULT 0,
     retrieval_weight REAL    NOT NULL DEFAULT 1.0,
-    trust_weight     REAL    NOT NULL DEFAULT 1.0
+    trust_weight     REAL    NOT NULL DEFAULT 1.0,
+    archived         INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -31,7 +32,7 @@ _CREATE_EDGES = """
 CREATE TABLE IF NOT EXISTS edges (
     source_id   TEXT NOT NULL REFERENCES nodes(id),
     target_id   TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON','CONTRADICTS')),
+    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON','CONTRADICTS','SCOPED_TO')),
     created_at  TEXT NOT NULL,
     PRIMARY KEY (source_id, target_id, type)
 )
@@ -41,7 +42,7 @@ _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
     id          TEXT PRIMARY KEY,
     node_id     TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change')),
+    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated')),
     weight      REAL NOT NULL,
     polarity    INTEGER NOT NULL CHECK(polarity IN (-1, 1)),
     source      TEXT NOT NULL,
@@ -66,7 +67,7 @@ WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) 
 )
 SELECT r.node_id, r.source_id, r.target_id, r.etype, r.edge_created_at,
        n.id, n.type, n.tier, n.path, n.body, n.created_at, n.needs_review,
-       n.retrieval_weight, n.trust_weight
+       n.retrieval_weight, n.trust_weight, n.archived
 FROM reachable r
 JOIN nodes n ON n.id = r.node_id
 """
@@ -95,25 +96,70 @@ class MemoryStore:
                 )
             except sqlite3.OperationalError:
                 pass  # column already exists
+        try:
+            self._conn.execute(
+                "ALTER TABLE nodes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        self._migrate_nodes_check()
         self._migrate_edges_check()
+        self._migrate_events_check()
+
+    def _migrate_nodes_check(self) -> None:
+        """Widen the nodes ``type`` CHECK on DBs created before the ``slice`` type existed.
+
+        SQLite can't ``ALTER`` a CHECK in place, so a DB whose nodes CHECK predates
+        ``slice`` would reject a slice node. Detect that case and rebuild the table
+        (rename → recreate with the current schema → copy → drop) with foreign keys off
+        for the duration. Runs after the ``archived`` ADD COLUMN so the copy includes it.
+        A no-op on fresh/already-migrated DBs (whose CHECK already lists 'slice').
+        """
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='nodes'"
+        ).fetchone()
+        if row is None or row[0] is None or "'slice'" in row[0]:
+            return
+        # PRAGMAs must be toggled outside any open transaction. legacy_alter_table=ON
+        # stops the RENAME below from rewriting foreign-key references in *other* tables
+        # (edges/events both REFERENCE nodes(id)) to point at the temp table we then drop.
+        self._conn.execute("PRAGMA legacy_alter_table=ON")
+        self._conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            with self._conn:
+                self._conn.execute("ALTER TABLE nodes RENAME TO _nodes_old")
+                self._conn.execute(_CREATE_NODES)
+                self._conn.execute(
+                    "INSERT INTO nodes (id, type, tier, path, body, created_at, "
+                    "needs_review, retrieval_weight, trust_weight, archived) "
+                    "SELECT id, type, tier, path, body, created_at, "
+                    "needs_review, retrieval_weight, trust_weight, archived FROM _nodes_old"
+                )
+                self._conn.execute("DROP TABLE _nodes_old")
+        finally:
+            self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn.execute("PRAGMA legacy_alter_table=OFF")
 
     def _migrate_edges_check(self) -> None:
-        """Widen the edges ``type`` CHECK on DBs created before CONTRADICTS existed.
+        """Widen the edges ``type`` CHECK on DBs created before SCOPED_TO existed.
 
         SQLite can't ``ALTER`` a CHECK constraint in place and ``CREATE TABLE IF NOT
-        EXISTS`` won't touch a table that already exists, so a DB created with the old
-        ``CHECK(type IN ('DEPENDS_ON'))`` would reject a CONTRADICTS edge. Detect that
-        case and rebuild the table (rename → recreate with the current schema → copy →
-        drop), following SQLite's recommended table-alteration procedure with foreign
-        keys disabled for the duration. A no-op on fresh DBs (whose CHECK already lists
-        CONTRADICTS) and on already-migrated DBs.
+        EXISTS`` won't touch a table that already exists, so a DB created with an older
+        CHECK would reject a SCOPED_TO edge. Detect that case and rebuild the table
+        (rename → recreate with the current schema → copy → drop), following SQLite's
+        recommended table-alteration procedure with foreign keys disabled for the
+        duration. Guarded on the newest allowed type, so it also covers the earlier
+        DEPENDS_ON→CONTRADICTS widening. A no-op on fresh/already-migrated DBs.
         """
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='edges'"
         ).fetchone()
-        if row is None or row[0] is None or "CONTRADICTS" in row[0]:
+        if row is None or row[0] is None or "SCOPED_TO" in row[0]:
             return
-        # PRAGMA foreign_keys must be toggled outside any open transaction.
+        # PRAGMAs must be toggled outside any open transaction. legacy_alter_table=ON
+        # stops the RENAME below from rewriting foreign-key references in *other* tables
+        # (edges/events both REFERENCE nodes(id)) to point at the temp table we then drop.
+        self._conn.execute("PRAGMA legacy_alter_table=ON")
         self._conn.execute("PRAGMA foreign_keys=OFF")
         try:
             with self._conn:
@@ -126,14 +172,46 @@ class MemoryStore:
                 self._conn.execute("DROP TABLE _edges_old")
         finally:
             self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn.execute("PRAGMA legacy_alter_table=OFF")
+
+    def _migrate_events_check(self) -> None:
+        """Widen the events ``type`` CHECK on DBs created before the lifecycle/archival
+        event types existed.
+
+        Same rebuild procedure as the nodes/edges migrations. Guarded on the presence of
+        'slice_activated' (one of the newest allowed types). A no-op on fresh/already-
+        migrated DBs.
+        """
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='events'"
+        ).fetchone()
+        if row is None or row[0] is None or "slice_activated" in row[0]:
+            return
+        # PRAGMAs must be toggled outside any open transaction. legacy_alter_table=ON
+        # stops the RENAME below from rewriting foreign-key references in *other* tables
+        # (edges/events both REFERENCE nodes(id)) to point at the temp table we then drop.
+        self._conn.execute("PRAGMA legacy_alter_table=ON")
+        self._conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            with self._conn:
+                self._conn.execute("ALTER TABLE events RENAME TO _events_old")
+                self._conn.execute(_CREATE_EVENTS)
+                self._conn.execute(
+                    "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                    "SELECT id, node_id, type, weight, polarity, source, reason, created_at FROM _events_old"
+                )
+                self._conn.execute("DROP TABLE _events_old")
+        finally:
+            self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn.execute("PRAGMA legacy_alter_table=OFF")
 
     def write_node(self, node: Node) -> Node:
         node_id = node.id if node.id is not None else str(uuid.uuid4())
         created_at = node.created_at if node.created_at is not None else datetime.now(timezone.utc)
         with self._conn:
             self._conn.execute(
-                "INSERT INTO nodes (id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight, archived) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     node_id,
                     node.type.value,
@@ -144,13 +222,14 @@ class MemoryStore:
                     int(node.needs_review),
                     node.retrieval_weight,
                     node.trust_weight,
+                    int(node.archived),
                 ),
             )
         return node.model_copy(update={"id": node_id, "created_at": created_at})
 
     def read_node(self, node_id: str) -> Node | None:
         row = self._conn.execute(
-            "SELECT id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight FROM nodes WHERE id = ?",
+            "SELECT id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight, archived FROM nodes WHERE id = ?",
             (node_id,),
         ).fetchone()
         if row is None:
@@ -165,6 +244,7 @@ class MemoryStore:
             needs_review=bool(row[6]),
             retrieval_weight=row[7],
             trust_weight=row[8],
+            archived=bool(row[9]),
         )
 
     def write_edge(self, edge: Edge) -> Edge:
@@ -342,6 +422,7 @@ class MemoryStore:
                 needs_review=bool(row[11]),
                 retrieval_weight=row[12],
                 trust_weight=row[13],
+                archived=bool(row[14]),
             )
             incoming: Edge | None = None
             if row[1] is not None:

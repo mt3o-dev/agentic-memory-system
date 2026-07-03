@@ -1,9 +1,9 @@
 ---
 change_id: liveness-archival
 title: Liveness and archival via mark-sweep reachability from the root set
-status: new
+status: implementing
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-07-03
 archived_at: null
 ---
 

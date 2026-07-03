@@ -8,3 +8,7 @@ __pycache__/
 .venv/
 *.egg-info/
 .pytest_cache/
+
+# Tooling workspaces (regenerated locally; not tracked)
+.serena/
+graphify-out/

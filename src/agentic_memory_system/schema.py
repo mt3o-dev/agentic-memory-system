@@ -11,6 +11,7 @@ class NodeType(str, Enum):
     constraint = "constraint"
     issue = "issue"
     invariant = "invariant"
+    slice = "slice"
 
 
 class Tier(str, Enum):
@@ -30,11 +31,13 @@ class Node(BaseModel):
     needs_review: bool = False
     retrieval_weight: float = 1.0
     trust_weight: float = 1.0
+    archived: bool = False
 
 
 class EdgeType(str, Enum):
     depends_on = "DEPENDS_ON"
     contradicts = "CONTRADICTS"
+    scoped_to = "SCOPED_TO"
 
 
 class Edge(BaseModel):
@@ -50,6 +53,10 @@ class EventType(str, Enum):
     confirmation_added = "confirmation_added"
     manual_review = "manual_review"
     tier_change = "tier_change"
+    slice_activated = "slice_activated"
+    slice_deactivated = "slice_deactivated"
+    archived = "archived"
+    reactivated = "reactivated"
 
 
 class Event(BaseModel):
