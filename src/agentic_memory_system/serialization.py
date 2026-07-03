@@ -4,6 +4,23 @@ from datetime import datetime, timezone
 from .schema import Node, NodeType, Tier, Edge, EdgeType, Event, EventType
 
 
+_BODY_SENTINEL_RE = re.compile(r"^\\*---$")
+
+
+def _escape_body(text: str) -> str:
+    # Escape any line that is only backslashes followed by '---' by prepending
+    # one more backslash. Injective (unlike escaping only the bare '---' case),
+    # so a literal '\---' line round-trips instead of collapsing to '---'.
+    return "\n".join(
+        "\\" + line if _BODY_SENTINEL_RE.match(line) else line
+        for line in text.split("\n")
+    )
+
+
+def _unescape_body_line(line: str) -> str:
+    return line[1:] if line.startswith("\\") and _BODY_SENTINEL_RE.match(line) else line
+
+
 def serialize_node(node: Node, outgoing_edges: list[Edge] | None = None) -> str:
     lines = [
         f"[node:{node.id}]",
@@ -19,7 +36,27 @@ def serialize_node(node: Node, outgoing_edges: list[Edge] | None = None) -> str:
     return "\n".join(lines)
 
 
-def dump_node(node: Node, outgoing_edges: list[Edge] | None = None) -> str:
+def _dump_event_block(event: Event) -> str:
+    ts = event.created_at.isoformat() if event.created_at else ""
+    lines = [
+        f"[event:{event.id}]",
+        f"node_id: {event.node_id}",
+        f"type: {event.type.value}",
+        f"weight: {event.weight}",
+        f"polarity: {event.polarity}",
+        f"source: {event.source}",
+        f"created_at: {ts}",
+        "",
+    ]
+    lines.append(_escape_body(event.reason))
+    return "\n".join(lines)
+
+
+def dump_node(
+    node: Node,
+    outgoing_edges: list[Edge] | None = None,
+    events: list[Event] | None = None,
+) -> str:
     ts = node.created_at.isoformat() if node.created_at else ""
     lines = [
         f"[node:{node.id}]",
@@ -35,37 +72,14 @@ def dump_node(node: Node, outgoing_edges: list[Edge] | None = None) -> str:
         edge_ts = edge.created_at.isoformat() if edge.created_at else ""
         lines.append(f"-> {edge.type.value} [node:{edge.target_id}] @ {edge_ts}")
     lines.append("")
-    escaped_body = "\n".join(
-        "\\---" if line == "---" else line for line in node.body.split("\n")
-    )
-    lines.append(escaped_body)
-    return "\n".join(lines)
-
-
-def dump_event(event: Event) -> str:
-    ts = event.created_at.isoformat() if event.created_at else ""
-    lines = [
-        f"[event:{event.id}]",
-        f"node_id: {event.node_id}",
-        f"type: {event.type.value}",
-        f"weight: {event.weight}",
-        f"polarity: {event.polarity}",
-        f"source: {event.source}",
-        f"created_at: {ts}",
-        "",
-    ]
-    escaped_reason = "\n".join(
-        "\\---" if line == "---" else line for line in event.reason.split("\n")
-    )
-    lines.append(escaped_reason)
-    return "\n".join(lines)
+    lines.append(_escape_body(node.body))
+    node_block = "\n".join(lines)
+    event_blocks = [_dump_event_block(event) for event in (events or [])]
+    return "\n---\n".join([node_block, *event_blocks])
 
 
 def dump_all(pairs: list[tuple[Node, list[Edge], list[Event]]], *, header: bool = True) -> str:
-    blocks: list[str] = []
-    for node, edges, events in pairs:
-        blocks.append(dump_node(node, edges))
-        blocks.extend(dump_event(event) for event in events)
+    blocks = [dump_node(node, edges, events) for node, edges, events in pairs]
     body = "\n---\n".join(blocks)
     if header:
         prefix = "# agentic-memory-system dump\n# format_version: 1\n\n"
@@ -82,24 +96,31 @@ def parse_dump(text: str) -> list[tuple[Node, list[Edge], list[Event]]]:
     if not text.strip():
         return []
 
-    # strip leading comment lines
-    lines = text.splitlines()
+    # Strip leading comment lines and blank separators, splitting on "\n" only.
+    # splitlines() would also break on \r and unicode line separators, silently
+    # corrupting any body/reason that contains them.
+    lines = text.split("\n")
     start = 0
     while start < len(lines) and lines[start].startswith("#"):
         start += 1
+    while start < len(lines) and lines[start] == "":
+        start += 1
     body = "\n".join(lines[start:])
+    # dump_all appends exactly one trailing newline; drop that one artifact so a
+    # body/reason that genuinely ends in a newline round-trips intact.
+    if body.endswith("\n"):
+        body = body[:-1]
 
     raw_blocks = body.split("\n---\n")
     node_pairs: list[tuple[Node, list[Edge]]] = []
     events_by_node: dict[str, list[Event]] = {}
 
     for block in raw_blocks:
-        block = block.strip()
         if not block:
             continue
 
-        block_lines = block.splitlines()
-        if not block_lines:
+        block_lines = block.split("\n")
+        if not block_lines[0]:
             continue
 
         node_m = _NODE_HEADER_RE.match(block_lines[0])
@@ -115,7 +136,7 @@ def parse_dump(text: str) -> list[tuple[Node, list[Edge], list[Event]]]:
 
             for line in block_lines[1:]:
                 if in_body:
-                    body_lines.append("---" if line == "\\---" else line)
+                    body_lines.append(_unescape_body_line(line))
                 elif line == "":
                     in_body = True
                 else:
@@ -156,7 +177,7 @@ def parse_dump(text: str) -> list[tuple[Node, list[Edge], list[Event]]]:
 
             for line in block_lines[1:]:
                 if in_body:
-                    body_lines.append("---" if line == "\\---" else line)
+                    body_lines.append(_unescape_body_line(line))
                 elif line == "":
                     in_body = True
                 else:

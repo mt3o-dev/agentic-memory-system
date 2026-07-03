@@ -14,6 +14,7 @@ def main() -> None:
 
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".db")
     os.close(tmp_fd)
+    store = None
     try:
         pairs = parse_dump(text)
         store = MemoryStore(tmp_path)
@@ -33,6 +34,7 @@ def main() -> None:
                 store.append_event(event)
 
         store.close()
+        store = None
 
         with open(tmp_path, "rb") as f:
             sys.stdout.buffer.write(f.read())
@@ -40,6 +42,8 @@ def main() -> None:
         print(f"restore_db error: {exc}", file=sys.stderr)
         sys.exit(1)
     finally:
+        if store is not None:
+            store.close()
         for suffix in ("", "-wal", "-shm"):
             try:
                 os.unlink(tmp_path + suffix)

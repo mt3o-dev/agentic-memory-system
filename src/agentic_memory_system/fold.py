@@ -10,12 +10,18 @@ class FoldStrategy(Protocol):
 
 class SumAndClampFold:
     def fold(self, events: list[Event]) -> float:
+        # Order-independence (this slice's core invariant) relies on sum()'s
+        # compensated (Neumaier) summation in CPython 3.12+. Do NOT rewrite as a
+        # manual `total += ...` loop — that reintroduces float non-associativity
+        # and makes the permutation property tests flaky.
         total = 1.0 + sum(e.polarity * e.weight for e in events)
         return max(0.0, min(1.0, total))
 
 
 class WeightedAverageFold:
     def fold(self, events: list[Event]) -> float:
+        # Order-independent for the same reason as SumAndClampFold: sum()'s
+        # compensated summation. Don't replace these sum() calls with manual loops.
         total_weight = sum(e.weight for e in events)
         if total_weight == 0.0:
             return 1.0

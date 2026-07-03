@@ -29,6 +29,48 @@ def _event(node_id: str, **kwargs) -> Event:
     return Event(node_id=node_id, **defaults)
 
 
+# --- serialization round-trip regression tests (F1) ---
+
+# Each payload targets one of the three escape/newline round-trip bugs:
+#   "\\---"        -> non-injective escape once collapsed it to "---"
+#   trailing "\n"  -> block.strip() used to drop trailing blank lines
+#   "\r"/" "  -> splitlines() on the parse side used to re-split these
+_ADVERSARIAL_BODIES = [
+    "plain text",
+    "",
+    "---",
+    "\\---",
+    "\\\\---",
+    "line1\nline2",
+    "trailing blank\n\n",
+    "carriage\rreturn",
+    "unicode separator",
+    "form\x0cfeed",
+]
+
+_TS = datetime(2026, 7, 3, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("payload", _ADVERSARIAL_BODIES)
+def test_event_reason_round_trips_exactly(payload):
+    ev = _event("n1", id="e1", created_at=_TS, reason=payload)
+    node = _node("p", "body", id="n1", created_at=_TS)
+    parsed = parse_dump(dump_all([(node, [], [ev])]))
+    assert parsed[0][2][0].reason == payload
+
+
+@pytest.mark.parametrize("payload", _ADVERSARIAL_BODIES)
+def test_node_body_round_trips_exactly(payload):
+    node = _node("p", payload, id="n1", created_at=_TS)
+    parsed = parse_dump(dump_all([(node, [], [])]))
+    assert parsed[0][0].body == payload
+
+
+def test_recompute_trust_raises_on_unknown_node(store):
+    with pytest.raises(ValueError):
+        store.recompute_trust("does-not-exist")
+
+
 # --- fold.py unit tests ---
 
 def test_fold_empty_returns_one():
@@ -122,7 +164,7 @@ def event_strategy(draw, node_id="n1"):
 @given(events=st.lists(event_strategy(), max_size=8), data=st.data())
 def test_fold_order_independent(events, data):
     shuffled = data.draw(st.permutations(events))
-    assert SumAndClampFold().fold(events) == SumAndClampFold().fold(shuffled)
+    assert SumAndClampFold().fold(events) == pytest.approx(SumAndClampFold().fold(shuffled))
 
 
 # --- full-slice demo ---

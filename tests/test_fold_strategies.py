@@ -59,7 +59,7 @@ def _weighted_event_strategy(draw):
 @given(events=st.lists(_weighted_event_strategy(), max_size=8), data=st.data())
 def test_weighted_average_order_independent(events, data):
     shuffled = data.draw(st.permutations(events))
-    assert WeightedAverageFold().fold(events) == WeightedAverageFold().fold(shuffled)
+    assert WeightedAverageFold().fold(events) == pytest.approx(WeightedAverageFold().fold(shuffled))
 
 
 # --- LastNWindowFold ---

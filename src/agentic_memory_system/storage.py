@@ -316,9 +316,11 @@ class MemoryStore:
         events = self.read_events(node_id)
         trust_weight = (strategy or self._fold_strategy).fold(events)
         with self._conn:
-            self._conn.execute(
+            cursor = self._conn.execute(
                 "UPDATE nodes SET trust_weight = ? WHERE id = ?", (trust_weight, node_id)
             )
+            if cursor.rowcount == 0:
+                raise ValueError(f"recompute_trust: no node with id {node_id!r}")
         return trust_weight
 
     def compact_events(self, node_id: str) -> None:
