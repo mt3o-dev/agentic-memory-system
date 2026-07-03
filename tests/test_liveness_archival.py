@@ -161,6 +161,25 @@ def test_archived_and_slice_seed_return_empty(store):
     assert store.traverse(sl.id) == []
 
 
+def test_recall_severs_at_archived_intermediate(store):
+    # seed -> mid(archived) -> beyond, all via DEPENDS_ON. An archived intermediate
+    # must sever the path (so `beyond` doesn't surface with a corrupted hop depth).
+    seed = store.write_node(_node("seed", "seed", type=NodeType.concept, tier=Tier.long_term))
+    mid = store.write_node(_node("mid", "mid-detail"))  # short-term -> archives
+    beyond = store.write_node(_node("beyond", "beyond", type=NodeType.concept, tier=Tier.long_term))
+    sl = store.write_node(_slice())
+    _scoped(store, sl.id, mid.id)  # mid scoped to an inactive slice
+    store.write_edge(Edge(source_id=seed.id, target_id=mid.id, type=EdgeType.depends_on))
+    store.write_edge(Edge(source_id=mid.id, target_id=beyond.id, type=EdgeType.depends_on))
+    store.sweep()
+    assert store.read_node(mid.id).archived is True
+    assert store.read_node(beyond.id).archived is False  # long-term root, still live
+    ids = {n.id for n, _ in store.recall(seed.id)}
+    assert seed.id in ids
+    assert mid.id not in ids     # archived intermediate excluded
+    assert beyond.id not in ids  # severed: only reachable through the dormant node
+
+
 # --- serialization round-trip ---
 
 def test_slice_scoped_archived_event_round_trip(store):

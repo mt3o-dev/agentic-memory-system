@@ -64,6 +64,7 @@ WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) 
     SELECT e.target_id, e.source_id, e.target_id, e.type, e.created_at
     FROM edges e
     JOIN reachable r ON e.source_id = r.node_id
+    JOIN nodes tn ON tn.id = e.target_id AND tn.archived = 0 AND tn.type != 'slice'
     WHERE e.type IN ('DEPENDS_ON','CONTRADICTS')
 )
 SELECT r.node_id, r.source_id, r.target_id, r.etype, r.edge_created_at,
@@ -107,6 +108,39 @@ class MemoryStore:
         self._migrate_edges_check()
         self._migrate_events_check()
 
+    def _rebuild_table(self, name: str, create_sql: str, columns: str) -> None:
+        """Atomically rebuild a table to pick up a widened CHECK: rename → recreate →
+        copy → drop, inside an explicit transaction so a mid-rebuild failure rolls back
+        to the original table. Python's sqlite3 does not auto-begin a transaction for
+        DDL, so without the explicit BEGIN the RENAME/CREATE would commit before the copy
+        and a crash could strand data in the temp table. ``legacy_alter_table=ON`` keeps
+        the RENAME from rewriting foreign-key references in *other* tables (edges/events
+        REFERENCE nodes(id)) to point at the temp table we then drop; both PRAGMAs are
+        toggled outside the transaction because ``foreign_keys`` cannot change
+        mid-transaction. ``name``/``columns`` are internal constants, never caller input.
+        """
+        prev_isolation = self._conn.isolation_level
+        self._conn.execute("PRAGMA legacy_alter_table=ON")
+        self._conn.execute("PRAGMA foreign_keys=OFF")
+        self._conn.isolation_level = None  # take manual transaction control
+        try:
+            self._conn.execute("BEGIN")
+            try:
+                self._conn.execute(f"ALTER TABLE {name} RENAME TO _{name}_old")
+                self._conn.execute(create_sql)
+                self._conn.execute(
+                    f"INSERT INTO {name} ({columns}) SELECT {columns} FROM _{name}_old"
+                )
+                self._conn.execute(f"DROP TABLE _{name}_old")
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+        finally:
+            self._conn.isolation_level = prev_isolation
+            self._conn.execute("PRAGMA foreign_keys=ON")
+            self._conn.execute("PRAGMA legacy_alter_table=OFF")
+
     def _migrate_nodes_check(self) -> None:
         """Widen the nodes ``type`` CHECK on DBs created before the ``slice`` type existed.
 
@@ -121,25 +155,11 @@ class MemoryStore:
         ).fetchone()
         if row is None or row[0] is None or "'slice'" in row[0]:
             return
-        # PRAGMAs must be toggled outside any open transaction. legacy_alter_table=ON
-        # stops the RENAME below from rewriting foreign-key references in *other* tables
-        # (edges/events both REFERENCE nodes(id)) to point at the temp table we then drop.
-        self._conn.execute("PRAGMA legacy_alter_table=ON")
-        self._conn.execute("PRAGMA foreign_keys=OFF")
-        try:
-            with self._conn:
-                self._conn.execute("ALTER TABLE nodes RENAME TO _nodes_old")
-                self._conn.execute(_CREATE_NODES)
-                self._conn.execute(
-                    "INSERT INTO nodes (id, type, tier, path, body, created_at, "
-                    "needs_review, retrieval_weight, trust_weight, archived) "
-                    "SELECT id, type, tier, path, body, created_at, "
-                    "needs_review, retrieval_weight, trust_weight, archived FROM _nodes_old"
-                )
-                self._conn.execute("DROP TABLE _nodes_old")
-        finally:
-            self._conn.execute("PRAGMA foreign_keys=ON")
-            self._conn.execute("PRAGMA legacy_alter_table=OFF")
+        self._rebuild_table(
+            "nodes",
+            _CREATE_NODES,
+            "id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight, archived",
+        )
 
     def _migrate_edges_check(self) -> None:
         """Widen the edges ``type`` CHECK on DBs created before SCOPED_TO existed.
@@ -157,23 +177,9 @@ class MemoryStore:
         ).fetchone()
         if row is None or row[0] is None or "SCOPED_TO" in row[0]:
             return
-        # PRAGMAs must be toggled outside any open transaction. legacy_alter_table=ON
-        # stops the RENAME below from rewriting foreign-key references in *other* tables
-        # (edges/events both REFERENCE nodes(id)) to point at the temp table we then drop.
-        self._conn.execute("PRAGMA legacy_alter_table=ON")
-        self._conn.execute("PRAGMA foreign_keys=OFF")
-        try:
-            with self._conn:
-                self._conn.execute("ALTER TABLE edges RENAME TO _edges_old")
-                self._conn.execute(_CREATE_EDGES)
-                self._conn.execute(
-                    "INSERT INTO edges (source_id, target_id, type, created_at) "
-                    "SELECT source_id, target_id, type, created_at FROM _edges_old"
-                )
-                self._conn.execute("DROP TABLE _edges_old")
-        finally:
-            self._conn.execute("PRAGMA foreign_keys=ON")
-            self._conn.execute("PRAGMA legacy_alter_table=OFF")
+        self._rebuild_table(
+            "edges", _CREATE_EDGES, "source_id, target_id, type, created_at"
+        )
 
     def _migrate_events_check(self) -> None:
         """Widen the events ``type`` CHECK on DBs created before the lifecycle/archival
@@ -186,25 +192,16 @@ class MemoryStore:
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='events'"
         ).fetchone()
-        if row is None or row[0] is None or "slice_activated" in row[0]:
+        # Guard on the NEWEST allowed type (like the nodes/edges migrations): a DB whose
+        # CHECK already lists an earlier new type but predates 'reactivated' must still
+        # rebuild, or sweep()'s archived/reactivated inserts would hit a CHECK failure.
+        if row is None or row[0] is None or "reactivated" in row[0]:
             return
-        # PRAGMAs must be toggled outside any open transaction. legacy_alter_table=ON
-        # stops the RENAME below from rewriting foreign-key references in *other* tables
-        # (edges/events both REFERENCE nodes(id)) to point at the temp table we then drop.
-        self._conn.execute("PRAGMA legacy_alter_table=ON")
-        self._conn.execute("PRAGMA foreign_keys=OFF")
-        try:
-            with self._conn:
-                self._conn.execute("ALTER TABLE events RENAME TO _events_old")
-                self._conn.execute(_CREATE_EVENTS)
-                self._conn.execute(
-                    "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
-                    "SELECT id, node_id, type, weight, polarity, source, reason, created_at FROM _events_old"
-                )
-                self._conn.execute("DROP TABLE _events_old")
-        finally:
-            self._conn.execute("PRAGMA foreign_keys=ON")
-            self._conn.execute("PRAGMA legacy_alter_table=OFF")
+        self._rebuild_table(
+            "events",
+            _CREATE_EVENTS,
+            "id, node_id, type, weight, polarity, source, reason, created_at",
+        )
 
     def write_node(self, node: Node) -> Node:
         node_id = node.id if node.id is not None else str(uuid.uuid4())
@@ -453,13 +450,21 @@ class MemoryStore:
     # --- liveness / archival (mark-sweep reachability from the root set) ---
 
     def _active_slice_ids(self) -> list[str]:
-        slice_ids = [
-            r[0]
-            for r in self._conn.execute(
-                "SELECT id FROM nodes WHERE type = 'slice'"
-            ).fetchall()
-        ]
-        return [sid for sid in slice_ids if self.is_slice_active(sid)]
+        # Single grouped query (vs one is_slice_active call per slice): take each slice's
+        # latest lifecycle event (same created_at DESC, id DESC tiebreak as
+        # is_slice_active) and keep those whose latest is slice_activated.
+        rows = self._conn.execute(
+            "SELECT node_id FROM ("
+            "  SELECT e.node_id AS node_id, e.type AS type,"
+            "         ROW_NUMBER() OVER ("
+            "           PARTITION BY e.node_id ORDER BY e.created_at DESC, e.id DESC"
+            "         ) AS rn"
+            "  FROM events e"
+            "  JOIN nodes n ON n.id = e.node_id AND n.type = 'slice'"
+            "  WHERE e.type IN ('slice_activated','slice_deactivated')"
+            ") WHERE rn = 1 AND type = 'slice_activated'"
+        ).fetchall()
+        return [r[0] for r in rows]
 
     def sweep(self, *, source: str = "sweep", reason: str = "mark-sweep liveness") -> dict[str, bool]:
         """Recompute liveness and materialize each content node's ``archived`` state.
@@ -470,8 +475,10 @@ class MemoryStore:
         the live set are archived; nodes not scoped to any active slice therefore go
         dormant, while foundations (root tiers) stay live regardless. Slice nodes are
         never archived. Each archived/reactivated transition is journaled with a
-        trust-neutral (weight-0) event. Returns the ``{node_id: archived}`` map of nodes
-        whose state changed.
+        weight-0 event, which is trust-neutral under the accumulation folds
+        (``SumAndClampFold`` default, ``WeightedAverageFold``) since it contributes 0;
+        note it is NOT neutral under ``LastNWindowFold``, where it still consumes a
+        window slot. Returns the ``{node_id: archived}`` map of nodes whose state changed.
         """
         active = self._active_slice_ids()
         placeholders = ",".join("?" for _ in active) if active else "NULL"
@@ -489,6 +496,7 @@ class MemoryStore:
             "SELECT id, archived FROM nodes WHERE type != 'slice'"
         ).fetchall()
         changed: dict[str, bool] = {}
+        now = datetime.now(timezone.utc).isoformat()
         with self._conn:
             for node_id, archived_old in rows:
                 archived_new = node_id not in live
@@ -509,7 +517,7 @@ class MemoryStore:
                         -1 if archived_new else 1,
                         source,
                         reason,
-                        datetime.now(timezone.utc).isoformat(),
+                        now,
                     ),
                 )
                 changed[node_id] = archived_new
