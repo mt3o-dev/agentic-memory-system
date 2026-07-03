@@ -345,22 +345,22 @@ Three CHECK-widening rebuilds + one `ADD COLUMN` bring an existing `context/memo
 ### Phase 3: Retrieval Channel Separation
 
 #### Automated
-- [x] 3.1 Channel/recall/seed Phase 3 tests pass
-- [x] 3.2 Existing retrieval tests (`rank_by_relevance`, `relate_two_nodes`, `capture_recall`) unchanged
+- [x] 3.1 Channel/recall/seed Phase 3 tests pass — b1d2c98
+- [x] 3.2 Existing retrieval tests (`rank_by_relevance`, `relate_two_nodes`, `capture_recall`) unchanged — b1d2c98
 
 #### Manual
-- [x] 3.3 `SCOPED_TO` absent from `recall` traversal; `DEPENDS_ON` still present
-- [x] 3.4 `recall(archived)` and `recall(slice)` both return `[]`
+- [x] 3.3 `SCOPED_TO` absent from `recall` traversal; `DEPENDS_ON` still present — b1d2c98
+- [x] 3.4 `recall(archived)` and `recall(slice)` both return `[]` — b1d2c98
 
 ### Phase 4: Serialization Round-Trip
 
 #### Automated
-- [ ] 4.1 Serialization/round-trip Phase 4 tests pass
-- [ ] 4.2 Slice + `SCOPED_TO` + `archived=True` + `slice_deactivated` round-trip field-by-field
-- [ ] 4.3 `tests/test_git_sync.py` still passes
+- [x] 4.1 Serialization/round-trip Phase 4 tests pass
+- [x] 4.2 Slice + `SCOPED_TO` + `archived=True` + `slice_deactivated` round-trip field-by-field
+- [x] 4.3 `tests/test_git_sync.py` still passes
 
 #### Manual
-- [ ] 4.4 `dump_db.py`/`restore_db.py` round-trip preserves slice/`SCOPED_TO`/`archived` counts
+- [x] 4.4 `dump_db.py`/`restore_db.py` round-trip preserves slice/`SCOPED_TO`/`archived` counts
 
 ### Phase 5: Tests & Vertical Demo
 

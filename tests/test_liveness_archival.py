@@ -1,4 +1,5 @@
 from agentic_memory_system.schema import Node, NodeType, Tier, Edge, EdgeType, Event, EventType
+from agentic_memory_system.serialization import dump_all, parse_dump
 
 
 def _node(path: str, body: str, *, type=NodeType.decision, tier=Tier.short_term, **kwargs) -> Node:
@@ -158,3 +159,41 @@ def test_archived_and_slice_seed_return_empty(store):
     assert store.recall(sl.id) == []      # slice seed -> []
     assert store.traverse(detail.id) == []
     assert store.traverse(sl.id) == []
+
+
+# --- serialization round-trip ---
+
+def test_slice_scoped_archived_event_round_trip(store):
+    sl = store.write_node(_slice())
+    detail = store.write_node(_node("d", "detail"))
+    _scoped(store, sl.id, detail.id)
+    store.deactivate_slice(sl.id)  # slice_deactivated event on the slice node
+    store.sweep()                  # detail archived=True + an archived event on it
+
+    parsed = parse_dump(dump_all(store.dump_pairs()))
+    by_id = {n.id: (n, edges, events) for n, edges, events in parsed}
+
+    assert by_id[sl.id][0].type == NodeType.slice             # slice node type round-trips
+    assert by_id[detail.id][0].archived is True               # materialized archived state round-trips
+    assert any(                                               # SCOPED_TO edge round-trips
+        e.type == EdgeType.scoped_to and e.target_id == detail.id
+        for e in by_id[sl.id][1]
+    )
+    assert any(ev.type == EventType.slice_deactivated for ev in by_id[sl.id][2])  # lifecycle event
+    assert any(ev.type == EventType.archived for ev in by_id[detail.id][2])       # archival event
+
+
+def test_archived_defaults_false_when_header_absent():
+    # forward-compat: an older node block without an `archived:` header parses as live
+    older_dump = (
+        "[node:n1]\n"
+        "type: decision\n"
+        "tier: short-term\n"
+        "path: p\n"
+        "created_at: 2026-07-03T00:00:00+00:00\n"
+        "needs_review: false\n"
+        "\n"
+        "body text\n"
+    )
+    parsed = parse_dump(older_dump)
+    assert parsed[0][0].archived is False

@@ -67,6 +67,7 @@ def dump_node(
         f"needs_review: {'true' if node.needs_review else 'false'}",
         f"retrieval_weight: {node.retrieval_weight}",
         f"trust_weight: {node.trust_weight}",
+        f"archived: {'true' if node.archived else 'false'}",
     ]
     for edge in (outgoing_edges or []):
         edge_ts = edge.created_at.isoformat() if edge.created_at else ""
@@ -165,6 +166,7 @@ def parse_dump(text: str) -> list[tuple[Node, list[Edge], list[Event]]]:
                 needs_review=headers.get("needs_review", "false") == "true",
                 retrieval_weight=float(headers.get("retrieval_weight", "1.0")),
                 trust_weight=float(headers.get("trust_weight", "1.0")),
+                archived=headers.get("archived", "false") == "true",
             )
             node_pairs.append((node, edges))
 
