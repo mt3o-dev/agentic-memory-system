@@ -365,11 +365,11 @@ Three CHECK-widening rebuilds + one `ADD COLUMN` bring an existing `context/memo
 ### Phase 5: Tests & Vertical Demo
 
 #### Automated
-- [x] 5.1 All `tests/test_liveness_archival.py` tests pass (incl. both canonical confirmations, transitivity, idempotence)
-- [x] 5.2 Full suite green
+- [x] 5.1 All `tests/test_liveness_archival.py` tests pass (incl. both canonical confirmations, transitivity, idempotence) — 11c27fa
+- [x] 5.2 Full suite green — 11c27fa
 
 #### Manual
-- [x] 5.3 `test_full_slice_demo` reads as the runnable-demo definition-of-done artifact
+- [x] 5.3 `test_full_slice_demo` reads as the runnable-demo definition-of-done artifact — 11c27fa
 
 ### Post-implementation
 - [ ] 6.1 Update MT3-18 with what was decided and why (materialized-archived via explicit sweep, journal lifecycle events, slice→detail SCOPED_TO, liveness-only channel, archive-only scope)
