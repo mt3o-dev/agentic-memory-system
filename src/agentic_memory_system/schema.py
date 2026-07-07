@@ -12,6 +12,8 @@ class NodeType(str, Enum):
     issue = "issue"
     invariant = "invariant"
     slice = "slice"
+    facet_value = "facet_value"
+    goal = "goal"
 
 
 class Tier(str, Enum):
@@ -38,6 +40,7 @@ class EdgeType(str, Enum):
     depends_on = "DEPENDS_ON"
     contradicts = "CONTRADICTS"
     scoped_to = "SCOPED_TO"
+    has_facet = "HAS_FACET"
 
 
 class Edge(BaseModel):
@@ -57,6 +60,8 @@ class EventType(str, Enum):
     slice_deactivated = "slice_deactivated"
     archived = "archived"
     reactivated = "reactivated"
+    used = "used"
+    noted = "noted"
 
 
 class Event(BaseModel):

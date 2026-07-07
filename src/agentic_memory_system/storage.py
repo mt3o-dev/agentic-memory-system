@@ -11,11 +11,21 @@ from .penalty import (
     ScoreComponents,
     compute_penalty,
 )
+from .embedding import Embedder, HashedBagOfWordsEmbedder, cosine
+from .retrieval import (
+    DEFAULT_DAMPING,
+    DEFAULT_EDGE_POLICY,
+    DEFAULT_GOAL_WEIGHT,
+    Direction,
+    build_seed_vector,
+    build_weighted_graph,
+    personalized_pagerank,
+)
 
 _CREATE_NODES = """
 CREATE TABLE IF NOT EXISTS nodes (
     id          TEXT    PRIMARY KEY,
-    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant','slice')),
+    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant','slice','facet_value','goal')),
     tier        TEXT    NOT NULL CHECK(tier IN ('short-term','mid-term','long-term','lifetime')),
     path        TEXT    NOT NULL,
     body        TEXT    NOT NULL,
@@ -32,7 +42,7 @@ _CREATE_EDGES = """
 CREATE TABLE IF NOT EXISTS edges (
     source_id   TEXT NOT NULL REFERENCES nodes(id),
     target_id   TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON','CONTRADICTS','SCOPED_TO')),
+    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON','CONTRADICTS','SCOPED_TO','HAS_FACET')),
     created_at  TEXT NOT NULL,
     PRIMARY KEY (source_id, target_id, type)
 )
@@ -42,7 +52,7 @@ _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
     id          TEXT PRIMARY KEY,
     node_id     TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated')),
+    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted')),
     weight      REAL NOT NULL,
     polarity    INTEGER NOT NULL CHECK(polarity IN (-1, 1)),
     source      TEXT NOT NULL,
@@ -56,6 +66,7 @@ _BETA = 0.3
 _GAMMA = 0.2
 _HOP_HALFLIFE = 3.0
 _RECENCY_HALFLIFE_DAYS = 7.0
+_K_SEED_FACETS = 3
 
 _TRAVERSE_CTE = """
 WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) AS (
@@ -64,14 +75,14 @@ WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) 
     SELECT e.target_id, e.source_id, e.target_id, e.type, e.created_at
     FROM edges e
     JOIN reachable r ON e.source_id = r.node_id
-    JOIN nodes tn ON tn.id = e.target_id AND tn.archived = 0 AND tn.type != 'slice'
+    JOIN nodes tn ON tn.id = e.target_id AND tn.archived = 0 AND tn.type NOT IN ('slice','facet_value')
     WHERE e.type IN ('DEPENDS_ON','CONTRADICTS')
 )
 SELECT r.node_id, r.source_id, r.target_id, r.etype, r.edge_created_at,
        n.id, n.type, n.tier, n.path, n.body, n.created_at, n.needs_review,
        n.retrieval_weight, n.trust_weight, n.archived
 FROM reachable r
-JOIN nodes n ON n.id = r.node_id AND n.archived = 0 AND n.type != 'slice'
+JOIN nodes n ON n.id = r.node_id AND n.archived = 0 AND n.type NOT IN ('slice','facet_value')
 """
 
 
@@ -81,12 +92,20 @@ class MemoryStore:
         db_path: str | Path = "context/memory-graph.db",
         fold_strategy: FoldStrategy | None = None,
         penalty_strategy: PenaltyStrategy | None = None,
+        embedder: Embedder | None = None,
+        edge_policy: dict[tuple[EdgeType, Direction], float] | None = None,
     ) -> None:
-        self._conn = sqlite3.connect(str(db_path))
+        # check_same_thread=False: the GUI server's event loop may touch the
+        # connection from a different thread than the one that opened it. Access is
+        # still effectively serialized (single event loop / single test portal);
+        # this is not a concurrent-writer guarantee.
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._fold_strategy = fold_strategy or SumAndClampFold()
         self._penalty_strategy = penalty_strategy or TrustTermPenalty()
+        self._embedder = embedder or HashedBagOfWordsEmbedder()
+        self._edge_policy = edge_policy or DEFAULT_EDGE_POLICY
         with self._conn:
             self._conn.execute(_CREATE_NODES)
             self._conn.execute(_CREATE_EDGES)
@@ -142,18 +161,19 @@ class MemoryStore:
             self._conn.execute("PRAGMA legacy_alter_table=OFF")
 
     def _migrate_nodes_check(self) -> None:
-        """Widen the nodes ``type`` CHECK on DBs created before the ``slice`` type existed.
+        """Widen the nodes ``type`` CHECK on DBs created before the newest node type.
 
         SQLite can't ``ALTER`` a CHECK in place, so a DB whose nodes CHECK predates
-        ``slice`` would reject a slice node. Detect that case and rebuild the table
-        (rename → recreate with the current schema → copy → drop) with foreign keys off
-        for the duration. Runs after the ``archived`` ADD COLUMN so the copy includes it.
-        A no-op on fresh/already-migrated DBs (whose CHECK already lists 'slice').
+        ``facet_value`` would reject a facet-value node. Detect that case and rebuild the
+        table (rename → recreate with the current schema → copy → drop) with foreign keys
+        off for the duration. Runs after the ``archived`` ADD COLUMN so the copy includes
+        it. Guarded on the newest allowed type ('facet_value'), which also covers the
+        earlier widening to 'slice'. A no-op on fresh/already-migrated DBs.
         """
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='nodes'"
         ).fetchone()
-        if row is None or row[0] is None or "'slice'" in row[0]:
+        if row is None or row[0] is None or "'goal'" in row[0]:
             return
         self._rebuild_table(
             "nodes",
@@ -162,20 +182,20 @@ class MemoryStore:
         )
 
     def _migrate_edges_check(self) -> None:
-        """Widen the edges ``type`` CHECK on DBs created before SCOPED_TO existed.
+        """Widen the edges ``type`` CHECK on DBs created before HAS_FACET existed.
 
         SQLite can't ``ALTER`` a CHECK constraint in place and ``CREATE TABLE IF NOT
         EXISTS`` won't touch a table that already exists, so a DB created with an older
-        CHECK would reject a SCOPED_TO edge. Detect that case and rebuild the table
+        CHECK would reject a HAS_FACET edge. Detect that case and rebuild the table
         (rename → recreate with the current schema → copy → drop), following SQLite's
         recommended table-alteration procedure with foreign keys disabled for the
         duration. Guarded on the newest allowed type, so it also covers the earlier
-        DEPENDS_ON→CONTRADICTS widening. A no-op on fresh/already-migrated DBs.
+        CONTRADICTS and SCOPED_TO widenings. A no-op on fresh/already-migrated DBs.
         """
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='edges'"
         ).fetchone()
-        if row is None or row[0] is None or "SCOPED_TO" in row[0]:
+        if row is None or row[0] is None or "HAS_FACET" in row[0]:
             return
         self._rebuild_table(
             "edges", _CREATE_EDGES, "source_id, target_id, type, created_at"
@@ -193,9 +213,9 @@ class MemoryStore:
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='events'"
         ).fetchone()
         # Guard on the NEWEST allowed type (like the nodes/edges migrations): a DB whose
-        # CHECK already lists an earlier new type but predates 'reactivated' must still
-        # rebuild, or sweep()'s archived/reactivated inserts would hit a CHECK failure.
-        if row is None or row[0] is None or "reactivated" in row[0]:
+        # CHECK already lists an earlier new type but predates 'noted' must still
+        # rebuild, or the agent-surface used/noted inserts would hit a CHECK failure.
+        if row is None or row[0] is None or "'noted'" in row[0]:
             return
         self._rebuild_table(
             "events",
@@ -319,6 +339,112 @@ class MemoryStore:
             )
         return edge
 
+    def flag_contradicted(
+        self, node_id: str, *, severity: float = 1.0, source: str, reason: str
+    ) -> Event:
+        """Record that a node was contradicted, without naming a contradicting node.
+
+        The edge-less sibling of ``raise_contradiction`` for the agent feedback loop
+        (MT3-21 ``CONTRADICTED`` events): sets ``needs_review`` and appends a
+        ``contradiction_raised`` event atomically. Like ``raise_contradiction``, it
+        never touches ``trust_weight`` — trust only changes when a privileged caller
+        folds the journal via ``recompute_trust``.
+        """
+        created_at = datetime.now(timezone.utc)
+        event_id = str(uuid.uuid4())
+        with self._conn:
+            cursor = self._conn.execute(
+                "UPDATE nodes SET needs_review = 1 WHERE id = ?", (node_id,)
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"flag_contradicted: no node with id {node_id!r}")
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id,
+                    node_id,
+                    EventType.contradiction_raised.value,
+                    severity,
+                    -1,
+                    source,
+                    reason,
+                    created_at.isoformat(),
+                ),
+            )
+        return Event(
+            id=event_id,
+            node_id=node_id,
+            type=EventType.contradiction_raised,
+            weight=severity,
+            polarity=-1,
+            source=source,
+            reason=reason,
+            created_at=created_at,
+        )
+
+    def write_atomic(
+        self,
+        nodes: list[Node],
+        edges: list[Edge],
+        events: list[Event] | None = None,
+        flag_node_ids: list[str] | None = None,
+    ) -> None:
+        """Write nodes, edges, events, and review flags in one transaction.
+
+        The write-path atomicity primitive (MT3-21): ``capture_artifact`` commits a node
+        together with its edges (and any CONTRADICTS side-effect flags/journal entries)
+        or not at all, which structurally prevents orphan nodes. Callers supply fully
+        populated models — ids and ``created_at`` must already be set.
+        """
+        with self._conn:
+            for node in nodes:
+                self._conn.execute(
+                    "INSERT INTO nodes (id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight, archived) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        node.id,
+                        node.type.value,
+                        node.tier.value,
+                        node.path,
+                        node.body,
+                        node.created_at.isoformat(),  # type: ignore[union-attr]
+                        int(node.needs_review),
+                        node.retrieval_weight,
+                        node.trust_weight,
+                        int(node.archived),
+                    ),
+                )
+            for edge in edges:
+                self._conn.execute(
+                    "INSERT INTO edges (source_id, target_id, type, created_at) VALUES (?, ?, ?, ?)",
+                    (
+                        edge.source_id,
+                        edge.target_id,
+                        edge.type.value,
+                        edge.created_at.isoformat(),  # type: ignore[union-attr]
+                    ),
+                )
+            for event in events or []:
+                self._conn.execute(
+                    "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        event.id,
+                        event.node_id,
+                        event.type.value,
+                        event.weight,
+                        event.polarity,
+                        event.source,
+                        event.reason,
+                        event.created_at.isoformat(),  # type: ignore[union-attr]
+                    ),
+                )
+            for node_id in flag_node_ids or []:
+                self._conn.execute(
+                    "UPDATE nodes SET needs_review = 1 WHERE id = ?", (node_id,)
+                )
+
     def clear_contradiction(self, target_id: str, *, source: str, reason: str) -> None:
         """Confirm a false alarm: clear the review flag and log the clearance.
 
@@ -401,6 +527,35 @@ class MemoryStore:
                 raise ValueError(f"recompute_trust: no node with id {node_id!r}")
         return trust_weight
 
+    def set_tier(self, node_id: str, tier: Tier, *, source: str, reason: str) -> None:
+        """Privileged tier change (promotion/demotion) — human checkpoint, journaled.
+
+        Not part of the agent surface (MT3-18/21: promotion is never the agent's
+        call). The override is recorded as a trust-neutral ``tier_change`` event so
+        manual intervention stays inside the audit trail and derived-state guarantees.
+        """
+        created_at = datetime.now(timezone.utc)
+        with self._conn:
+            cursor = self._conn.execute(
+                "UPDATE nodes SET tier = ? WHERE id = ?", (tier.value, node_id)
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"set_tier: no node with id {node_id!r}")
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(uuid.uuid4()),
+                    node_id,
+                    EventType.tier_change.value,
+                    0.0,
+                    1,
+                    source,
+                    f"tier -> {tier.value}" + (f": {reason}" if reason else ""),
+                    created_at.isoformat(),
+                ),
+            )
+
     def compact_events(self, node_id: str) -> None:
         # Deliberate no-op stub: compaction strategy is an open design question
         # (MT3-28), deferred beyond this slice.
@@ -473,8 +628,8 @@ class MemoryStore:
         set is the root set plus everything reachable from an active-slice root by
         following ``SCOPED_TO`` edges (slice → detail) transitively. Content nodes not in
         the live set are archived; nodes not scoped to any active slice therefore go
-        dormant, while foundations (root tiers) stay live regardless. Slice nodes are
-        never archived. Each archived/reactivated transition is journaled with a
+        dormant, while foundations (root tiers) stay live regardless. Slice and
+        facet-value nodes are never archived (both are structural anchors, not content). Each archived/reactivated transition is journaled with a
         weight-0 event, which is trust-neutral under the accumulation folds
         (``SumAndClampFold`` default, ``WeightedAverageFold``) since it contributes 0;
         note it is NOT neutral under ``LastNWindowFold``, where it still consumes a
@@ -493,7 +648,7 @@ class MemoryStore:
         live = {r[0] for r in self._conn.execute(mark_query, active).fetchall()}
 
         rows = self._conn.execute(
-            "SELECT id, archived FROM nodes WHERE type != 'slice'"
+            "SELECT id, archived FROM nodes WHERE type NOT IN ('slice','facet_value')"
         ).fetchall()
         changed: dict[str, bool] = {}
         now = datetime.now(timezone.utc).isoformat()
@@ -524,11 +679,12 @@ class MemoryStore:
         return changed
 
     def traverse(self, node_id: str) -> list[tuple[Node, Edge | None]]:
-        # Content channel: an archived (dormant) or slice (anchor) seed yields nothing,
-        # so a dormant node's live neighbours don't leak back in via seeding. The CTE
-        # itself excludes SCOPED_TO edges and archived/slice nodes from the results.
+        # Content channel: an archived (dormant) or anchor (slice/facet-value) seed
+        # yields nothing, so a dormant node's live neighbours don't leak back in via
+        # seeding. The CTE itself excludes SCOPED_TO/HAS_FACET edges and
+        # archived/anchor nodes from the results.
         seed = self.read_node(node_id)
-        if seed is None or seed.archived or seed.type == NodeType.slice:
+        if seed is None or seed.archived or seed.type in (NodeType.slice, NodeType.facet_value):
             return []
         rows = self._conn.execute(_TRAVERSE_CTE, (node_id,)).fetchall()
         result: list[tuple[Node, Edge | None]] = []
@@ -556,6 +712,35 @@ class MemoryStore:
             result.append((node, incoming))
         return result
 
+    def _score_node(self, node: Node, structure: float, now: datetime) -> float:
+        """Compose the effective score: structural gate × additive quality blend.
+
+        ``structure`` occupies the multiplicative-gate seat of the MT3-20 Pass-2
+        formula — single-seed recall passes reciprocal hop decay, multi-seed recall
+        passes normalized PPR mass. Trust/retrieval/recency stay an additive blend so a
+        single low factor dampens rather than annihilates. Penalty is flag-driven and
+        applied only at query time. Unflagged nodes get penalty 0, so every strategy
+        reduces to the unpenalized formula (no regression); severity is looked up only
+        for the few flagged nodes.
+        """
+        age_days = (now - node.created_at).total_seconds() / 86400 if node.created_at else 0.0
+        recency = _RECENCY_HALFLIFE_DAYS / (age_days + _RECENCY_HALFLIFE_DAYS)
+        penalty = (
+            compute_penalty(node, self._latest_severity(node.id))
+            if node.needs_review
+            else 0.0
+        )
+        components = ScoreComponents(
+            hop_decay=structure,
+            alpha=_ALPHA,
+            retrieval=node.retrieval_weight,
+            beta=_BETA,
+            trust=node.trust_weight,
+            gamma=_GAMMA,
+            recency=recency,
+        )
+        return self._penalty_strategy.apply(components, penalty)
+
     def recall(self, seed_id: str) -> list[tuple[Node, float]]:
         raw = self.traverse(seed_id)
         if not raw:
@@ -564,32 +749,107 @@ class MemoryStore:
         depths: dict[str, int] = {raw[0][0].id: 0}
         for node, edge in raw[1:]:
             depths[node.id] = depths.get(edge.source_id, 0) + 1  # type: ignore[union-attr]
-
-        def _score(node: Node, depth: int) -> float:
-            hop_decay = _HOP_HALFLIFE / (depth + _HOP_HALFLIFE)
-            age_days = (now - node.created_at).total_seconds() / 86400 if node.created_at else 0.0
-            recency = _RECENCY_HALFLIFE_DAYS / (age_days + _RECENCY_HALFLIFE_DAYS)
-            # Penalty is flag-driven and applied only at query time. Unflagged nodes get
-            # penalty 0, so every strategy reduces to the original formula (no regression);
-            # severity is looked up only for the few flagged nodes.
-            penalty = (
-                compute_penalty(node, self._latest_severity(node.id))
-                if node.needs_review
-                else 0.0
-            )
-            components = ScoreComponents(
-                hop_decay=hop_decay,
-                alpha=_ALPHA,
-                retrieval=node.retrieval_weight,
-                beta=_BETA,
-                trust=node.trust_weight,
-                gamma=_GAMMA,
-                recency=recency,
-            )
-            return self._penalty_strategy.apply(components, penalty)
-
-        scored = [(node, _score(node, depths[node.id])) for node, _ in raw]
+        scored = [
+            (node, self._score_node(node, _HOP_HALFLIFE / (depths[node.id] + _HOP_HALFLIFE), now))
+            for node, _ in raw
+        ]
         return sorted(scored, key=lambda x: x[1], reverse=True)
+
+    # --- multi-seed retrieval (Slice 8: PPR with goal-dominant seed weights) ---
+
+    def _live_content_edges(self) -> list[tuple[str, str, EdgeType]]:
+        """Typed edges whose both endpoints are live content nodes, in stable order.
+
+        Archived nodes and structural anchors (slice, facet_value) are excluded before
+        the walk exists, so PPR mass can neither enter nor pass through them — the
+        multi-seed analogue of the exclusions in ``_TRAVERSE_CTE``.
+        """
+        rows = self._conn.execute(
+            "SELECT e.source_id, e.target_id, e.type FROM edges e "
+            "JOIN nodes s ON s.id = e.source_id AND s.archived = 0 "
+            "     AND s.type NOT IN ('slice','facet_value') "
+            "JOIN nodes t ON t.id = e.target_id AND t.archived = 0 "
+            "     AND t.type NOT IN ('slice','facet_value') "
+            "ORDER BY e.source_id, e.target_id, e.type"
+        ).fetchall()
+        return [(r[0], r[1], EdgeType(r[2])) for r in rows]
+
+    def discover_seeds(self, query: str, *, k: int = _K_SEED_FACETS) -> dict[str, float]:
+        """Resolve query text to supplementary seed nodes via facet-value embeddings.
+
+        Embeds the query, ranks live facet-value nodes by cosine similarity (ties broken
+        by id — deterministic), keeps the top ``k`` with positive similarity, and expands
+        each to the live content nodes that carry it via HAS_FACET. A node reached
+        through several matched facets takes the strongest similarity. HAS_FACET is used
+        only here, for findability — it is never walked during PPR (policy weight 0).
+        """
+        query_vec = self._embedder.embed(query)
+        rows = self._conn.execute(
+            "SELECT id, body FROM nodes WHERE type = 'facet_value' AND archived = 0 ORDER BY id"
+        ).fetchall()
+        similarities = [
+            (facet_id, cosine(query_vec, self._embedder.embed(body)))
+            for facet_id, body in rows
+        ]
+        top = sorted(
+            [(fid, sim) for fid, sim in similarities if sim > 0],
+            key=lambda x: (-x[1], x[0]),
+        )[:k]
+        seeds: dict[str, float] = {}
+        for facet_id, similarity in top:
+            members = self._conn.execute(
+                "SELECT e.source_id FROM edges e "
+                "JOIN nodes n ON n.id = e.source_id AND n.archived = 0 "
+                "     AND n.type NOT IN ('slice','facet_value') "
+                "WHERE e.target_id = ? AND e.type = 'HAS_FACET' ORDER BY e.source_id",
+                (facet_id,),
+            ).fetchall()
+            for (node_id,) in members:
+                seeds[node_id] = max(seeds.get(node_id, 0.0), similarity)
+        return seeds
+
+    def recall_multi(
+        self,
+        query: str,
+        goal_id: str,
+        *,
+        goal_weight: float = DEFAULT_GOAL_WEIGHT,
+        k_seeds: int = _K_SEED_FACETS,
+        damping: float = DEFAULT_DAMPING,
+    ) -> list[tuple[Node, float]]:
+        """Multi-seed PPR retrieval with the Goal as mandatory, dominant seed (MT3-20).
+
+        Selection and structural relevance are one number: a node's PPR mass from the
+        seed set. Nodes with zero mass are structurally unreachable and excluded — no
+        amount of trust or recency can resurrect them (goal-first gating, MT3-25). Mass
+        is normalized by the maximum so the structural gate lands in (0, 1] like
+        single-seed hop decay, then composed with the additive quality blend by
+        ``_score_node``. ``goal_weight=1.0`` collapses to pure goal-first selection —
+        the same reachable set as ``recall(goal_id)``.
+
+        Pure function of the stored graph and arguments: deterministic seed discovery
+        (hash embeddings, ordered ties), deterministic PPR (power iteration in sorted
+        node order), deterministic ranking (score desc, then node id).
+        """
+        goal = self.read_node(goal_id)
+        if goal is None or goal.archived or goal.type in (NodeType.slice, NodeType.facet_value):
+            return []
+        supplementary = self.discover_seeds(query, k=k_seeds)
+        seeds = build_seed_vector(goal_id, supplementary, goal_weight=goal_weight)
+        graph = build_weighted_graph(self._live_content_edges(), self._edge_policy)
+        mass = personalized_pagerank(graph, seeds, damping=damping)
+        reached = {node_id: m for node_id, m in mass.items() if m > 0}
+        if not reached:
+            return []
+        max_mass = max(reached.values())
+        now = datetime.now(timezone.utc)
+        scored = []
+        for node_id in sorted(reached):
+            node = self.read_node(node_id)
+            if node is None:
+                continue
+            scored.append((node, self._score_node(node, reached[node_id] / max_mass, now)))
+        return sorted(scored, key=lambda x: (-x[1], x[0].id))
 
     def dump_pairs(self) -> list[tuple[Node, list[Edge], list[Event]]]:
         rows = self._conn.execute(

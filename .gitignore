@@ -12,3 +12,6 @@ __pycache__/
 # Tooling workspaces (regenerated locally; not tracked)
 .serena/
 graphify-out/
+
+# GUI toolchain (gui/dist IS tracked so the GUI runs without node)
+gui/node_modules/
