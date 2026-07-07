@@ -12,6 +12,7 @@ class NodeType(str, Enum):
     issue = "issue"
     invariant = "invariant"
     slice = "slice"
+    facet_value = "facet_value"
 
 
 class Tier(str, Enum):
@@ -38,6 +39,7 @@ class EdgeType(str, Enum):
     depends_on = "DEPENDS_ON"
     contradicts = "CONTRADICTS"
     scoped_to = "SCOPED_TO"
+    has_facet = "HAS_FACET"
 
 
 class Edge(BaseModel):
