@@ -95,7 +95,11 @@ class MemoryStore:
         embedder: Embedder | None = None,
         edge_policy: dict[tuple[EdgeType, Direction], float] | None = None,
     ) -> None:
-        self._conn = sqlite3.connect(str(db_path))
+        # check_same_thread=False: the GUI server's event loop may touch the
+        # connection from a different thread than the one that opened it. Access is
+        # still effectively serialized (single event loop / single test portal);
+        # this is not a concurrent-writer guarantee.
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._fold_strategy = fold_strategy or SumAndClampFold()
@@ -522,6 +526,35 @@ class MemoryStore:
             if cursor.rowcount == 0:
                 raise ValueError(f"recompute_trust: no node with id {node_id!r}")
         return trust_weight
+
+    def set_tier(self, node_id: str, tier: Tier, *, source: str, reason: str) -> None:
+        """Privileged tier change (promotion/demotion) — human checkpoint, journaled.
+
+        Not part of the agent surface (MT3-18/21: promotion is never the agent's
+        call). The override is recorded as a trust-neutral ``tier_change`` event so
+        manual intervention stays inside the audit trail and derived-state guarantees.
+        """
+        created_at = datetime.now(timezone.utc)
+        with self._conn:
+            cursor = self._conn.execute(
+                "UPDATE nodes SET tier = ? WHERE id = ?", (tier.value, node_id)
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"set_tier: no node with id {node_id!r}")
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(uuid.uuid4()),
+                    node_id,
+                    EventType.tier_change.value,
+                    0.0,
+                    1,
+                    source,
+                    f"tier -> {tier.value}" + (f": {reason}" if reason else ""),
+                    created_at.isoformat(),
+                ),
+            )
 
     def compact_events(self, node_id: str) -> None:
         # Deliberate no-op stub: compaction strategy is an open design question

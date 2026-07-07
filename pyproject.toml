@@ -10,10 +10,13 @@ requires-python = ">=3.12"
 dependencies = [
     "mcp>=1.28.1",
     "pydantic>=2.0",
+    "starlette>=0.40",
+    "uvicorn>=0.30",
 ]
 
 [project.scripts]
 agentic-memory-mcp = "agentic_memory_system.mcp_server:main"
+agentic-memory-gui = "agentic_memory_system.gui_api:main"
 
 [build-system]
 requires = ["uv_build>=0.11.19,<0.12.0"]
@@ -23,6 +26,7 @@ build-backend = "uv_build"
 dev = [
     "pytest>=8.0",
     "hypothesis>=6.100",
+    "httpx>=0.27",
 ]
 
 [tool.pytest.ini_options]
