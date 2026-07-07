@@ -50,7 +50,7 @@ The "10x framework" that previously blocked the write path **has arrived and is 
 
 ### Will block implementation soon — resolve early
 
-- **PPR × effective_score composition.** PPR gives *structural* relevance; `effective_score` gives *trust/recency/tier*. Two ranking signals that must combine into one order. How? (Weighted blend? PPR as a multiplier? Filter-then-rank?) Needed for slice 8. *(MT3-20.)*
+- ~~**PPR × effective_score composition.**~~ **Resolved (slice 8):** PPR slots into the structural-gate seat of the score — `effective_score = ppr_norm × (α·retrieval + β·trust + γ·recency)`, i.e. normalized PPR mass replaces `hop_decay` as the multiplicative gate while the quality terms stay an additive blend. Selection and gating are one number (zero mass = not returned). See `context/changes/multi-seed-retrieval/ppr-composition.md`. *(MT3-20.)*
 - **Per-channel edge policy.** An edge's traverse/pull verdict may depend on the query channel (content-retrieval vs provenance-query vs liveness-marking) rather than one global value. Decide whether the edge-policy table needs a channel dimension. Affects slices 2, 7, and all provenance work. *(MT3-20, MT3-30.)*
 
 ### Real design work, not yet started
