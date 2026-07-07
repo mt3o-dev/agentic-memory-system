@@ -25,7 +25,7 @@ from .retrieval import (
 _CREATE_NODES = """
 CREATE TABLE IF NOT EXISTS nodes (
     id          TEXT    PRIMARY KEY,
-    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant','slice','facet_value')),
+    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant','slice','facet_value','goal')),
     tier        TEXT    NOT NULL CHECK(tier IN ('short-term','mid-term','long-term','lifetime')),
     path        TEXT    NOT NULL,
     body        TEXT    NOT NULL,
@@ -52,7 +52,7 @@ _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
     id          TEXT PRIMARY KEY,
     node_id     TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated')),
+    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted')),
     weight      REAL NOT NULL,
     polarity    INTEGER NOT NULL CHECK(polarity IN (-1, 1)),
     source      TEXT NOT NULL,
@@ -169,7 +169,7 @@ class MemoryStore:
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='nodes'"
         ).fetchone()
-        if row is None or row[0] is None or "'facet_value'" in row[0]:
+        if row is None or row[0] is None or "'goal'" in row[0]:
             return
         self._rebuild_table(
             "nodes",
@@ -209,9 +209,9 @@ class MemoryStore:
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='events'"
         ).fetchone()
         # Guard on the NEWEST allowed type (like the nodes/edges migrations): a DB whose
-        # CHECK already lists an earlier new type but predates 'reactivated' must still
-        # rebuild, or sweep()'s archived/reactivated inserts would hit a CHECK failure.
-        if row is None or row[0] is None or "reactivated" in row[0]:
+        # CHECK already lists an earlier new type but predates 'noted' must still
+        # rebuild, or the agent-surface used/noted inserts would hit a CHECK failure.
+        if row is None or row[0] is None or "'noted'" in row[0]:
             return
         self._rebuild_table(
             "events",
@@ -334,6 +334,112 @@ class MemoryStore:
                 ),
             )
         return edge
+
+    def flag_contradicted(
+        self, node_id: str, *, severity: float = 1.0, source: str, reason: str
+    ) -> Event:
+        """Record that a node was contradicted, without naming a contradicting node.
+
+        The edge-less sibling of ``raise_contradiction`` for the agent feedback loop
+        (MT3-21 ``CONTRADICTED`` events): sets ``needs_review`` and appends a
+        ``contradiction_raised`` event atomically. Like ``raise_contradiction``, it
+        never touches ``trust_weight`` — trust only changes when a privileged caller
+        folds the journal via ``recompute_trust``.
+        """
+        created_at = datetime.now(timezone.utc)
+        event_id = str(uuid.uuid4())
+        with self._conn:
+            cursor = self._conn.execute(
+                "UPDATE nodes SET needs_review = 1 WHERE id = ?", (node_id,)
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"flag_contradicted: no node with id {node_id!r}")
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id,
+                    node_id,
+                    EventType.contradiction_raised.value,
+                    severity,
+                    -1,
+                    source,
+                    reason,
+                    created_at.isoformat(),
+                ),
+            )
+        return Event(
+            id=event_id,
+            node_id=node_id,
+            type=EventType.contradiction_raised,
+            weight=severity,
+            polarity=-1,
+            source=source,
+            reason=reason,
+            created_at=created_at,
+        )
+
+    def write_atomic(
+        self,
+        nodes: list[Node],
+        edges: list[Edge],
+        events: list[Event] | None = None,
+        flag_node_ids: list[str] | None = None,
+    ) -> None:
+        """Write nodes, edges, events, and review flags in one transaction.
+
+        The write-path atomicity primitive (MT3-21): ``capture_artifact`` commits a node
+        together with its edges (and any CONTRADICTS side-effect flags/journal entries)
+        or not at all, which structurally prevents orphan nodes. Callers supply fully
+        populated models — ids and ``created_at`` must already be set.
+        """
+        with self._conn:
+            for node in nodes:
+                self._conn.execute(
+                    "INSERT INTO nodes (id, type, tier, path, body, created_at, needs_review, retrieval_weight, trust_weight, archived) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        node.id,
+                        node.type.value,
+                        node.tier.value,
+                        node.path,
+                        node.body,
+                        node.created_at.isoformat(),  # type: ignore[union-attr]
+                        int(node.needs_review),
+                        node.retrieval_weight,
+                        node.trust_weight,
+                        int(node.archived),
+                    ),
+                )
+            for edge in edges:
+                self._conn.execute(
+                    "INSERT INTO edges (source_id, target_id, type, created_at) VALUES (?, ?, ?, ?)",
+                    (
+                        edge.source_id,
+                        edge.target_id,
+                        edge.type.value,
+                        edge.created_at.isoformat(),  # type: ignore[union-attr]
+                    ),
+                )
+            for event in events or []:
+                self._conn.execute(
+                    "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        event.id,
+                        event.node_id,
+                        event.type.value,
+                        event.weight,
+                        event.polarity,
+                        event.source,
+                        event.reason,
+                        event.created_at.isoformat(),  # type: ignore[union-attr]
+                    ),
+                )
+            for node_id in flag_node_ids or []:
+                self._conn.execute(
+                    "UPDATE nodes SET needs_review = 1 WHERE id = ?", (node_id,)
+                )
 
     def clear_contradiction(self, target_id: str, *, source: str, reason: str) -> None:
         """Confirm a false alarm: clear the review flag and log the clearance.

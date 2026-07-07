@@ -13,6 +13,7 @@ class NodeType(str, Enum):
     invariant = "invariant"
     slice = "slice"
     facet_value = "facet_value"
+    goal = "goal"
 
 
 class Tier(str, Enum):
@@ -59,6 +60,8 @@ class EventType(str, Enum):
     slice_deactivated = "slice_deactivated"
     archived = "archived"
     reactivated = "reactivated"
+    used = "used"
+    noted = "noted"
 
 
 class Event(BaseModel):
