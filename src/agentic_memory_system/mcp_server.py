@@ -127,6 +127,27 @@ def recall_context(query: str, goal_ref: str) -> str:
     return _call(_get_surface().recall_context, query, goal_ref)
 
 
+@mcp.tool()
+def impact_of(node_ref: str) -> str:
+    """Trace the blast radius of a node: the artifacts that (transitively) depend on it.
+    Call this before proposing a change to an artifact, so the ripple is visible.
+    `node_ref` is a stable node id (e.g. from recall_context). Returns the dependents as
+    ranked blocks (nearest first) tagged with stable ids, type/tier, hop `depth`, and a
+    'disputed' marker on flagged nodes — or a note that nothing depends on it. Fidelity is
+    bounded by the explicit DEPENDS_ON edges in the graph. Read-only; mutates nothing."""
+    return _call(_get_surface().trace_impact, node_ref)
+
+
+@mcp.tool()
+def stale_nodes() -> str:
+    """List the staleness queue: content nodes currently flagged for review (needs_review).
+    Use this at PR/review time to surface what a human should re-assess. Returns flagged
+    nodes newest-first as blocks with stable ids and type/tier labels, or a note that the
+    queue is empty. Read-only: this call cannot clear a flag — resolving review is a
+    privileged human/evaluator step, never an agent action."""
+    return _call(_get_surface().review_queue)
+
+
 def main() -> None:
     mcp.run()
 

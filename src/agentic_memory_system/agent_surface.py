@@ -472,3 +472,44 @@ class AgentSurface:
             edge_lines = "\n".join(f"[{s}] CONTRADICTS [{t}]" for s, t in rows)
             blocks.append(f"contradictions:\n{edge_lines}")
         return "\n\n".join(blocks)
+
+    # --- read path: trace_impact & review_queue (both strictly read-only) ---
+
+    def trace_impact(self, node_ref: str) -> str:
+        """Read-only: the artifacts that depend on ``node_ref`` — its blast radius.
+
+        Wraps ``MemoryStore.impact_of`` for the ``trace-impact`` skill: call it before
+        proposing a change to an artifact so the ripple is visible. Returns dependents
+        as ranked blocks (nearest first) tagged with stable ids, type/tier, hop
+        ``depth``, and a 'disputed' marker on flagged nodes. Fidelity is bounded by the
+        explicit DEPENDS_ON edges in the graph — an undocumented dependency won't show.
+        Never mutates anything.
+        """
+        node = self._require_node(node_ref, "node_ref")
+        impacted = self._store.impact_of(node.id)
+        if not impacted:
+            return f"(nothing depends on [node:{node.id}])"
+        blocks = []
+        for dep, distance in impacted:
+            tags = f"type={dep.type.value} tier={dep.tier.value} depth={distance}"
+            if dep.needs_review:
+                tags += " disputed"
+            blocks.append(f"[node:{dep.id}] {tags}\n{dep.body}")
+        return "\n\n".join(blocks)
+
+    def review_queue(self) -> str:
+        """Read-only: the staleness queue — content nodes flagged ``needs_review``.
+
+        Wraps ``MemoryStore.flagged_nodes`` for the ``review-staleness`` skill (a human
+        gate at PR/review). Returns flagged nodes newest-first as blocks tagged with
+        stable ids and type/tier. This surface only *reads* the queue — clearing a flag
+        is the evaluator's/human's privileged call, never the agent's (safety invariant).
+        """
+        flagged = self._store.flagged_nodes()
+        if not flagged:
+            return "(no nodes are flagged for review)"
+        blocks = [
+            f"[node:{node.id}] type={node.type.value} tier={node.tier.value} disputed\n{node.body}"
+            for node in flagged
+        ]
+        return "\n\n".join(blocks)

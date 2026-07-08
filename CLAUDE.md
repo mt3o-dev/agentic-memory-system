@@ -18,8 +18,9 @@ under `.claude/skills/` are the binding — invoke them at these moments:
 | Task/phase start, before research or framing | **memory-recall** | `recall_context` — load ranked context; disputed nodes surfaced with both sides |
 | `/10x-plan` done; every implement phase boundary; any decision/constraint/issue | **memory-capture** | `capture_artifact` — the quality-ceiling skill: typed, goal-anchored, edge-connected, facet-governed |
 | Mid-work discovery of a relationship or conflict | *(direct)* | `link` — DEPENDS_ON / CONTRADICTS between existing nodes |
+| Before changing / superseding an artifact | **memory-trace-impact** | `impact_of` — the dependents (blast radius) that a change would ripple to, before you touch it |
 | Session/phase end | **memory-feedback** | `append_events` — batch USED/CONFIRMED/CONTRADICTED/REVIEWED/NOTED |
-| PR / impl-review | **memory-review-staleness** | Surface disputed nodes + promotion candidates for the HUMAN gate (GUI Review tab) |
+| PR / impl-review | **memory-review-staleness** | `stale_nodes` for the durable flagged queue + disputed nodes from this session's recalls; surfaced for the HUMAN gate (GUI Review tab) |
 | Merge / `/10x-archive` | **memory-archive-on-merge** | `scripts/memory_lifecycle.py deactivate <change-id> --sweep` — scope goes dormant, foundations survive |
 
 Safety model to respect always: the agent surface can never mutate trust, clear
