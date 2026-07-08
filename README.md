@@ -72,7 +72,10 @@ browse and search the graph, walk edges from node to node, read each node's jour
 work the review queue (with the rules-resolver verdict as a hint), promote/demote
 tiers (lifetime promotion requires explicit confirmation), manage change liveness and
 run sweeps, and preview retrieval with full scores — humans see the mechanism that
-agents deliberately don't. Every human override is journaled as an event, so manual
+agents deliberately don't. Editing is supported and deliberately thin: create
+artifacts and add edges through the same enforced write path agents use (goal-first,
+facet governance, CONTRADICTS side-effects), edit node bodies, set weights directly,
+and archive/unarchive. Every human write is journaled as an event, so manual
 intervention never breaks the derived-state guarantees.
 
 To hack on the GUI: `cd gui && npm install && npm run dev` (Vite dev server proxying
@@ -94,5 +97,6 @@ design record is the Linear project ("Agentic Memory System", MT3-17…MT3-30).
 
 1–7 ✅ capture/recall, typed traversal, ranked scoring, git-sync, event-sourced
 trust, flag-based staleness, liveness/archival · 8 ✅ multi-seed PPR retrieval ·
-9 ✅ write-path MCP surface · GUI ✅ (minimal v1) · 10 ⏳ 10x lifecycle binding ·
-evaluator agent & consolidation ⏳
+9 ✅ write-path MCP surface · GUI ✅ (v1.5 with editing) · 10 ✅ 10x lifecycle
+binding (`.claude/skills/memory-*` + `CLAUDE.md` binding table) · evaluator agent &
+consolidation ⏳
