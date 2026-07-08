@@ -97,5 +97,6 @@ design record is the Linear project ("Agentic Memory System", MT3-17…MT3-30).
 
 1–7 ✅ capture/recall, typed traversal, ranked scoring, git-sync, event-sourced
 trust, flag-based staleness, liveness/archival · 8 ✅ multi-seed PPR retrieval ·
-9 ✅ write-path MCP surface · GUI ✅ (minimal v1) · 10 ⏳ 10x lifecycle binding ·
-evaluator agent & consolidation ⏳
+9 ✅ write-path MCP surface · GUI ✅ (v1.5 with editing) · 10 ✅ 10x lifecycle
+binding (`.claude/skills/memory-*` + `CLAUDE.md` binding table) · evaluator agent &
+consolidation ⏳
