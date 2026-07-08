@@ -16,9 +16,18 @@ Answers to the other MT3-26 open questions, for v1:
 
 - **Standalone vs embedded** → standalone local web app (`uv run agentic-memory-gui`),
   single user, no auth. Cheapest thing that provides the checkpoint surface.
-- **Read-mostly vs full editor** → read-mostly + checkpoint actions. Content and edge
-  *editing* stay workflow-enforced (agents write through the MCP surface); the human
-  curates state, not content.
+- **Read-mostly vs full editor** → v1 shipped read-mostly + checkpoint actions;
+  **v1.5 (owner request) added editing** — deliberately thin, near-direct API calls:
+  - *Create artifact* and *add edge* are human front-ends on the **agent surface**
+    (`capture_artifact` / `link`), so goal-first, atomic edges, facet governance, and
+    CONTRADICTS side-effects hold identically for humans and agents.
+  - *Edit body* → `content_edited` journal event; whether prior confirmations still
+    apply is the human's call (re-confirm or recompute after editing).
+  - *Set weights* → `weight_set` journal event; a manual trust value holds only until
+    the next recompute folds the journal (stated in the UI).
+  - *Archive/unarchive* → journaled `archived`/`reactivated`; persists until the next
+    sweep recomputes liveness — durable archival remains change-deactivation + sweep.
+  Node *deletion* stays out by design: archival is the system's delete.
 - **Graph viz library** → none in v1. Edge-walking (click a neighbor, the detail pane
   moves there) covers "traverse interactively" without a layout engine. Force-directed
   belief-network view is the natural v2 if it earns its complexity.
@@ -77,8 +86,8 @@ router (tab state), no client state library (Svelte 5 runes + fetch).
 
 Belief-network visualization (supporters vs contradictors, weight as intensity) ·
 weight/velocity trends per node · orphan/edgeless warnings surfaced as a queue (the
-count already sits in the health strip) · content/edge editing (needs a
-workflow-safety story first) · taxonomy/facet management · drag-and-drop
+count already sits in the health strip) · edge *removal* (the one true deletion —
+needs a journaling design) · taxonomy/facet management · drag-and-drop
 reorganization · concurrent-agent live refresh.
 
 ## Build shape
