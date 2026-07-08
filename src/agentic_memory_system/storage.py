@@ -52,7 +52,7 @@ _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
     id          TEXT PRIMARY KEY,
     node_id     TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted')),
+    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted','content_edited','weight_set')),
     weight      REAL NOT NULL,
     polarity    INTEGER NOT NULL CHECK(polarity IN (-1, 1)),
     source      TEXT NOT NULL,
@@ -213,9 +213,9 @@ class MemoryStore:
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='events'"
         ).fetchone()
         # Guard on the NEWEST allowed type (like the nodes/edges migrations): a DB whose
-        # CHECK already lists an earlier new type but predates 'noted' must still
-        # rebuild, or the agent-surface used/noted inserts would hit a CHECK failure.
-        if row is None or row[0] is None or "'noted'" in row[0]:
+        # CHECK already lists an earlier new type but predates 'weight_set' must still
+        # rebuild, or the GUI editing inserts would hit a CHECK failure.
+        if row is None or row[0] is None or "'weight_set'" in row[0]:
             return
         self._rebuild_table(
             "events",
@@ -534,27 +534,94 @@ class MemoryStore:
         call). The override is recorded as a trust-neutral ``tier_change`` event so
         manual intervention stays inside the audit trail and derived-state guarantees.
         """
+        self._journaled_update(
+            node_id, "tier = ?", (tier.value,), EventType.tier_change, 1, source,
+            f"tier -> {tier.value}" + (f": {reason}" if reason else ""),
+        )
+
+    def _journaled_update(
+        self, node_id: str, set_sql: str, params: tuple, event_type: EventType,
+        polarity: int, source: str, reason: str,
+    ) -> None:
+        """UPDATE one node + append a trust-neutral journal event, atomically."""
         created_at = datetime.now(timezone.utc)
         with self._conn:
             cursor = self._conn.execute(
-                "UPDATE nodes SET tier = ? WHERE id = ?", (tier.value, node_id)
+                f"UPDATE nodes SET {set_sql} WHERE id = ?", (*params, node_id)
             )
             if cursor.rowcount == 0:
-                raise ValueError(f"set_tier: no node with id {node_id!r}")
+                raise ValueError(f"no node with id {node_id!r}")
             self._conn.execute(
                 "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     str(uuid.uuid4()),
                     node_id,
-                    EventType.tier_change.value,
+                    event_type.value,
                     0.0,
-                    1,
+                    polarity,
                     source,
-                    f"tier -> {tier.value}" + (f": {reason}" if reason else ""),
+                    reason,
                     created_at.isoformat(),
                 ),
             )
+
+    def edit_body(self, node_id: str, body: str, *, source: str, reason: str = "") -> None:
+        """Privileged content edit, journaled as a ``content_edited`` event.
+
+        The event is trust-neutral; whether prior confirmations still apply to the new
+        text is the human's call (re-confirm or recompute after editing).
+        """
+        self._journaled_update(
+            node_id, "body = ?", (body,), EventType.content_edited, 1, source,
+            reason or "body edited",
+        )
+
+    def set_weights(
+        self,
+        node_id: str,
+        *,
+        trust_weight: float | None = None,
+        retrieval_weight: float | None = None,
+        source: str,
+        reason: str = "",
+    ) -> None:
+        """Privileged direct weight override, journaled as a ``weight_set`` event.
+
+        Note the interaction with derived state: a manually set ``trust_weight``
+        persists only until the next ``recompute_trust`` folds the journal again.
+        """
+        sets, params, parts = [], [], []
+        if trust_weight is not None:
+            sets.append("trust_weight = ?")
+            params.append(trust_weight)
+            parts.append(f"trust={trust_weight}")
+        if retrieval_weight is not None:
+            sets.append("retrieval_weight = ?")
+            params.append(retrieval_weight)
+            parts.append(f"retrieval={retrieval_weight}")
+        if not sets:
+            raise ValueError("set_weights: nothing to set")
+        self._journaled_update(
+            node_id, ", ".join(sets), tuple(params), EventType.weight_set, 1, source,
+            ("; ".join(parts)) + (f": {reason}" if reason else ""),
+        )
+
+    def set_archived(self, node_id: str, archived: bool, *, source: str, reason: str = "") -> None:
+        """Privileged manual archive/unarchive, journaled like sweep transitions.
+
+        A manual override persists only until the next ``sweep`` recomputes liveness
+        from the root set — use change deactivation + sweep for durable archival.
+        """
+        self._journaled_update(
+            node_id,
+            "archived = ?",
+            (int(archived),),
+            EventType.archived if archived else EventType.reactivated,
+            -1 if archived else 1,
+            source,
+            reason or ("archived manually" if archived else "reactivated manually"),
+        )
 
     def compact_events(self, node_id: str) -> None:
         # Deliberate no-op stub: compaction strategy is an open design question

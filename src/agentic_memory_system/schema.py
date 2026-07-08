@@ -62,6 +62,8 @@ class EventType(str, Enum):
     reactivated = "reactivated"
     used = "used"
     noted = "noted"
+    content_edited = "content_edited"
+    weight_set = "weight_set"
 
 
 class Event(BaseModel):

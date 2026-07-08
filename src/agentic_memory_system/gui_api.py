@@ -25,6 +25,7 @@ from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from .agent_surface import AgentSurface, AgentSurfaceError
 from .resolver import RulesResolver
 from .schema import Node, NodeType, Tier
 from .storage import MemoryStore
@@ -56,6 +57,10 @@ def _node_summary(node: Node) -> dict:
 
 def create_app(store: MemoryStore) -> Starlette:
     resolver = RulesResolver()
+    # Creation and edge-adding reuse the agent surface deliberately: the GUI gets the
+    # same goal-first, atomicity, and facet-governance enforcement — it is a human
+    # front-end on the one write path, not a second unguarded one.
+    surface = AgentSurface(store)
 
     def _get_node_or_404(node_id: str) -> Node | JSONResponse:
         node = store.read_node(node_id)
@@ -214,6 +219,81 @@ def create_app(store: MemoryStore) -> Starlette:
             [{**_node_summary(node), "score": score} for node, score in ranked]
         )
 
+    # --- editing (v1.5): thin wrappers, every write journaled ---
+
+    async def create_artifact(request: Request) -> JSONResponse:
+        p = await request.json()
+        try:
+            result = surface.capture_artifact(
+                content=str(p.get("content", "")),
+                type=str(p.get("type", "")),
+                goal_ref=str(p.get("goal_ref", "")),
+                facets=[f.strip() for f in p.get("facets", []) if f.strip()],
+                edges=p.get("edges") or [],
+                tier=str(p.get("tier", "short-term")),
+            )
+        except AgentSurfaceError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(result)
+
+    async def create_edge(request: Request) -> JSONResponse:
+        p = await request.json()
+        try:
+            result = surface.link(
+                str(p.get("source", "")),
+                str(p.get("target", "")),
+                str(p.get("type", "")),
+                reason=str(p.get("reason", "linked via GUI")),
+            )
+        except AgentSurfaceError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(result)
+
+    async def edit_body(request: Request) -> JSONResponse:
+        node = _get_node_or_404(request.path_params["node_id"])
+        if isinstance(node, JSONResponse):
+            return node
+        p = await request.json()
+        body = str(p.get("body", ""))
+        if not body.strip():
+            return JSONResponse({"error": "body must be non-empty"}, status_code=400)
+        store.edit_body(node.id, body, source="gui", reason=str(p.get("reason", "")))
+        return JSONResponse({"ok": True})
+
+    async def set_weights(request: Request) -> JSONResponse:
+        node = _get_node_or_404(request.path_params["node_id"])
+        if isinstance(node, JSONResponse):
+            return node
+        p = await request.json()
+        try:
+            trust = None if p.get("trust_weight") is None else float(p["trust_weight"])
+            retrieval = (
+                None if p.get("retrieval_weight") is None else float(p["retrieval_weight"])
+            )
+            store.set_weights(
+                node.id,
+                trust_weight=trust,
+                retrieval_weight=retrieval,
+                source="gui",
+                reason=str(p.get("reason", "")),
+            )
+        except (ValueError, TypeError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True})
+
+    async def set_archived(request: Request) -> JSONResponse:
+        node = _get_node_or_404(request.path_params["node_id"])
+        if isinstance(node, JSONResponse):
+            return node
+        p = await request.json()
+        store.set_archived(
+            node.id,
+            bool(p.get("archived")),
+            source="gui",
+            reason=str(p.get("reason", "")),
+        )
+        return JSONResponse({"ok": True})
+
     # --- privileged writes: every one journals an event ---
 
     async def clear_flag(request: Request) -> JSONResponse:
@@ -281,8 +361,13 @@ def create_app(store: MemoryStore) -> Starlette:
 
     routes = [
         Route("/api/health", health),
-        Route("/api/nodes", list_nodes),
+        Route("/api/nodes", list_nodes, methods=["GET"]),
+        Route("/api/nodes", create_artifact, methods=["POST"]),
+        Route("/api/edges", create_edge, methods=["POST"]),
         Route("/api/nodes/{node_id}", node_detail),
+        Route("/api/nodes/{node_id}/body", edit_body, methods=["POST"]),
+        Route("/api/nodes/{node_id}/weights", set_weights, methods=["POST"]),
+        Route("/api/nodes/{node_id}/archived", set_archived, methods=["POST"]),
         Route("/api/nodes/{node_id}/clear-flag", clear_flag, methods=["POST"]),
         Route("/api/nodes/{node_id}/tier", set_tier, methods=["POST"]),
         Route("/api/nodes/{node_id}/recompute-trust", recompute_trust, methods=["POST"]),

@@ -108,6 +108,102 @@ def test_changes_lifecycle_and_sweep(seeded):
     assert swept["changed"].get(a["node_id"]) is False
 
 
+# --- editing (v1.5): create, link, edit body, weights, archive ---
+
+
+def test_create_artifact_via_gui_enforces_goal_first(seeded):
+    client, store, change, *_ = seeded
+    created = client.post(
+        "/api/nodes",
+        json={
+            "content": "delta invariant",
+            "type": "invariant",
+            "goal_ref": change["goal_node_id"],
+            "facets": ["invoicing"],
+        },
+    ).json()
+    assert "node_id" in created
+    assert store.read_node(created["node_id"]).body == "delta invariant"
+    # same enforcement as the agent surface: no goal, no node
+    rejected = client.post(
+        "/api/nodes", json={"content": "x", "type": "decision", "goal_ref": "nope"}
+    )
+    assert rejected.status_code == 400
+    assert "goal" in rejected.json()["error"]
+
+
+def test_create_artifact_surfaces_facet_warnings(seeded):
+    client, _, change, *_ = seeded
+    result = client.post(
+        "/api/nodes",
+        json={
+            "content": "near-synonym probe",
+            "type": "concept",
+            "goal_ref": change["goal_node_id"],
+            "facets": ["invoicing rules"],
+        },
+    ).json()
+    assert any("did you mean" in w for w in result.get("facet_warnings", []))
+
+
+def test_create_edge_via_gui(seeded):
+    client, store, _, a, _, c = seeded
+    result = client.post(
+        "/api/edges",
+        json={"source": c["node_id"], "target": a["node_id"], "type": "DEPENDS_ON"},
+    ).json()
+    assert result["edge"]["type"] == "DEPENDS_ON"
+    dup = client.post(
+        "/api/edges",
+        json={"source": c["node_id"], "target": a["node_id"], "type": "DEPENDS_ON"},
+    )
+    assert dup.status_code == 400
+    contra = client.post(
+        "/api/edges",
+        json={"source": a["node_id"], "target": c["node_id"], "type": "CONTRADICTS"},
+    ).json()
+    assert contra["side_effects"] == [f"{c['node_id']} flagged needs_review"]
+    assert store.read_node(c["node_id"]).needs_review is True
+
+
+def test_edit_body_updates_and_journals(seeded):
+    client, store, _, a, *_ = seeded
+    resp = client.post(
+        f"/api/nodes/{a['node_id']}/body",
+        json={"body": "alpha decision, revised", "reason": "clarified wording"},
+    )
+    assert resp.json()["ok"] is True
+    assert store.read_node(a["node_id"]).body == "alpha decision, revised"
+    events = store.read_events(a["node_id"])
+    assert any(e.type == EventType.content_edited and e.source == "gui" for e in events)
+    empty = client.post(f"/api/nodes/{a['node_id']}/body", json={"body": "  "})
+    assert empty.status_code == 400
+
+
+def test_set_weights_updates_and_journals(seeded):
+    client, store, _, a, *_ = seeded
+    resp = client.post(
+        f"/api/nodes/{a['node_id']}/weights",
+        json={"trust_weight": 0.4, "retrieval_weight": 2.5, "reason": "manual calibration"},
+    )
+    assert resp.json()["ok"] is True
+    node = store.read_node(a["node_id"])
+    assert node.trust_weight == 0.4 and node.retrieval_weight == 2.5
+    assert any(e.type == EventType.weight_set for e in store.read_events(a["node_id"]))
+    nothing = client.post(f"/api/nodes/{a['node_id']}/weights", json={})
+    assert nothing.status_code == 400
+
+
+def test_manual_archive_roundtrip_journaled(seeded):
+    client, store, _, a, *_ = seeded
+    client.post(f"/api/nodes/{a['node_id']}/archived", json={"archived": True})
+    assert store.read_node(a["node_id"]).archived is True
+    client.post(f"/api/nodes/{a['node_id']}/archived", json={"archived": False})
+    assert store.read_node(a["node_id"]).archived is False
+    types = [e.type for e in store.read_events(a["node_id"])]
+    assert EventType.archived in types and EventType.reactivated in types
+
+
 def test_goals_and_recall_preview_shows_scores(seeded):
     client, _, change, a, *_ = seeded
     goals = client.get("/api/goals").json()
