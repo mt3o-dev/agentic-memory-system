@@ -1,8 +1,11 @@
 <script>
   import { get, tierBadge } from '../api.js'
   import NodeDetail from './NodeDetail.svelte'
+  import CreateArtifact from './CreateArtifact.svelte'
 
   let { selectedId = $bindable(null), onchanged } = $props()
+
+  let creating = $state(false)
 
   let q = $state('')
   let type = $state('')
@@ -61,6 +64,12 @@
         <input class="form-check-input" type="checkbox" id="archived" bind:checked={archived} />
         <label class="form-check-label small" for="archived">incl. archived</label>
       </div>
+      <button
+        class="btn btn-sm btn-outline-primary ms-auto"
+        onclick={() => (creating = true)}
+      >
+        ＋ artifact
+      </button>
     </div>
 
     {#if error}<div class="alert alert-danger py-1">{error}</div>{/if}
@@ -93,7 +102,17 @@
   </div>
 
   <div class="col-lg-7">
-    {#if selectedId}
+    {#if creating}
+      <CreateArtifact
+        oncreated={(id) => {
+          creating = false
+          selectedId = id
+          load()
+          onchanged?.()
+        }}
+        oncancel={() => (creating = false)}
+      />
+    {:else if selectedId}
       <NodeDetail
         id={selectedId}
         onselect={(id) => (selectedId = id)}
@@ -104,7 +123,7 @@
       />
     {:else}
       <div class="text-secondary p-5 text-center border rounded bg-body-tertiary">
-        select a node to inspect it — content, weights, edges, and its journal
+        select a node to inspect it — or ＋ artifact to add one
       </div>
     {/if}
   </div>
