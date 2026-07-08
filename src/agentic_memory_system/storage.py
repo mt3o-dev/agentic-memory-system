@@ -1,5 +1,6 @@
 import sqlite3
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -516,6 +517,22 @@ class MemoryStore:
             for r in rows
         ]
 
+    def flagged_nodes(self) -> list[Node]:
+        """Live content nodes flagged ``needs_review`` — the staleness queue (read-only).
+
+        The read primitive behind a durable, cross-session staleness queue (the
+        ``stale_nodes()`` read call anticipated by the slice-10 plan-brief). Returns
+        flagged, non-archived content nodes newest-first; anchors (slice/facet_value)
+        are never flagged content and are excluded. Purely a read — clearing a flag is
+        the evaluator's/human's privileged call (``clear_contradiction``), never this.
+        """
+        rows = self._conn.execute(
+            "SELECT id FROM nodes WHERE needs_review = 1 AND archived = 0 "
+            "AND type NOT IN ('slice','facet_value') "
+            "ORDER BY created_at DESC, id DESC"
+        ).fetchall()
+        return [self.read_node(r[0]) for r in rows]
+
     def recompute_trust(self, node_id: str, strategy: FoldStrategy | None = None) -> float:
         events = self.read_events(node_id)
         trust_weight = (strategy or self._fold_strategy).fold(events)
@@ -778,6 +795,50 @@ class MemoryStore:
                 )
             result.append((node, incoming))
         return result
+
+    def impact_of(self, node_id: str) -> list[tuple[Node, int]]:
+        """Content nodes that (transitively) DEPENDS_ON ``node_id`` — its impact set.
+
+        The read primitive behind the ``trace-impact`` skill (deferred by the slice-10
+        plan-brief until ``impact_of()`` landed in the read surface — this is it): who is
+        affected if this artifact changes. ``source DEPENDS_ON target`` means source
+        depends on target, so the dependents of ``node_id`` are the *sources* reached by
+        walking DEPENDS_ON edges backwards (target → source). Returns ``(Node, distance)``
+        pairs ordered by distance then id — a breadth-first walk over live content edges
+        only (archived nodes and structural anchors are excluded, mirroring ``traverse``).
+        CONTRADICTS is not a dependency and is not followed. Read-only.
+
+        Fidelity is bounded by the explicit DEPENDS_ON edges in the graph; an
+        undocumented dependency does not appear here. Deterministic: edges are read in
+        sorted order and the result is sorted, so the same graph yields the same list.
+        """
+        seed = self.read_node(node_id)
+        if seed is None or seed.archived or seed.type in (NodeType.slice, NodeType.facet_value):
+            return []
+        rows = self._conn.execute(
+            "SELECT e.source_id, e.target_id FROM edges e "
+            "JOIN nodes s ON s.id = e.source_id AND s.archived = 0 "
+            "     AND s.type NOT IN ('slice','facet_value') "
+            "JOIN nodes t ON t.id = e.target_id AND t.archived = 0 "
+            "     AND t.type NOT IN ('slice','facet_value') "
+            "WHERE e.type = 'DEPENDS_ON' ORDER BY e.source_id, e.target_id"
+        ).fetchall()
+        reverse: dict[str, list[str]] = {}
+        for source_id, target_id in rows:
+            reverse.setdefault(target_id, []).append(source_id)
+        # BFS outward from the seed following reverse (dependent) edges. Tracking the
+        # visited set as `dist` makes this terminate on cycles — a node keeps its first
+        # (shortest) distance and is never re-enqueued.
+        dist: dict[str, int] = {node_id: 0}
+        queue: deque[str] = deque([node_id])
+        while queue:
+            current = queue.popleft()
+            for dependent in reverse.get(current, []):
+                if dependent not in dist:
+                    dist[dependent] = dist[current] + 1
+                    queue.append(dependent)
+        result = [(self.read_node(nid), d) for nid, d in dist.items() if d > 0]
+        return sorted(result, key=lambda x: (x[1], x[0].id))
 
     def _score_node(self, node: Node, structure: float, now: datetime) -> float:
         """Compose the effective score: structural gate × additive quality blend.

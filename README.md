@@ -42,7 +42,7 @@ Register with Claude Code (or any MCP client):
 claude mcp add agentic-memory -- uv run --directory /path/to/agentic-memory-system agentic-memory-mcp
 ```
 
-### The agent surface — 4 writes + 1 read
+### The agent surface — 4 writes + 3 reads
 
 | Tool | What it does |
 |---|---|
@@ -51,6 +51,8 @@ claude mcp add agentic-memory -- uv run --directory /path/to/agentic-memory-syst
 | `link(source, target, type)` | Relates existing nodes (`DEPENDS_ON` \| `CONTRADICTS`). A CONTRADICTS edge flags the target for review as a transparent side-effect. |
 | `append_event(event_type, node_ref, reason?)` / `append_events([...])` | The feedback loop: journal `USED` / `CONFIRMED` / `CONTRADICTED` / `REVIEWED` / `NOTED` against the stable ids the read call handed out. Append-only. |
 | `recall_context(query, goal_ref)` | The read path: goal-dominant multi-seed PPR over the live graph, returned as ranked verbatim content blocks with stable ids, coarse type/tier/disputed tags, and a compact list of contradictions among the results. Deterministic; no scores leak to the agent. |
+| `impact_of(node_ref)` | Read the blast radius of a node — the artifacts that transitively `DEPENDS_ON` it — before proposing a change to it. Nearest-first, id-tagged, with hop depth. Backs the `memory-trace-impact` skill. |
+| `stale_nodes()` | Read the staleness queue: content nodes currently flagged for review. Read-only — it surfaces what a human should assess, and cannot clear a flag. |
 
 **Safety invariant:** nothing in the agent surface can mutate trust, clear a review
 flag, promote a tier, or archive a node. Trust is folded from the journal by

@@ -302,4 +302,6 @@ def test_mcp_server_registers_the_agent_surface():
         "append_event",
         "append_events",
         "recall_context",
+        "impact_of",
+        "stale_nodes",
     }
