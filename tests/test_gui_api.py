@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from agentic_memory_system.agent_surface import AgentSurface
+from agentic_memory_system.evaluator import LLMEvaluator
 from agentic_memory_system.gui_api import create_app
 from agentic_memory_system.schema import EventType
 from agentic_memory_system.storage import MemoryStore
@@ -18,7 +19,9 @@ def seeded():
     b = surface.capture_artifact("beta concept", "concept", goal)
     c = surface.capture_artifact("gamma constraint", "constraint", goal)
     surface.link(a["node_id"], b["node_id"], "CONTRADICTS", reason="conflict")
-    client = TestClient(create_app(store))
+    # Explicit template-mode evaluator: tests never touch the network regardless of
+    # whether ANTHROPIC_API_KEY happens to be set in the environment.
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
     yield client, store, change, a, b, c
     store.close()
 
@@ -215,3 +218,162 @@ def test_goals_and_recall_preview_shows_scores(seeded):
     assert change["goal_node_id"] in ids and a["node_id"] in ids
     assert all(isinstance(n["score"], float) for n in ranked)
     assert client.get(f"/api/recall?goal={a['node_id']}&query=x").status_code == 400
+
+
+# --- guided review (MT3-27): guidance + composite resolve ---
+
+
+def _guided_client(store, evaluator):
+    return TestClient(create_app(store, evaluator=evaluator))
+
+
+def test_guidance_endpoint_template_mode(seeded):
+    client, store, _, a, b, _ = seeded
+    body = client.get(f"/api/review/{b['node_id']}/guidance").json()
+    assert body["guidance"]["source"] == "template"
+    assert body["guidance"]["recommended_action"] in (
+        "still_valid", "superseded", "wrong", "needs_correction", "defer"
+    )
+    assert [c["id"] for c in body["contradictors"]] == [a["node_id"]]
+    assert body["severity"] == 1.0 and body["rules_verdict"] == "defer"
+    # template guidance is not an evaluator verdict — nothing journaled
+    assert not any(e.source == "evaluator" for e in store.read_events(b["node_id"]))
+    # 404 unknown / 400 unflagged
+    assert client.get("/api/review/nope/guidance").status_code == 404
+    assert client.get(f"/api/review/{a['node_id']}/guidance").status_code == 400
+
+
+def test_guidance_llm_journals_evaluator_verdict_once(seeded):
+    _, store, _, a, b, _ = seeded
+    from test_evaluator import FakeClient
+
+    client = _guided_client(store, LLMEvaluator(client=FakeClient()))
+    first = client.get(f"/api/review/{b['node_id']}/guidance").json()
+    assert first["guidance"]["source"] == "llm"
+    evaluator_events = [
+        e for e in store.read_events(b["node_id"]) if e.source == "evaluator"
+    ]
+    assert len(evaluator_events) == 1
+    assert evaluator_events[0].type == EventType.manual_review
+    assert "superseded" in evaluator_events[0].reason
+    # second GET is served from cache: no duplicate journal entry
+    client.get(f"/api/review/{b['node_id']}/guidance")
+    assert (
+        len([e for e in store.read_events(b["node_id"]) if e.source == "evaluator"]) == 1
+    )
+
+
+def test_resolve_still_valid_clears_and_journals(seeded):
+    client, store, _, _, b, _ = seeded
+    resp = client.post(
+        f"/api/review/{b['node_id']}/resolve",
+        json={
+            "action": "still_valid",
+            "reason": "checked the docs, still true",
+            "recommended_action": "defer",
+            "recompute_trust": True,
+        },
+    ).json()
+    assert resp["ok"] is True and resp["next_id"] is None
+    node = store.read_node(b["node_id"])
+    assert node.needs_review is False and node.archived is False
+    assert resp["trust_weight"] == node.trust_weight == 1.0  # clear cancels the raise
+    events = store.read_events(b["node_id"])
+    assert any(e.type == EventType.contradiction_cleared and e.source == "gui-guided" for e in events)
+    decision = next(e for e in events if e.type == EventType.manual_review)
+    assert "recommended=defer" in decision.reason and "chose=still_valid" in decision.reason
+
+
+def test_resolve_superseded_archives_and_records_lineage(seeded):
+    client, store, _, a, b, _ = seeded
+    resp = client.post(
+        f"/api/review/{b['node_id']}/resolve",
+        json={"action": "superseded", "replacement_id": a["node_id"]},
+    ).json()
+    assert resp["ok"] is True
+    node = store.read_node(b["node_id"])
+    assert node.archived is True and node.needs_review is False
+    edge = store._conn.execute(
+        "SELECT 1 FROM edges WHERE source_id = ? AND target_id = ? AND type = 'DEPENDS_ON'",
+        (a["node_id"], b["node_id"]),
+    ).fetchone()
+    assert edge is not None
+    assert any(e.type == EventType.archived for e in store.read_events(b["node_id"]))
+
+
+def test_resolve_wrong_archives(seeded):
+    client, store, _, _, b, _ = seeded
+    client.post(f"/api/review/{b['node_id']}/resolve", json={"action": "wrong"})
+    node = store.read_node(b["node_id"])
+    assert node.archived is True and node.needs_review is False
+
+
+def test_resolve_needs_correction_edits_then_clears(seeded):
+    client, store, _, _, b, _ = seeded
+    resp = client.post(
+        f"/api/review/{b['node_id']}/resolve",
+        json={"action": "needs_correction", "new_body": "beta concept, corrected"},
+    )
+    assert resp.json()["ok"] is True
+    node = store.read_node(b["node_id"])
+    assert node.body == "beta concept, corrected" and node.needs_review is False
+    types = [e.type for e in store.read_events(b["node_id"])]
+    assert EventType.content_edited in types and EventType.contradiction_cleared in types
+
+
+def test_resolve_defer_keeps_flag_but_journals_the_look(seeded):
+    client, store, _, _, b, _ = seeded
+    resp = client.post(
+        f"/api/review/{b['node_id']}/resolve", json={"action": "defer", "reason": "not sure"}
+    )
+    assert resp.json()["ok"] is True
+    node = store.read_node(b["node_id"])
+    assert node.needs_review is True and node.archived is False
+    assert any(
+        e.type == EventType.manual_review and e.source == "gui-guided"
+        for e in store.read_events(b["node_id"])
+    )
+
+
+def test_resolve_validation_is_atomic(seeded):
+    client, store, _, _, b, _ = seeded
+    before = len(store.read_events(b["node_id"]))
+    # bad action / empty correction / unknown replacement / unconfirmed lifetime tier:
+    # all 400, and none of them touch state or the journal
+    for payload in (
+        {"action": "nuke"},
+        {"action": "needs_correction", "new_body": "  "},
+        {"action": "wrong", "replacement_id": "ghost"},
+        {"action": "still_valid", "tier": "lifetime"},
+        {"action": "still_valid", "tier": "galactic"},
+    ):
+        resp = client.post(f"/api/review/{b['node_id']}/resolve", json=payload)
+        assert resp.status_code == 400, payload
+    node = store.read_node(b["node_id"])
+    assert node.needs_review is True and node.body == "beta concept"
+    assert len(store.read_events(b["node_id"])) == before
+    # unflagged node → 400
+    client.post(f"/api/review/{b['node_id']}/resolve", json={"action": "still_valid"})
+    assert (
+        client.post(f"/api/review/{b['node_id']}/resolve", json={"action": "wrong"}).status_code
+        == 400
+    )
+
+
+def test_resolve_tier_addon_and_next_id(seeded):
+    client, store, _, a, b, c = seeded
+    # flag a second node so next_id has something to point at
+    store.flag_contradicted(c["node_id"], source="test", reason="also disputed")
+    resp = client.post(
+        f"/api/review/{b['node_id']}/resolve",
+        json={"action": "still_valid", "tier": "long-term"},
+    ).json()
+    assert resp["next_id"] == c["node_id"]
+    assert store.read_node(b["node_id"]).tier.value == "long-term"
+    # lifetime with confirmation passes the MT3-18 gate
+    resp = client.post(
+        f"/api/review/{c['node_id']}/resolve",
+        json={"action": "still_valid", "tier": "lifetime", "tier_confirmed": True},
+    ).json()
+    assert resp["ok"] is True and resp["next_id"] is None
+    assert store.read_node(c["node_id"]).tier.value == "lifetime"

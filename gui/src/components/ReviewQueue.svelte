@@ -1,10 +1,18 @@
 <script>
   import { get, post } from '../api.js'
+  import GuidedReview from './GuidedReview.svelte'
 
   let { openNode, onchanged } = $props()
 
   let queue = $state([])
   let error = $state('')
+  let reviewing = $state(null)
+
+  function closeReview() {
+    reviewing = null
+    load()
+    onchanged?.()
+  }
 
   async function load() {
     try {
@@ -68,7 +76,10 @@
             {item.resolver_verdict}
           </span>
         </td>
-        <td class="text-end">
+        <td class="text-end text-nowrap">
+          <button class="btn btn-sm btn-primary me-1" onclick={() => (reviewing = item.id)}>
+            review
+          </button>
           <button class="btn btn-sm btn-outline-success" onclick={() => clearFlag(item.id)}>
             clear (false alarm)
           </button>
@@ -79,3 +90,11 @@
     {/each}
   </tbody>
 </table>
+
+{#if reviewing}
+  <GuidedReview
+    nodeId={reviewing}
+    onclose={closeReview}
+    onresolved={(nextId) => (reviewing = nextId)}
+  />
+{/if}

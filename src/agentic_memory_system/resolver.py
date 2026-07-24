@@ -65,7 +65,12 @@ class RulesResolver:
 
 
 class EvaluatorResolver:
-    """Stub for the LLM evaluator tier (MT3-27). Always defers to the next tier."""
+    """No-op default for the LLM evaluator tier. Always defers to the next tier.
+
+    The real MT3-27 implementation is ``evaluator.LLMEvaluator`` — pass one as
+    ``LadderResolver(evaluator=...)`` to make the ladder's middle tier live. This
+    stub stays the default so ``LadderResolver()`` remains dependency-free.
+    """
 
     def resolve(self, node: Node, events: list[Event]) -> ResolverVerdict:
         return ResolverVerdict.defer
@@ -89,9 +94,9 @@ class LadderResolver:
 
     def __init__(
         self,
-        rules: RulesResolver | None = None,
-        evaluator: EvaluatorResolver | None = None,
-        human: HumanResolver | None = None,
+        rules: Resolver | None = None,
+        evaluator: Resolver | None = None,
+        human: Resolver | None = None,
         escalate_tiers: frozenset[Tier] = frozenset({Tier.lifetime}),
     ) -> None:
         self._rules = rules or RulesResolver()

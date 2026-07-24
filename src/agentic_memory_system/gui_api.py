@@ -26,8 +26,9 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from .agent_surface import AgentSurface, AgentSurfaceError
+from .evaluator import LLMEvaluator
 from .resolver import RulesResolver
-from .schema import Node, NodeType, Tier
+from .schema import Event, EventType, Node, NodeType, Tier
 from .storage import MemoryStore
 
 _DIST = Path(__file__).resolve().parents[2] / "gui" / "dist"
@@ -55,8 +56,11 @@ def _node_summary(node: Node) -> dict:
     }
 
 
-def create_app(store: MemoryStore) -> Starlette:
+def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Starlette:
     resolver = RulesResolver()
+    # The MT3-27 evaluator: LLM-backed when ANTHROPIC_API_KEY is configured,
+    # deterministic template guidance otherwise. Injectable so tests stay offline.
+    evaluator = evaluator if evaluator is not None else LLMEvaluator.from_env()
     # Creation and edge-adding reuse the agent surface deliberately: the GUI gets the
     # same goal-first, atomicity, and facet-governance enforcement — it is a human
     # front-end on the one write path, not a second unguarded one.
@@ -183,6 +187,135 @@ def create_app(store: MemoryStore) -> Starlette:
                 }
             )
         return JSONResponse(queue)
+
+    def _review_context(node: Node) -> dict:
+        """Everything the evaluator (and the wizard) needs to judge one flagged node."""
+        events = store.read_events(node.id)
+        contradictors = []
+        for (other_id,) in store._conn.execute(
+            "SELECT CASE WHEN source_id = ? THEN target_id ELSE source_id END "
+            "FROM edges WHERE type = 'CONTRADICTS' AND (source_id = ? OR target_id = ?)",
+            (node.id, node.id, node.id),
+        ).fetchall():
+            other = store.read_node(other_id)
+            if other is not None:
+                contradictors.append({**_node_summary(other), "body": other.body})
+        dependents = []
+        for (dep_id,) in store._conn.execute(
+            "SELECT source_id FROM edges WHERE type = 'DEPENDS_ON' AND target_id = ? LIMIT 10",
+            (node.id,),
+        ).fetchall():
+            dep = store.read_node(dep_id)
+            if dep is not None:
+                dependents.append(_node_summary(dep))
+        return {
+            "node": {**_node_summary(node), "body": node.body},
+            "contradictors": contradictors,
+            "dependents": dependents,
+            "severity": store._latest_severity(node.id),
+            "rules_verdict": resolver.resolve(node, events).value,
+            "events": [
+                {
+                    "type": e.type.value,
+                    "weight": e.weight,
+                    "polarity": e.polarity,
+                    "source": e.source,
+                    "reason": e.reason,
+                    "created_at": e.created_at.isoformat() if e.created_at else None,
+                }
+                for e in events[-20:]
+            ],
+        }
+
+    async def review_guidance(request: Request) -> JSONResponse:
+        node = _get_node_or_404(request.path_params["node_id"])
+        if isinstance(node, JSONResponse):
+            return node
+        if not node.needs_review:
+            return JSONResponse({"error": "node is not flagged"}, status_code=400)
+        context = _review_context(node)
+        events = store.read_events(node.id)
+        guidance, fresh = await evaluator.guidance(node, events, context)
+        if fresh:
+            # The design intent (MT3-27): the evaluator writes its verdicts to the
+            # journal. Cache-gated by the evaluator, so a page refresh can't spam.
+            store.append_event(
+                Event(
+                    node_id=node.id,
+                    type=EventType.manual_review,
+                    weight=0.0,
+                    polarity=1,
+                    source="evaluator",
+                    reason=(
+                        f"evaluator verdict: {guidance.recommended_action} — "
+                        f"{guidance.recommended_reason}"
+                    ),
+                )
+            )
+        return JSONResponse({**context, "guidance": guidance.model_dump()})
+
+    async def review_resolve(request: Request) -> JSONResponse:
+        node = _get_node_or_404(request.path_params["node_id"])
+        if isinstance(node, JSONResponse):
+            return node
+        if not node.needs_review:
+            return JSONResponse({"error": "node is not flagged"}, status_code=400)
+        p = await request.json()
+        action = str(p.get("action", ""))
+        if action not in ("still_valid", "superseded", "wrong", "needs_correction", "defer"):
+            return JSONResponse({"error": f"unknown action {action!r}"}, status_code=400)
+        new_body = p.get("new_body")
+        if action == "needs_correction" and not str(new_body or "").strip():
+            return JSONResponse(
+                {"error": "needs_correction requires non-empty new_body"}, status_code=400
+            )
+        replacement_id = p.get("replacement_id") or None
+        if replacement_id and store.read_node(replacement_id) is None:
+            return JSONResponse(
+                {"error": f"replacement node {replacement_id!r} not found"}, status_code=400
+            )
+        # Validate the optional tier add-on BEFORE mutating anything, so a rejected
+        # lifetime promotion leaves the resolution unapplied too.
+        tier = None
+        if p.get("tier"):
+            try:
+                tier = Tier(str(p["tier"]))
+            except ValueError:
+                return JSONResponse({"error": "invalid tier"}, status_code=400)
+            if tier is Tier.lifetime and not p.get("tier_confirmed"):
+                return JSONResponse(
+                    {"error": "lifetime promotion requires explicit confirmation"},
+                    status_code=400,
+                )
+        recommended = str(p.get("recommended_action", "") or "(none)")
+        reason = (
+            f"guided resolve: recommended={recommended}, chose={action}"
+            + (f": {p['reason']}" if p.get("reason") else "")
+        )
+        result = store.resolve_review(
+            node.id,
+            action=action,
+            source="gui-guided",
+            reason=reason,
+            new_body=new_body,
+            replacement_id=replacement_id,
+            recompute=bool(p.get("recompute_trust")),
+        )
+        if tier is not None:
+            store.set_tier(node.id, tier, source="gui-guided", reason="guided review tier move")
+        next_row = store._conn.execute(
+            "SELECT id FROM nodes WHERE needs_review = 1 AND archived = 0 "
+            "AND type NOT IN ('slice','facet_value') AND id != ? ORDER BY path, id LIMIT 1",
+            (node.id,),
+        ).fetchone()
+        return JSONResponse(
+            {
+                "ok": True,
+                "action": result["action"],
+                "trust_weight": result["trust_weight"],
+                "next_id": next_row[0] if next_row else None,
+            }
+        )
 
     async def list_changes(request: Request) -> JSONResponse:
         active = set(store._active_slice_ids())
@@ -372,6 +505,8 @@ def create_app(store: MemoryStore) -> Starlette:
         Route("/api/nodes/{node_id}/tier", set_tier, methods=["POST"]),
         Route("/api/nodes/{node_id}/recompute-trust", recompute_trust, methods=["POST"]),
         Route("/api/review", review_queue),
+        Route("/api/review/{node_id}/guidance", review_guidance),
+        Route("/api/review/{node_id}/resolve", review_resolve, methods=["POST"]),
         Route("/api/changes", list_changes),
         Route("/api/changes/{node_id}/activate", set_change_active, methods=["POST"]),
         Route("/api/changes/{node_id}/deactivate", set_change_active, methods=["POST"]),

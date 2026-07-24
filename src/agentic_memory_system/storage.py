@@ -477,6 +477,86 @@ class MemoryStore:
                 ),
             )
 
+    def resolve_review(
+        self,
+        node_id: str,
+        *,
+        action: str,
+        source: str,
+        reason: str,
+        new_body: str | None = None,
+        replacement_id: str | None = None,
+        recompute: bool = False,
+    ) -> dict:
+        """Apply one guided-review decision atomically (human surface only).
+
+        The composite behind the GUI's guided resolution wizard: each ``action`` maps
+        to the same primitives the individual privileged endpoints use, but committed
+        in ONE transaction with one journal story — ``edit + clear`` or
+        ``archive + clear`` either fully applies or not at all. Statements are inlined
+        rather than calling ``clear_contradiction``/``_journaled_update`` because those
+        each open their own transaction (sqlite3 transactions don't nest).
+
+        Actions: ``still_valid`` clears the flag; ``superseded`` archives + clears and
+        optionally records lineage (replacement DEPENDS_ON node); ``wrong`` archives +
+        clears; ``needs_correction`` rewrites the body then clears; ``defer`` changes
+        no state. Every action appends a ``manual_review`` event (trust-neutral)
+        recording the decision, so even "looked and deferred" is auditable.
+        ``recompute=True`` folds the post-resolution journal into ``trust_weight``
+        inside the same transaction.
+        """
+        if action not in ("still_valid", "superseded", "wrong", "needs_correction", "defer"):
+            raise ValueError(f"resolve_review: unknown action {action!r}")
+        if action == "needs_correction" and not (new_body or "").strip():
+            raise ValueError("resolve_review: needs_correction requires new_body")
+        node = self.read_node(node_id)
+        if node is None:
+            raise ValueError(f"resolve_review: no node with id {node_id!r}")
+        created_at = datetime.now(timezone.utc)
+        stamp = created_at.isoformat()
+        severity = self._latest_severity(node_id)
+
+        def _event(event_type: EventType, weight: float, polarity: int, why: str):
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), node_id, event_type.value, weight, polarity, source, why, stamp),
+            )
+
+        trust_weight = node.trust_weight
+        with self._conn:
+            if action == "needs_correction":
+                self._conn.execute(
+                    "UPDATE nodes SET body = ? WHERE id = ?", (new_body, node_id)
+                )
+                _event(EventType.content_edited, 0.0, 1, "guided review correction")
+            if action in ("superseded", "wrong"):
+                self._conn.execute(
+                    "UPDATE nodes SET archived = 1 WHERE id = ?", (node_id,)
+                )
+                _event(EventType.archived, 0.0, -1, f"guided review: {action}")
+                if action == "superseded" and replacement_id:
+                    self._conn.execute(
+                        "INSERT OR IGNORE INTO edges (source_id, target_id, type, created_at) VALUES (?, ?, ?, ?)",
+                        (replacement_id, node_id, EdgeType.depends_on.value, stamp),
+                    )
+            if action != "defer":
+                self._conn.execute(
+                    "UPDATE nodes SET needs_review = 0 WHERE id = ?", (node_id,)
+                )
+                _event(
+                    EventType.contradiction_cleared, severity, 1,
+                    f"guided review: {action}",
+                )
+            _event(EventType.manual_review, 0.0, 1, reason)
+            if recompute:
+                trust_weight = self._fold_strategy.fold(self.read_events(node_id))
+                self._conn.execute(
+                    "UPDATE nodes SET trust_weight = ? WHERE id = ?",
+                    (trust_weight, node_id),
+                )
+        return {"action": action, "trust_weight": trust_weight}
+
     def append_event(self, event: Event) -> Event:
         event_id = event.id if event.id is not None else str(uuid.uuid4())
         created_at = event.created_at if event.created_at is not None else datetime.now(timezone.utc)
