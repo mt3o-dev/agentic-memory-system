@@ -18,7 +18,7 @@ agent's write vocabulary.
 | Schema | `schema.py` | Node types (decision, concept, constraint, issue, invariant, slice, facet_value, goal), edge types (DEPENDS_ON, CONTRADICTS, SCOPED_TO, HAS_FACET), journal events |
 | Storage | `storage.py` | SQLite store: CRUD, recursive-CTE traversal, event journal, flag-based staleness, slice lifecycle + mark-sweep archival, single- and multi-seed recall |
 | Trust | `fold.py` | Trust folded from the journal (order-independent strategies) — never stored mutation |
-| Staleness | `penalty.py`, `resolver.py` | Query-time penalties for flagged nodes; rules → evaluator → human resolution ladder |
+| Staleness | `penalty.py`, `resolver.py`, `evaluator.py` | Query-time penalties for flagged nodes; rules → evaluator → human resolution ladder; LLM evaluator for guided review |
 | Retrieval | `retrieval.py`, `embedding.py` | Goal-dominant multi-seed Personalized PageRank; edge policy as data; deterministic hashed-BoW embeddings behind a swappable port |
 | Sync | `serialization.py`, `scripts/` | Legible text dump/restore for git-sync round-trips |
 | Agent surface | `agent_surface.py`, `mcp_server.py` | The MCP server AI agents use — 4 writes + 1 read, safe by construction |
@@ -83,6 +83,48 @@ intervention never breaks the derived-state guarantees.
 To hack on the GUI: `cd gui && npm install && npm run dev` (Vite dev server proxying
 `/api` to the Python server), `npm run build` to refresh `gui/dist`.
 
+### Guided review (LLM evaluator)
+
+Each flagged item in the Review tab has a **review** button that opens a guided
+wizard: the evaluator (`evaluator.py`, the MT3-27 tier of the resolution ladder)
+explains the conflict, shows the flagged node next to its contradictors and blast
+radius, poses one deciding question, and pre-selects a recommended resolution.
+The human decides — *still valid* (clear), *superseded* (archive + optional lineage
+edge to the replacement), *wrong* (archive), *needs correction* (edit, then clear),
+or *defer* (keep flagged, journal the look) — plus an optional tier move (the
+lifetime confirmation gate applies) and trust recompute. The decision is applied in
+one transaction and journaled as a `manual_review` event recording both the AI's
+recommendation and the human's choice, so followed-vs-overridden stays queryable.
+The safety model is unchanged: the evaluator only *advises*, its verdicts are
+journaled (`source="evaluator"`), and mutations happen exclusively on the human
+surface (`source="gui-guided"`). The agent/MCP surface gains nothing.
+
+Configuration (environment variables, read at GUI startup):
+
+| Variable | Effect |
+|---|---|
+| `ANTHROPIC_API_KEY` | Enables the LLM path. Unset → deterministic **template guidance** derived from the rules verdict and journal evidence; the wizard works identically offline, just without model-written explanations. Keep the key in a chmod-600 env file, never in a service unit. |
+| `MEMORY_EVALUATOR_MODEL` | Model id for guidance calls (default `claude-haiku-4-5`). |
+| `ANTHROPIC_BASE_URL` | Point the SDK at any Anthropic-compatible endpoint (LiteLLM in Anthropic mode, a local proxy, a gateway). |
+
+Guidance is cached per node until a new (non-evaluator) journal event appears, so
+re-opening a node never re-bills; any API error degrades silently to template
+guidance rather than breaking the wizard.
+
+**Other LLM providers.** The evaluator is provider-agnostic at the code seam but
+Anthropic-shaped at the wire: `LLMEvaluator.from_env()` builds a stock
+`AsyncAnthropic` client, so anything speaking the Anthropic Messages API works via
+`ANTHROPIC_BASE_URL` + `MEMORY_EVALUATOR_MODEL` with no code changes. For a
+genuinely different API (OpenAI, Gemini, Ollama, vLLM), the client is duck-typed —
+the evaluator only calls `await client.messages.create(...)` and reads text content
+blocks — so a small adapter object passed as
+`create_app(store, evaluator=LLMEvaluator(client=adapter))` is all it takes when
+embedding; the `agentic-memory-gui` CLI entrypoint has no provider switch yet. Two
+caveats behind compatibility proxies: the request uses Anthropic-specific
+structured-output (`output_config.format`) and `system=` parameters, and a backend
+that ignores the JSON-schema constraint falls back to template guidance (working,
+but without the model's explanation) rather than erroring.
+
 ## Development
 
 ```sh
@@ -100,5 +142,5 @@ design record is the Linear project ("Agentic Memory System", MT3-17…MT3-30).
 1–7 ✅ capture/recall, typed traversal, ranked scoring, git-sync, event-sourced
 trust, flag-based staleness, liveness/archival · 8 ✅ multi-seed PPR retrieval ·
 9 ✅ write-path MCP surface · GUI ✅ (v1.5 with editing) · 10 ✅ 10x lifecycle
-binding (`.claude/skills/memory-*` + `CLAUDE.md` binding table) · evaluator agent &
-consolidation ⏳
+binding (`.claude/skills/memory-*` + `CLAUDE.md` binding table) · evaluator agent ✅
+(MT3-27 guided review in the GUI) · consolidation ⏳
