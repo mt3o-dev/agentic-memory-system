@@ -18,8 +18,10 @@ One-paragraph architecture: typed **nodes + typed edges** stored in **SQLite-as-
 | `03_NEXT_STEPS.md` | What to build first, in what order, and the open questions blocking each |
 | `04_RESEARCH_APPROACH.md` | *How* this design was produced — the method to continue with, so the work stays consistent |
 | `05_10X_INTEGRATION.md` | How the memory system merges with the 10x development workflow + the MCP read/write API |
+| `06_DOMAIN_ENTITIES.md` | The 4th dynamics class — why "reference entities" became **domain entities**, the five behaviors that differ, and the greenfield/brownfield modelling approaches |
+| `07_CONSOLIDATION.md` | The consolidation operation — trigger, direction, owner |
 
-Read them in order. `01` gives you the mental model, `02` tells you where the detail lives, `03` tells you what to do, `04` tells you how to keep doing it well, `05` is the concrete integration + API surface to build against.
+Read `00`–`05` in order: `01` gives you the mental model, `02` tells you where the detail lives, `03` tells you what to do, `04` tells you how to keep doing it well, `05` is the concrete integration + API surface to build against. `06` and `07` are the design records for the two questions `03` listed as "real design work, not yet started" — read them when you touch entities, retrieval policy, or the review gate.
 
 ## Where the real detail lives: Linear
 

@@ -17,16 +17,18 @@ under `.claude/skills/` are the binding — invoke them at these moments:
 | `/10x-new` (change start) | **memory-open-change** | `create_change` → goal node minted, liveness ON; record `memory_goal:` in change.md; seed with recall |
 | Task/phase start, before research or framing | **memory-recall** | `recall_context` — load ranked context; disputed nodes surfaced with both sides |
 | `/10x-plan` done; every implement phase boundary; any decision/constraint/issue | **memory-capture** | `capture_artifact` — the quality-ceiling skill: typed, goal-anchored, edge-connected, facet-governed |
-| Mid-work discovery of a relationship or conflict | *(direct)* | `link` — DEPENDS_ON / CONTRADICTS between existing nodes |
+| Naming anything in code, tests, or a plan | *(direct)* | `domain_model` — read the ubiquitous language before inventing a term; propose new ones with `capture_entity` (a human ratifies, never you) |
+| Mid-work discovery of a relationship or conflict | *(direct)* | `link` — DEPENDS_ON / CONTRADICTS between existing nodes; ABOUT to attach an artifact to the entity it concerns |
 | Before changing / superseding an artifact | **memory-trace-impact** | `impact_of` — the dependents (blast radius) that a change would ripple to, before you touch it |
 | Session/phase end | **memory-feedback** | `append_events` — batch USED/CONFIRMED/CONTRADICTED/REVIEWED/NOTED |
 | PR / impl-review | **memory-review-staleness** | `stale_nodes` for the durable flagged queue + disputed nodes from this session's recalls; surfaced for the HUMAN gate (GUI Review tab) |
+| PR / impl-review (same gate) | *(direct)* | `consolidation_candidates` — cross-change recurrence worth abstracting; bring the candidate + a proposed wording, the human commits it (GUI Domain tab) |
 | Merge / `/10x-archive` | **memory-archive-on-merge** | `scripts/memory_lifecycle.py deactivate <change-id> --sweep` — scope goes dormant, foundations survive |
 
 Safety model to respect always: the agent surface can never mutate trust, clear
-flags, promote tiers, or archive. Those belong to the human (GUI:
-`uv run agentic-memory-gui`) or the merge lifecycle (the script above). Do not work
-around this.
+flags, promote tiers, archive, ratify a domain entity, or commit a consolidation.
+Those belong to the human (GUI: `uv run agentic-memory-gui`) or the merge lifecycle
+(the script above). Do not work around this.
 
 The memory MCP server for THIS repo's own graph: `uv run agentic-memory-mcp`
 (store: `context/memory-graph.db`). To bind another project, register the server
@@ -46,6 +48,7 @@ there with `MEMORY_DB_PATH` pointing at that project's store and copy
   `change.md` status and syncing the relevant Linear issue (MT3-17…MT3-30 are the
   authoritative design record).
 - Schema CHECK changes need the `_rebuild_table` migration pattern in `storage.py`
-  (guard on the newest allowed token).
+  (guard on the newest allowed token — the guard is a *newest-token* check, not a
+  membership check, so every widening must move it forward).
 - New store operations that change node state must journal an event
   (`_journaled_update`) — no silent mutations, anywhere.

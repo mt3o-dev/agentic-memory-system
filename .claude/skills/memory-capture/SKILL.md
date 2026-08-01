@@ -24,6 +24,15 @@ Capture the **durable residue** of the work, one artifact per statement:
 Do NOT capture: narration of what you did (git history records that), file paths that
 will churn, anything the repo itself already states verbatim, or speculation.
 
+**Not an artifact — a domain entity.** If what you have is a *name* rather than a
+*claim* (`Invoice`, `Customer`, `Shipment` — a thing the project's language refers to,
+which cannot be true or false), it belongs in `capture_entity`, not here.
+`capture_artifact` rejects `type="entity"` and says so. The test: can you disagree with
+it? "Invoices are immutable after issue" is a `constraint` you can disagree with;
+"Invoice" is a referent you can only rename or retire. Capture the entity once, then
+attach every claim about it with an `ABOUT` edge — that wiring is what makes future
+recalls on that entity serve everything the project knows about it.
+
 ## The questioning checklist — answer before every capture
 
 1. **What goal does this serve?** → `goal_ref` (from change.md `memory_goal`).
@@ -36,6 +45,10 @@ will churn, anything the repo itself already states verbatim, or speculation.
    - `{"target": <id>, "type": "CONTRADICTS", "direction": "out"}` — this artifact
      conflicts with that node (it will be flagged for human review — that is correct
      and transparent, you are recording the conflict, not resolving it).
+   - `{"target": <entity-id>, "type": "ABOUT", "direction": "out"}` — this artifact
+     concerns that domain entity. Read `domain_model()` once per session and attach
+     every capture to the entities it is about; the target must be an entity, and an
+     artifact must reach an entity by `ABOUT` and nothing else.
 3. **Where does it belong?** → `facets` — controlled vocabulary labels (subsystem,
    domain). If the call returns `facet_warnings` ("did you mean X?"), decide: reuse
    the suggested value (re-call with it) or keep your distinct label. Never ignore

@@ -28,7 +28,7 @@ Storage is **SQLite-as-graph**: two core tables (`nodes`, `edges`), traversal vi
 
 The single most important conceptual move in the whole design: **several things that look like one axis are actually two**. Conflating them was the repeated early mistake; separating them resolved it each time.
 
-- **Salience** (how generally relevant is this?) vs **Liveness** (is it currently in-scope?). A lifetime lesson is high-salience and always live; a slice's implementation detail is low-salience and only live while that slice is active. (See §4.)
+- **Salience** (how generally relevant is this?) vs **Liveness** (is it currently in-scope?). A lifetime lesson is high-salience and always live; a slice's implementation detail is low-salience and only live while that slice is active. (See §4.) Domain entities are the case that proves the axes really are separate: they are permanently live without being high-salience, because liveness follows from *what kind of node it is*, not from how important it is.
 - **Tier** (salience level) vs **Type** (what kind of memory it is). Type determines *dynamics* — see §5.
 - **Content-retrieval** vs **provenance-query** vs **liveness-marking** — the same edge can be traversable in one channel and invisible in another. (See §7.)
 
@@ -73,9 +73,11 @@ Borrowed from cognitive science (CoALA), but adopted **only where it changes beh
 - **Semantic** (facts, concepts, constraints) — decays, trust-weighted, consolidates, supersedes. The cache machinery legitimately lives *here*.
 - **Episodic** (the decision journal) — **immutable, append-only, never decays**. What happened stays permanently true; only its relevance changes. This *is* an event log natively (see §6).
 - **Procedural** (skills, workflows) — designer/workflow-**authored**, **reinforced** on successful use, **does not disuse-decay**, high bar to auto-mutate. Almost the opposite of cache eviction.
-- **Reference entities** (Person, ExternalRef) — a likely 4th class that neither decays nor consolidates. (Open — see §7, `03`.)
+- **Domain entities** (`Invoice`, `Customer`; also `Person`, `ExternalRef`) — the 4th class. An entity **names** something the project's language refers to; the other three **assert** things that could be true or false. `Invoice` is not true and `Customer` is not false — you rename, split, merge, or retire them, you cannot contradict them. So they get an *identity* ladder (proposed → confirmed → retired) instead of a validity one, they never decay, they are never consolidated, and they are roots of the live set **by class rather than by tier** — the domain outlives the change that named it. They are also the graph's **hubs**: `ABOUT` is the one edge type whose reverse direction carries weight, so landing on an entity pulls what the project knows about it, including artifacts captured under other goals.
 
-"Promotion" was overloaded and is now split: **within-type strengthening** (a tentative fact becomes established) vs **between-type consolidation** (an episodic pattern abstracts into a semantic fact or procedure). Consolidation is a type-crossing operation still to be designed.
+  (This class was originally scoped as "reference entities" — Person/ExternalRef. That named a subcase; the general case is the domain model, of which those are two members. See `06_DOMAIN_ENTITIES.md`.)
+
+"Promotion" was overloaded and is now split: **within-type strengthening** (a tentative fact becomes established) vs **between-type consolidation** (an episodic pattern abstracts into a semantic fact or procedure). Consolidation triggers on **cross-change recurrence**, runs **upward and additively** (it mints an abstraction; no instance is edited, archived, or re-tiered), and has a **split owner** — a deterministic read-only detector any agent may run, and a privileged commit, because a consolidated node exists to be promoted past the sweep. Episodic→procedural stays unbuilt while there is no procedural node type. See `07_CONSOLIDATION.md`.
 
 → `MT3-29`, `MT3-18`
 
@@ -122,7 +124,8 @@ Facet values come from a **controlled vocabulary** (an LLM inventing labels free
 No freeform `metadata: json` blob — it violates the property-graph model (properties must be atomic single-valued scalars) *and* hides data from traversal/scoring. The rule: **"will you query *from* it?" → node+edge; "only read it *off* the node?" → atomic scalar property.**
 
 - `created_at` is a stored column. **Every other date** (`updated_at`, `archived_at`, ...) is a journal-event timestamp, **derived** not stored.
-- People → `Person` nodes; external docs → `ExternalRef` nodes; both connected by edges (`AUTHORED`, `REVIEWED`, `REFERENCES`, ...) that carry role + timestamp **on the edge**.
+- People → `Person` entities; external docs → `ExternalRef` entities — both ordinary members of the domain-entity class (§5), connected by edges that carry role + timestamp **on the edge**.
+- The same rule is why an entity's **provenance** (the `file:line` it was extracted from, or the user's words that named it) lives in its `entity_proposed` journal event rather than as a field on the node: you read it once, at the ratification gate, and it is a fact about an event.
 - These provenance edges are **non-structural** — invisible to content retrieval, but first-class for provenance queries. (This is what motivates the per-channel edge-policy idea in §2.)
 
 → `MT3-30`

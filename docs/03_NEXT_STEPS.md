@@ -38,6 +38,10 @@ Each slice is a capability the system can demonstrably *do*, not a layer it's *m
 
 After slice 10 the system is a working participant in the 10x development loop. The evaluator agent, consolidation, and GUI come after.
 
+11. **Domain entities.** The 4th dynamics class: `entity` nodes keyed by name, the `ABOUT` hub edge, the proposed→confirmed→retired identity ladder, root-set liveness by class, no recency decay, direct PPR seeding. Confirm an entity survives the sweep of the change that named it, and that landing on it pulls artifacts captured under other goals. *(MT3-29, MT3-30, `06`.)*
+
+12. **Consolidation.** Deterministic cross-change recurrence detection + the privileged `consolidate` writer, with `CONSOLIDATES` as a provenance-only channel. Confirm an abstraction survives while its instances go dormant, and that recalling it does not resurrect them. *(MT3-18, MT3-29, `07`.)*
+
 ---
 
 ## No longer blocked
@@ -55,9 +59,9 @@ The "10x framework" that previously blocked the write path **has arrived and is 
 
 ### Real design work, not yet started
 
-- **The consolidation operation.** Between-type abstraction (episodic→semantic, episodic→procedural) is identified but undesigned: triggers (how many episodic instances?), direction, and owner (likely the evaluator/reflection pass). **Blocks the `consolidate` skill.** *(MT3-18, MT3-29.)*
-- **4th dynamics class — reference entities.** Person/ExternalRef neither decay, nor are immutable-events, nor reinforce. Confirm they need their own dynamics class and define it. *(MT3-29, MT3-30.)*
-- **Procedural lifecycle specifics.** Reinforcement curve, the "high bar to auto-mutate" gate, reconciling with the slice-archival mechanism it resembles. *(MT3-29, MT3-17.)*
+- ~~**The consolidation operation.**~~ **Resolved (slice 12):** trigger is *cross-change recurrence* (≥3 live artifacts from ≥2 distinct scopes sharing a facet, excluding already-promoted and already-consolidated ones), plus an always-on per-change episode summary at the review gate. Direction is upward and strictly additive — it mints an abstraction and wires `CONSOLIDATES` (provenance, never walked) + instance `DEPENDS_ON` (content channel); no instance is edited, archived, or re-tiered. Owner is split like the trust ladder: the detector is deterministic and open to agents, the commit is privileged, because a consolidated node exists to be promoted past the sweep. Episodic→procedural is explicitly out of scope (no procedural node type; procedures live in skills). See `07_CONSOLIDATION.md`. *(MT3-18, MT3-29.)*
+- ~~**4th dynamics class — reference entities.**~~ **Resolved (slice 11), and refactored:** the class is **domain entities**, not "reference entities" — the old name described a subcase (Person/ExternalRef) instead of the general case. What defines the class is *identity-bearing reference*: the node **names** something the project's language refers to rather than **asserting** a claim that can be true or false, which makes it the project's domain model, of which actors and external refs are ordinary members. It changes behavior on five axes — identity-keyed capture, an identity ladder (proposed→confirmed→retired) instead of a validity one, root-set liveness by class rather than tier, no recency decay, and hub retrieval (the one deliberate reverse-traversal weight, plus direct PPR seeding). See `06_DOMAIN_ENTITIES.md`. *(MT3-29, MT3-30.)*
+- **Procedural lifecycle specifics.** Reinforcement curve, the "high bar to auto-mutate" gate, reconciling with the slice-archival mechanism it resembles. Note the consolidation design bounds this: episodic→procedural is deliberately unbuilt until a procedural node type exists at all. *(MT3-29, MT3-17.)*
 
 ### Genuine forks awaiting a call (have a default, not locked)
 
