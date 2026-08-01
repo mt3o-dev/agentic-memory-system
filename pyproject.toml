@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
+agentic-memory = "agentic_memory_system.cli:main"
 agentic-memory-mcp = "agentic_memory_system.mcp_server:main"
 agentic-memory-gui = "agentic_memory_system.gui_api:main"
 

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "agentic-memory": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${CLAUDE_PROJECT_DIR:-.}",
+        "agentic-memory-mcp"
+      ],
+      "env": {
+        "MEMORY_DB_PATH": "${CLAUDE_PROJECT_DIR:-.}/context/memory-graph.db"
+      }
+    }
+  }
+}

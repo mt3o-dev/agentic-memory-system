@@ -21,26 +21,45 @@ agent's write vocabulary.
 | Staleness | `penalty.py`, `resolver.py`, `evaluator.py` | Query-time penalties for flagged nodes; rules → evaluator → human resolution ladder; LLM evaluator for guided review |
 | Retrieval | `retrieval.py`, `embedding.py` | Goal-dominant multi-seed Personalized PageRank; edge policy as data; deterministic hashed-BoW embeddings behind a swappable port |
 | Sync | `serialization.py`, `scripts/` | Legible text dump/restore for git-sync round-trips |
-| Agent surface | `agent_surface.py`, `mcp_server.py` | The MCP server AI agents use — 4 writes + 1 read, safe by construction |
+| Agent surface | `agent_surface.py` | The one place agent operations and their rules live — 5 writes + 5 reads, safe by construction |
+| Transports | `cli.py`, `mcp_server.py` | Two doors onto that surface: the CLI (default, always works) and MCP (optimization). Both pure delegation |
 | Human surface | `gui_api.py`, `gui/` | Minimal web GUI (Svelte + Bootstrap) for inspection and the human-in-the-loop checkpoints |
 
 Scoring: `effective_score = structure × (α·retrieval + β·trust + γ·recency)`, where
 `structure` is hop decay (single-seed) or normalized PPR mass (multi-seed) — see
 `context/changes/multi-seed-retrieval/ppr-composition.md`.
 
-## For AI agents (MCP)
+## For AI agents — two transports, one surface
+
+The agent surface is the system; MCP and the CLI are doors into it, neither holding
+judgment of its own. See [`docs/08_TRANSPORTS.md`](docs/08_TRANSPORTS.md) for the design.
+
+**The CLI is the default**, because it is the one that always works — no registration,
+no approval, no session restart, in a repo that was just cloned:
 
 ```sh
 uv sync
-uv run agentic-memory-mcp                                    # stdio, serves context/memory-graph.db
-MEMORY_DB_PATH=/path/to/graph.db uv run agentic-memory-mcp   # explicit store
+uv run agentic-memory --help
+uv run agentic-memory recall "VAT rounding" --goal <goal-id>
+uv run agentic-memory domain-model --status proposed
+
+# long prose never goes through shell quoting:
+uv run agentic-memory capture - --type constraint --goal <goal-id> <<'EOF'
+The payment webhook retries; handlers behind it must be idempotent.
+EOF
 ```
 
-Register with Claude Code (or any MCP client):
+**MCP is the optimization** — better ergonomics where it is available (structured
+arguments, schemas, discovery), so register it too. A `.mcp.json` is committed at the
+repo root; for other projects:
 
 ```sh
-claude mcp add agentic-memory -- uv run --directory /path/to/agentic-memory-system agentic-memory-mcp
+claude mcp add --scope project agentic-memory -- uv run --directory /path/to/agentic-memory-system agentic-memory-mcp
 ```
+
+An MCP server binds at session start, which means it cannot serve a fresh session in an
+unfamiliar checkout — the moment that needs recall most. That asymmetry is why the floor
+is the CLI and the ceiling is MCP.
 
 ### The agent surface — 5 writes + 5 reads
 

@@ -30,13 +30,32 @@ flags, promote tiers, archive, ratify a domain entity, or commit a consolidation
 Those belong to the human (GUI: `uv run agentic-memory-gui`) or the merge lifecycle
 (the script above). Do not work around this.
 
-The memory MCP server for THIS repo's own graph: `uv run agentic-memory-mcp`
-(store: `context/memory-graph.db`). To bind another project, register the server
-there with `MEMORY_DB_PATH` pointing at that project's store and copy
-`.claude/skills/memory-*` across.
+## Reaching the surface: two doors
+
+The operations in that table are the *agent surface*; MCP and the CLI are transports
+over it (`docs/08_TRANSPORTS.md`). **Use the MCP tools when this session has them.
+When it does not — a fresh clone, an unapproved `.mcp.json`, a config that landed
+mid-session — use the CLI, which needs no registration and always works:**
+
+```sh
+uv run agentic-memory --help                       # the same 5 writes + 5 reads
+uv run agentic-memory recall "<query>" --goal <id>
+uv run agentic-memory capture - --type constraint --goal <id> <<'EOF'
+<prose, safe from shell quoting>
+EOF
+```
+
+Never skip a memory step because the MCP tools are absent — that is what the CLI is
+for, and the degraded-mode backlog is reserved for the store being genuinely
+unreachable. `scripts/session_start.sh` runs at session start, repairs the store if
+the clone checked out the text dump, and reports which transport is live.
+
+To bind another project, register the server there with `MEMORY_DB_PATH` pointing at
+that project's store and copy `.claude/skills/memory-*` across.
 
 ## Commands
 
+- `uv run agentic-memory <cmd>` — the agent surface as a CLI (the default transport)
 - `uv run pytest` — full suite (fast; run before committing)
 - `uv run agentic-memory-gui` — human GUI on 127.0.0.1:8765
 - `cd gui && npm run build` — rebuild `gui/dist` after touching `gui/src` (dist is committed)
