@@ -9,7 +9,12 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.120.0",
-    "mcp>=1.28.1",
+    # Upper-bounded deliberately: mcp 2.0 removed the `mcp.server.fastmcp`
+    # subpackage this server is built on, so an unbounded constraint installs a
+    # broken MCP transport. The repo lockfile hid that — `uv tool install`, pip,
+    # and any CI job without the lock resolve fresh and get 2.x. Revisit when the
+    # server is ported to the 2.x API.
+    "mcp>=1.28.1,<2",
     "pydantic>=2.0",
     "starlette>=0.40",
     "uvicorn>=0.30",
