@@ -255,6 +255,49 @@ def test_artifacts_relate_to_entities_only_via_about(surface, goal):
         )
 
 
+def test_entities_relate_to_each_other_by_part_of(surface, store, goal):
+    """The domain model's spine: LineItem DEPENDS_ON Invoice."""
+    invoice = surface.capture_entity("Invoice", "A request for payment.", goal)["node_id"]
+    line_item = surface.capture_entity(
+        "LineItem", "One priced row of an invoice; has no life outside one.", goal,
+        edges=[{"target": invoice, "type": "DEPENDS_ON"}],
+    )
+    assert line_item["edge_results"] == [f"{line_item['node_id']} DEPENDS_ON {invoice}"]
+    assert invoice in {n.id for n, _ in store.traverse(line_item["node_id"])}
+
+
+def test_capture_entity_rejects_non_part_of_edges(surface, goal):
+    invoice = surface.capture_entity("Invoice", "A request for payment.", goal)["node_id"]
+    with pytest.raises(AgentSurfaceError, match="must be DEPENDS_ON"):
+        surface.capture_entity(
+            "Customer", "A party we invoice.", goal,
+            edges=[{"target": invoice, "type": "ABOUT"}],
+        )
+
+
+def test_an_entity_is_never_about_another_entity(surface, goal):
+    invoice = surface.capture_entity("Invoice", "A request for payment.", goal)["node_id"]
+    customer = surface.capture_entity("Customer", "A party we invoice.", goal)["node_id"]
+    with pytest.raises(AgentSurfaceError, match="does not hold an opinion"):
+        surface.link(customer, invoice, "ABOUT")
+
+
+def test_an_entity_cannot_be_contradicted(surface, goal):
+    """Identity has no truth value — the exit is retirement, and that is a human act."""
+    entity = surface.capture_entity("Invoice", "A request for payment.", goal)["node_id"]
+    artifact = surface.capture_artifact("some claim", "concept", goal)["node_id"]
+    for source, target in ((artifact, entity), (entity, artifact)):
+        with pytest.raises(AgentSurfaceError, match="cannot be contradicted"):
+            surface.link(source, target, "CONTRADICTS")
+
+
+def test_an_entity_is_never_consolidated(surface, goal):
+    entity = surface.capture_entity("Invoice", "A request for payment.", goal)["node_id"]
+    artifact = surface.capture_artifact("some claim", "concept", goal)["node_id"]
+    with pytest.raises(AgentSurfaceError, match="referent, not an episode"):
+        surface.link(artifact, entity, "CONSOLIDATES")
+
+
 def test_link_accepts_about_after_the_fact(surface, store, goal):
     entity = surface.capture_entity("Invoice", "A payment request.", goal)["node_id"]
     artifact = surface.capture_artifact("VAT rounds half-up", "decision", goal)["node_id"]

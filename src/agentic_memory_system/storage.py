@@ -1348,13 +1348,17 @@ class MemoryStore:
                 continue
             nodes = [n for n in (self.read_node(nid) for nid in node_ids) if n is not None]
             vectors = {n.id: self._embedder.embed(n.body) for n in nodes}
-            unclustered = [n for n in nodes]
+            unclustered = list(nodes)
             while len(unclustered) >= min_instances:
                 seed, *rest = unclustered
                 cluster = [seed] + [
                     n for n in rest if cosine(vectors[seed.id], vectors[n.id]) >= similarity
                 ]
-                unclustered = [n for n in rest if n not in cluster]
+                # Membership by id, not by model equality: two Node models with identical
+                # field values compare equal under pydantic, and `n not in cluster` would
+                # then drop an unrelated node that happened to match.
+                clustered = {n.id for n in cluster}
+                unclustered = [n for n in rest if n.id not in clustered]
                 if len(cluster) < min_instances:
                     continue
                 scopes = {s for s in (self._scope_of(n.id) for n in cluster) if s is not None}
@@ -1431,6 +1435,13 @@ class MemoryStore:
         if goal_id is not None:
             if self.read_node(goal_id) is None:
                 raise ValueError(f"consolidate: no goal node {goal_id!r}")
+            if goal_id in seen:
+                # Both the goal anchor and the instance wiring would write the same
+                # (goal, abstraction, DEPENDS_ON) row, and write_atomic uses a plain
+                # INSERT — the duplicate would abort the whole transaction.
+                raise ValueError(
+                    f"consolidate: goal {goal_id!r} cannot also be one of its instances"
+                )
             edges.append(
                 Edge(source_id=goal_id, target_id=abstraction.id,
                      type=EdgeType.depends_on, created_at=now)

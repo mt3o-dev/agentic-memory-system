@@ -36,7 +36,8 @@ There is no separate "memory workflow." Memory operations are **steps inside the
 /10x-new   → create change-facet + Goal node; recall goal + relevant long-term/lifetime subgraph as fresh context
 worktree   → activate change (liveness root ON); seed working memory
 work       → (/goal | /10x-implement | claude -p) capture-artifact at plan/phase boundaries, scoped to change-facet
-PR         → consolidation candidates surface (episodic→semantic); capture decisions
+PR         → consolidation candidates surface (episodic→semantic, `07`); capture decisions;
+             unratified domain entities reported as a backlog
 review     → human checkpoints: staleness queue, lifetime-promotion gate (capped by review capacity)
 merge      → change-facet → dormant/archived (immutable); shipped slices boost trust; speculative decays
 ```
@@ -113,10 +114,13 @@ append_events([...])   # batchable
 | `record-event` | `append_event(s)` | use/confirm/contradict/review |
 | `review-staleness` | (read queue) | PR/review — human gate |
 | `run-evaluator` | (privileged batch) | scheduled — evaluator agent, not working agent |
-| `consolidate` | (privileged) | PR/merge — *operation still to design* |
+| `capture-entity` | `capture_entity` | domain modelling; whenever work names a thing the model lacks |
+| `domain-model` | (read) | before naming anything in code, tests, plans, or UI copy |
+| `consolidation-candidates` | (read) | PR/review, and periodically once several changes have archived |
+| `consolidate` | (privileged) | PR/merge — designed in `07_CONSOLIDATION.md`; detector is open, the commit is human |
 | `archive-on-merge` | (lifecycle) | merge |
 
-**Tools vs skills:** MCP **tools** are the deterministic operations (4 write + 1 read). **Skills** (SKILL.md) are the judgment/sequencing wrappers that decide *when* to call them and run the goal-first questioning. Skills call tools; tools never embed judgment.
+**Tools vs skills:** MCP **tools** are the deterministic operations (5 write + 5 read). **Skills** (SKILL.md) are the judgment/sequencing wrappers that decide *when* to call them and run the goal-first questioning. Skills call tools; tools never embed judgment.
 
 ---
 

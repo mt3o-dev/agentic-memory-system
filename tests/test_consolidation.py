@@ -273,5 +273,5 @@ def test_consolidates_cannot_originate_from_an_entity(surface, store):
         "Invoice", "A request for payment.", change["goal_node_id"]
     )["node_id"]
     artifact = surface.capture_artifact("a note", "concept", change["goal_node_id"])["node_id"]
-    with pytest.raises(Exception, match="referent, not an abstraction"):
+    with pytest.raises(Exception, match="referent, not an episode"):
         surface.link(entity, artifact, "CONSOLIDATES")

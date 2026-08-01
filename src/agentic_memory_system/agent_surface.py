@@ -131,20 +131,43 @@ class AgentSurface:
                 raise AgentSurfaceError(
                     f"{node.id!r} is a structural anchor, not content"
                 )
-        if edge_type is EdgeType.about and target.type is not NodeType.entity:
+        source_is_entity = source.type is NodeType.entity
+        target_is_entity = target.type is NodeType.entity
+
+        # Order matters: the two "an entity is not that kind of thing" rules run before
+        # the general artifact→entity rule, so an agent that tries to contradict an
+        # entity is told *why* it cannot rather than being redirected to ABOUT, which
+        # would not have helped either.
+        if (source_is_entity or target_is_entity) and edge_type is EdgeType.contradicts:
             raise AgentSurfaceError(
-                f"ABOUT must point at an entity; {target.id!r} is a {target.type.value}. "
-                "Use DEPENDS_ON between artifacts."
+                "a domain entity names a referent, not a claim — it cannot be "
+                "contradicted. Retire it (a human act), or capture an artifact that "
+                "contradicts a claim ABOUT it."
             )
-        if edge_type is not EdgeType.about and target.type is NodeType.entity:
+        if (source_is_entity or target_is_entity) and edge_type is EdgeType.consolidates:
+            raise AgentSurfaceError(
+                "CONSOLIDATES abstracts episodes into a semantic artifact; an entity is a "
+                "referent, not an episode and not an abstraction over episodes"
+            )
+
+        if edge_type is EdgeType.about:
+            if not target_is_entity:
+                raise AgentSurfaceError(
+                    f"ABOUT must point at an entity; {target.id!r} is a "
+                    f"{target.type.value}. Use DEPENDS_ON between artifacts."
+                )
+            if source_is_entity:
+                raise AgentSurfaceError(
+                    "ABOUT attaches an artifact to the entity it concerns; an entity does "
+                    "not hold an opinion about another entity. Relate entities with "
+                    "DEPENDS_ON (part-of), or capture a concept ABOUT both."
+                )
+        elif target_is_entity and not source_is_entity:
+            # Entity↔entity DEPENDS_ON survives this: it is the part-of spine of the
+            # domain model (LineItem DEPENDS_ON Invoice).
             raise AgentSurfaceError(
                 f"{target.id!r} is a domain entity — relate artifacts to it with ABOUT, "
                 f"not {edge_type.value}"
-            )
-        if edge_type is EdgeType.consolidates and source.type is NodeType.entity:
-            raise AgentSurfaceError(
-                "CONSOLIDATES abstracts episodes into a semantic artifact; an entity is a "
-                "referent, not an abstraction over episodes"
             )
 
     def _facet_values(self) -> list[Node]:
@@ -476,11 +499,12 @@ class AgentSurface:
                 edge_type = EdgeType(str(spec.get("type", "")))
             except ValueError:
                 edge_type = None
-            if edge_type not in (EdgeType.depends_on, EdgeType.about):
+            if edge_type is not EdgeType.depends_on:
                 raise AgentSurfaceError(
-                    "capture_entity: edges.type must be DEPENDS_ON (this entity is part of "
-                    "another, e.g. LineItem → Invoice) or ABOUT (this entity concerns "
-                    f"another), got {spec.get('type')!r}"
+                    "capture_entity: edges.type must be DEPENDS_ON — the part-of spine of "
+                    "the domain model (LineItem DEPENDS_ON Invoice). Other relationships "
+                    "between entities are statements, so they belong in a concept ABOUT "
+                    f"both. Got {spec.get('type')!r}"
                 )
             self._check_edge_endpoints(edge_type, node, target)
             new_edges.append(

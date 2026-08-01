@@ -100,8 +100,9 @@ def capture_entity(
     is one or two sentences telling this entity apart from its neighbours. `goal_ref` is
     MANDATORY. `evidence` records where this came from — a `file:line` when you
     extracted it from code, or the user's own words when they named it — and is
-    journaled, not stored on the node. `edges` may relate it to other entities:
-    [{"target": id, "type": "DEPENDS_ON"}] for part-of (LineItem → Invoice), or "ABOUT".
+    journaled, not stored on the node. `edges` relates it to other entities by part-of
+    only: [{"target": id, "type": "DEPENDS_ON"}] (LineItem → Invoice). Any other
+    relationship between two entities is a statement — capture it as a concept ABOUT both.
     Every entity starts **proposed** and only a human confirms it, so treat your output
     as a proposal list, not a decision. Entities never decay and survive every sweep.
     Returns {node_id, existing, status, entity_warnings?, edge_results}."""
