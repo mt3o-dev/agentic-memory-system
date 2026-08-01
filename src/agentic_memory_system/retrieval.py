@@ -20,6 +20,11 @@ carries a damped forward weight: the contradictor surfaces faintly ("see the con
 note") but everything behind it is quadratically damped rather than pulled in wholesale.
 Reverse weights default to 0.0 for parity with the slice-2 forward-only traversal; they
 are the tuning knob for "dependents of this node are context too".
+
+The one deliberate exception is ``ABOUT`` reverse (``DEFAULT_ENTITY_HUB_WEIGHT``): domain
+entities are the class of node whose *whole purpose* is to be walked backwards from — the
+hub where everything known about `Invoice` hangs together. Everything else keeps the
+forward-only default.
 """
 
 from typing import Literal, Mapping, Sequence
@@ -27,6 +32,11 @@ from typing import Literal, Mapping, Sequence
 from .schema import EdgeType
 
 Direction = Literal["forward", "reverse"]
+
+# How strongly a domain entity pulls in the artifacts written about it. A config dial,
+# not a binary: 0.0 makes entities pure sinks (attachment points you can reach but not
+# expand from), 1.0 makes them as strong as a dependency.
+DEFAULT_ENTITY_HUB_WEIGHT = 0.35
 
 # Per-(edge_type, direction) transition-weight multipliers. 0.0 = never crossed.
 DEFAULT_EDGE_POLICY: dict[tuple[EdgeType, Direction], float] = {
@@ -38,6 +48,21 @@ DEFAULT_EDGE_POLICY: dict[tuple[EdgeType, Direction], float] = {
     (EdgeType.scoped_to, "reverse"): 0.0,
     (EdgeType.has_facet, "forward"): 0.0,
     (EdgeType.has_facet, "reverse"): 0.0,
+    # ABOUT is the one edge whose reverse direction carries deliberate weight. Forward
+    # (artifact → entity) is full strength: reaching the entity a note is about is
+    # always relevant. Reverse (entity → artifact) is the *designed hub*: landing on
+    # `Invoice` should pull what the project knows about invoices, which is exactly the
+    # "relevant evidence lives elsewhere" case multi-seed retrieval exists to fix. It is
+    # damped so a popular entity broadens the bundle instead of swamping it — a
+    # 3-artifact entity contributes ~0.35 each, a 30-artifact one ~0.035 each, because
+    # PPR row-normalizes out-weights.
+    (EdgeType.about, "forward"): 1.0,
+    (EdgeType.about, "reverse"): DEFAULT_ENTITY_HUB_WEIGHT,
+    # CONSOLIDATES is provenance, not content: an abstraction's instances are usually
+    # dormant on purpose (that is what consolidation bought). Walking it would undo the
+    # sweep at query time. Queryable via the GUI/impact channel, never by the walker.
+    (EdgeType.consolidates, "forward"): 0.0,
+    (EdgeType.consolidates, "reverse"): 0.0,
 }
 
 DEFAULT_DAMPING = 0.85

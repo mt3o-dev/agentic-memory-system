@@ -377,3 +377,119 @@ def test_resolve_tier_addon_and_next_id(seeded):
     ).json()
     assert resp["ok"] is True and resp["next_id"] is None
     assert store.read_node(c["node_id"]).tier.value == "lifetime"
+
+
+# --- domain model: the human ratification gate (MT3-29/30) ---
+
+
+def test_entities_list_carries_status_provenance_and_attachment_count(seeded):
+    client, store, change, a, _, _ = seeded
+    surface = AgentSurface(store)
+    goal = change["goal_node_id"]
+    entity = surface.capture_entity(
+        "Invoice", "A request for payment.", goal, evidence="src/model/invoice.ts:12"
+    )["node_id"]
+    surface.link(a["node_id"], entity, "ABOUT")
+
+    row = next(e for e in client.get("/api/entities").json() if e["id"] == entity)
+    assert row["status"] == "proposed"
+    assert row["attached"] == 1
+    # The human rules on the proposal, so the evidence the agent recorded must reach them.
+    assert "src/model/invoice.ts:12" in row["provenance"]
+
+
+def test_confirm_and_retire_move_the_status(seeded):
+    client, store, change, *_ = seeded
+    surface = AgentSurface(store)
+    entity = surface.capture_entity(
+        "Invoice", "A request for payment.", change["goal_node_id"]
+    )["node_id"]
+
+    assert client.post(f"/api/entities/{entity}/confirm", json={}).json()["status"] == "confirmed"
+    assert client.post(f"/api/entities/{entity}/retire", json={}).json()["status"] == "retired"
+    # Retired entities leave the default listing but stay readable for provenance.
+    assert entity not in {e["id"] for e in client.get("/api/entities").json()}
+    assert entity in {e["id"] for e in client.get("/api/entities?retired=1").json()}
+
+
+def test_confirming_a_non_entity_is_rejected(seeded):
+    client, _, _, a, _, _ = seeded
+    resp = client.post(f"/api/entities/{a['node_id']}/confirm", json={})
+    assert resp.status_code == 400
+    assert "not an entity" in resp.json()["error"]
+
+
+def test_health_reports_the_domain_review_backlog(seeded):
+    client, store, change, *_ = seeded
+    surface = AgentSurface(store)
+    surface.capture_entity("Invoice", "A request for payment.", change["goal_node_id"])
+    ratified = surface.capture_entity(
+        "Customer", "A party we invoice.", change["goal_node_id"]
+    )["node_id"]
+    store.confirm_entity(ratified, source="gui", reason="ratified")
+    body = client.get("/api/health").json()
+    assert body["entities"] == 2
+    assert body["entities_proposed"] == 1
+
+
+# --- consolidation: detector open, commit human-only ---
+
+
+def _recurrence(surface, text="Handlers behind the retrying webhook must be idempotent."):
+    ids = []
+    for i in range(3):
+        change = surface.create_change(f"recur-{i}", f"work {i}")
+        ids.append(
+            surface.capture_artifact(
+                text, "constraint", change["goal_node_id"], facets=["webhooks"]
+            )["node_id"]
+        )
+    return ids
+
+
+def test_consolidation_candidates_endpoint_expands_instances(seeded):
+    client, store, *_ = seeded
+    ids = _recurrence(AgentSurface(store))
+    candidates = client.get("/api/consolidation/candidates").json()
+    assert len(candidates) == 1
+    assert {i["id"] for i in candidates[0]["instances"]} == set(ids)
+    assert candidates[0]["suggested_type"] == "constraint"
+
+
+def test_consolidate_endpoint_mints_and_wires(seeded):
+    client, store, change, *_ = seeded
+    ids = _recurrence(AgentSurface(store))
+    resp = client.post(
+        "/api/consolidate",
+        json={
+            "instance_ids": ids,
+            "content": "Anything behind a retrying webhook is idempotent.",
+            "type": "constraint",
+            "tier": "long-term",
+            "goal_ref": change["goal_node_id"],
+            "reason": "recurred in three changes",
+        },
+    ).json()
+    assert resp["ok"] is True
+    # Depth 1 holds the instances plus the anchoring goal (goal DEPENDS_ON abstraction).
+    assert set(ids) <= {n.id for n, d in store.impact_of(resp["node_id"]) if d == 1}
+    assert store.read_node(resp["node_id"]).tier.value == "long-term"
+
+
+def test_consolidate_endpoint_gates_lifetime_and_validates(seeded):
+    client, store, *_ = seeded
+    ids = _recurrence(AgentSurface(store))
+    base = {"instance_ids": ids, "content": "Webhook handlers are idempotent."}
+    # The MT3-18 lifetime gate applies here too — one click must not mint permanent memory.
+    assert client.post("/api/consolidate", json={**base, "tier": "lifetime"}).status_code == 400
+    assert (
+        client.post(
+            "/api/consolidate", json={**base, "tier": "lifetime", "tier_confirmed": True}
+        ).status_code
+        == 200
+    )
+    assert client.post("/api/consolidate", json={**base, "type": "nonsense"}).status_code == 400
+    assert (
+        client.post("/api/consolidate", json={"instance_ids": ids[:1], "content": "x"}).status_code
+        == 400
+    )

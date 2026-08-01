@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import uuid
 from collections import deque
@@ -26,7 +27,7 @@ from .retrieval import (
 _CREATE_NODES = """
 CREATE TABLE IF NOT EXISTS nodes (
     id          TEXT    PRIMARY KEY,
-    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant','slice','facet_value','goal')),
+    type        TEXT    NOT NULL CHECK(type IN ('decision','concept','constraint','issue','invariant','slice','facet_value','goal','entity')),
     tier        TEXT    NOT NULL CHECK(tier IN ('short-term','mid-term','long-term','lifetime')),
     path        TEXT    NOT NULL,
     body        TEXT    NOT NULL,
@@ -43,7 +44,7 @@ _CREATE_EDGES = """
 CREATE TABLE IF NOT EXISTS edges (
     source_id   TEXT NOT NULL REFERENCES nodes(id),
     target_id   TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON','CONTRADICTS','SCOPED_TO','HAS_FACET')),
+    type        TEXT NOT NULL CHECK(type IN ('DEPENDS_ON','CONTRADICTS','SCOPED_TO','HAS_FACET','ABOUT','CONSOLIDATES')),
     created_at  TEXT NOT NULL,
     PRIMARY KEY (source_id, target_id, type)
 )
@@ -53,7 +54,7 @@ _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
     id          TEXT PRIMARY KEY,
     node_id     TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted','content_edited','weight_set')),
+    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted','content_edited','weight_set','entity_proposed','entity_confirmed','entity_retired','consolidated')),
     weight      REAL NOT NULL,
     polarity    INTEGER NOT NULL CHECK(polarity IN (-1, 1)),
     source      TEXT NOT NULL,
@@ -68,6 +69,27 @@ _GAMMA = 0.2
 _HOP_HALFLIFE = 3.0
 _RECENCY_HALFLIFE_DAYS = 7.0
 _K_SEED_FACETS = 3
+_K_SEED_ENTITIES = 3
+# Consolidation triggers (MT3-18/29). Deliberately conservative: consolidation mints a
+# node a human is then asked to promote, so a noisy detector costs review attention,
+# which is the scarcest resource in the whole workflow.
+_CONSOLIDATE_MIN_INSTANCES = 3
+_CONSOLIDATE_MIN_SCOPES = 2
+_CONSOLIDATE_SIMILARITY = 0.45
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def slug(label: str) -> str:
+    """kebab-case a label for a node ``path``.
+
+    Cosmetic by design: paths are display labels, node identity is the uuid (MT3-30), so
+    two different labels colliding on one slug is a readability wart, never a data bug.
+    Shared by the agent surface and the privileged store operations so a node minted
+    through either path lands at the same address.
+    """
+    return _SLUG_RE.sub("-", label.lower()).strip("-")
+
 
 _TRAVERSE_CTE = """
 WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) AS (
@@ -77,7 +99,7 @@ WITH RECURSIVE reachable(node_id, source_id, target_id, etype, edge_created_at) 
     FROM edges e
     JOIN reachable r ON e.source_id = r.node_id
     JOIN nodes tn ON tn.id = e.target_id AND tn.archived = 0 AND tn.type NOT IN ('slice','facet_value')
-    WHERE e.type IN ('DEPENDS_ON','CONTRADICTS')
+    WHERE e.type IN ('DEPENDS_ON','CONTRADICTS','ABOUT')
 )
 SELECT r.node_id, r.source_id, r.target_id, r.etype, r.edge_created_at,
        n.id, n.type, n.tier, n.path, n.body, n.created_at, n.needs_review,
@@ -168,13 +190,14 @@ class MemoryStore:
         ``facet_value`` would reject a facet-value node. Detect that case and rebuild the
         table (rename → recreate with the current schema → copy → drop) with foreign keys
         off for the duration. Runs after the ``archived`` ADD COLUMN so the copy includes
-        it. Guarded on the newest allowed type ('facet_value'), which also covers the
-        earlier widening to 'slice'. A no-op on fresh/already-migrated DBs.
+        it. Guarded on the NEWEST allowed type ('entity'), which also covers the earlier
+        widenings to 'slice', 'facet_value', and 'goal'. A no-op on fresh/already-migrated
+        DBs.
         """
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='nodes'"
         ).fetchone()
-        if row is None or row[0] is None or "'goal'" in row[0]:
+        if row is None or row[0] is None or "'entity'" in row[0]:
             return
         self._rebuild_table(
             "nodes",
@@ -190,13 +213,14 @@ class MemoryStore:
         CHECK would reject a HAS_FACET edge. Detect that case and rebuild the table
         (rename → recreate with the current schema → copy → drop), following SQLite's
         recommended table-alteration procedure with foreign keys disabled for the
-        duration. Guarded on the newest allowed type, so it also covers the earlier
-        CONTRADICTS and SCOPED_TO widenings. A no-op on fresh/already-migrated DBs.
+        duration. Guarded on the NEWEST allowed type, so it also covers the earlier
+        CONTRADICTS, SCOPED_TO, HAS_FACET, and ABOUT widenings. A no-op on
+        fresh/already-migrated DBs.
         """
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='edges'"
         ).fetchone()
-        if row is None or row[0] is None or "HAS_FACET" in row[0]:
+        if row is None or row[0] is None or "CONSOLIDATES" in row[0]:
             return
         self._rebuild_table(
             "edges", _CREATE_EDGES, "source_id, target_id, type, created_at"
@@ -214,9 +238,9 @@ class MemoryStore:
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='events'"
         ).fetchone()
         # Guard on the NEWEST allowed type (like the nodes/edges migrations): a DB whose
-        # CHECK already lists an earlier new type but predates 'weight_set' must still
-        # rebuild, or the GUI editing inserts would hit a CHECK failure.
-        if row is None or row[0] is None or "'weight_set'" in row[0]:
+        # CHECK already lists an earlier new type but predates 'consolidated' must still
+        # rebuild, or the entity/consolidation inserts would hit a CHECK failure.
+        if row is None or row[0] is None or "'consolidated'" in row[0]:
             return
         self._rebuild_table(
             "events",
@@ -766,6 +790,124 @@ class MemoryStore:
         ).fetchone()
         return row is not None and row[0] == EventType.slice_activated.value
 
+    # --- domain-entity lifecycle (status derived by folding journal events) ---
+    #
+    # The 4th dynamics class (MT3-29/30). An entity is not true or false, so it has no
+    # validity ladder — it has an IDENTITY ladder: proposed → confirmed → retired. The
+    # status is folded from the journal exactly like slice liveness (latest event wins,
+    # nothing stored), which keeps it order-independent and merge-safe after a git sync.
+    # Agents may only ever append ``entity_proposed``; ``confirm``/``retire`` are
+    # privileged human acts, mirroring the trust/flag/tier split.
+
+    _ENTITY_LIFECYCLE = (
+        EventType.entity_proposed.value,
+        EventType.entity_confirmed.value,
+        EventType.entity_retired.value,
+    )
+
+    def entity_status(self, node_id: str) -> str:
+        """``'proposed'`` | ``'confirmed'`` | ``'retired'`` for one entity node.
+
+        An entity with no lifecycle events at all reads as ``'proposed'``: nothing an
+        agent writes is ratified until a human says so, and a hand-inserted entity that
+        skipped the journal must not be more trusted than one that went through it.
+        """
+        row = self._conn.execute(
+            "SELECT type FROM events WHERE node_id = ? AND type IN (?, ?, ?) "
+            "ORDER BY created_at DESC, id DESC LIMIT 1",
+            (node_id, *self._ENTITY_LIFECYCLE),
+        ).fetchone()
+        if row is None:
+            return "proposed"
+        return {
+            EventType.entity_confirmed.value: "confirmed",
+            EventType.entity_retired.value: "retired",
+        }.get(row[0], "proposed")
+
+    def _entity_statuses(self) -> dict[str, str]:
+        """Every entity's folded status in one grouped query (sweep/list hot path)."""
+        rows = self._conn.execute(
+            "SELECT id FROM nodes WHERE type = 'entity' ORDER BY id"
+        ).fetchall()
+        statuses = {r[0]: "proposed" for r in rows}
+        latest = self._conn.execute(
+            "SELECT node_id, type FROM ("
+            "  SELECT e.node_id AS node_id, e.type AS type,"
+            "         ROW_NUMBER() OVER ("
+            "           PARTITION BY e.node_id ORDER BY e.created_at DESC, e.id DESC"
+            "         ) AS rn"
+            "  FROM events e"
+            "  JOIN nodes n ON n.id = e.node_id AND n.type = 'entity'"
+            "  WHERE e.type IN (?, ?, ?)"
+            ") WHERE rn = 1",
+            self._ENTITY_LIFECYCLE,
+        ).fetchall()
+        for node_id, etype in latest:
+            statuses[node_id] = {
+                EventType.entity_confirmed.value: "confirmed",
+                EventType.entity_retired.value: "retired",
+            }.get(etype, "proposed")
+        return statuses
+
+    def entities(self, *, include_retired: bool = False) -> list[tuple[Node, str]]:
+        """All domain entities with their folded status, ordered by path (deterministic)."""
+        statuses = self._entity_statuses()
+        rows = self._conn.execute(
+            "SELECT id FROM nodes WHERE type = 'entity' ORDER BY path, id"
+        ).fetchall()
+        out = []
+        for (node_id,) in rows:
+            status = statuses.get(node_id, "proposed")
+            if status == "retired" and not include_retired:
+                continue
+            node = self.read_node(node_id)
+            if node is not None:
+                out.append((node, status))
+        return out
+
+    def confirm_entity(self, node_id: str, *, source: str, reason: str = "") -> Event:
+        """Privileged: ratify a proposed entity as part of the project's domain model.
+
+        The human gate for the domain model — deliberately absent from the agent surface
+        for the same reason ``clear_contradiction`` is: an agent proposing and then
+        confirming its own proposal is not a gate. Confirmation does not change the
+        node's body; if the human wants different wording, they edit first, then confirm.
+        """
+        return self._entity_lifecycle_event(
+            node_id, EventType.entity_confirmed, 1, source, reason or "entity confirmed"
+        )
+
+    def retire_entity(self, node_id: str, *, source: str, reason: str = "") -> Event:
+        """Privileged: retire an entity the domain no longer has (merged, split, dropped).
+
+        Retirement is the entity analogue of supersession, not of deletion: the node stays
+        for provenance (everything ABOUT it keeps its edges and stays traceable), it just
+        leaves the root set, so the next sweep sends it dormant along with any detail that
+        was only reachable through it.
+        """
+        return self._entity_lifecycle_event(
+            node_id, EventType.entity_retired, -1, source, reason or "entity retired"
+        )
+
+    def _entity_lifecycle_event(
+        self, node_id: str, event_type: EventType, polarity: int, source: str, reason: str
+    ) -> Event:
+        node = self.read_node(node_id)
+        if node is None:
+            raise ValueError(f"no node with id {node_id!r}")
+        if node.type is not NodeType.entity:
+            raise ValueError(f"node {node_id!r} is a {node.type.value}, not an entity")
+        return self.append_event(
+            Event(
+                node_id=node_id,
+                type=event_type,
+                weight=0.0,  # trust-neutral: identity is not a truth claim
+                polarity=polarity,
+                source=source,
+                reason=reason,
+            )
+        )
+
     # --- liveness / archival (mark-sweep reachability from the root set) ---
 
     def _active_slice_ids(self) -> list[str]:
@@ -788,28 +930,54 @@ class MemoryStore:
     def sweep(self, *, source: str = "sweep", reason: str = "mark-sweep liveness") -> dict[str, bool]:
         """Recompute liveness and materialize each content node's ``archived`` state.
 
-        Root set = long-term/lifetime content nodes ∪ currently-active slices. The live
-        set is the root set plus everything reachable from an active-slice root by
-        following ``SCOPED_TO`` edges (slice → detail) transitively. Content nodes not in
-        the live set are archived; nodes not scoped to any active slice therefore go
-        dormant, while foundations (root tiers) stay live regardless. Slice and
-        facet-value nodes are never archived (both are structural anchors, not content). Each archived/reactivated transition is journaled with a
+        Root set = long-term/lifetime content nodes ∪ currently-active slices ∪ **every
+        non-retired domain entity**. The live set is the root set plus everything
+        reachable from a root by following ``SCOPED_TO`` edges (slice → detail)
+        transitively. Content nodes not in the live set are archived; nodes not scoped to
+        any active slice therefore go dormant, while foundations (root tiers) stay live
+        regardless. Slice and facet-value nodes are never archived (both are structural
+        anchors, not content).
+
+        Entities are roots **by class, not by tier** — that is the 4th dynamics class made
+        mechanical (MT3-29/30). The domain outlives every change that touched it, so an
+        entity must not need a tier promotion to survive the sweep of the change that
+        happened to name it first. Retirement, not archival, is how an entity leaves:
+        retire it and the next sweep sends it dormant like anything else. Note the root
+        set does NOT expand along ``ABOUT`` — an entity surviving does not keep every
+        note ever written about it live, which is exactly the property that lets a
+        long-lived hub coexist with change-scoped detail going dormant.
+
+        Each archived/reactivated transition is journaled with a
         weight-0 event, which is trust-neutral under the accumulation folds
         (``SumAndClampFold`` default, ``WeightedAverageFold``) since it contributes 0;
         note it is NOT neutral under ``LastNWindowFold``, where it still consumes a
         window slot. Returns the ``{node_id: archived}`` map of nodes whose state changed.
         """
-        active = self._active_slice_ids()
-        placeholders = ",".join("?" for _ in active) if active else "NULL"
+        statuses = self._entity_statuses()
+        # Retirement outranks tier: a human who promoted an entity and later retired it
+        # said the newer thing. Without this exclusion a lifetime-tier entity would be
+        # unretirable — permanently rooted by the first clause below.
+        retired = sorted(nid for nid, status in statuses.items() if status == "retired")
+        roots = self._active_slice_ids() + sorted(
+            nid for nid, status in statuses.items() if status != "retired"
+        )
+        root_ph = ",".join("?" for _ in roots) if roots else "NULL"
+        # `id NOT IN (NULL)` is NULL for every row — it would filter the whole tier-root
+        # clause away — so the exclusion is omitted entirely when nothing is retired. (The
+        # positive `IN (NULL)` below is safe: NULL is falsy there, which is the intent.)
+        retired_clause = (
+            f" AND id NOT IN ({','.join('?' for _ in retired)})" if retired else ""
+        )
         mark_query = (
             "WITH RECURSIVE live(node_id) AS ("
             "  SELECT id FROM nodes WHERE tier IN ('long-term','lifetime') AND type != 'slice'"
-            f"  UNION SELECT id FROM nodes WHERE id IN ({placeholders})"
+            f"       {retired_clause}"
+            f"  UNION SELECT id FROM nodes WHERE id IN ({root_ph})"
             "  UNION SELECT e.target_id FROM edges e JOIN live l ON e.source_id = l.node_id"
             "        WHERE e.type = 'SCOPED_TO'"
             ") SELECT node_id FROM live"
         )
-        live = {r[0] for r in self._conn.execute(mark_query, active).fetchall()}
+        live = {r[0] for r in self._conn.execute(mark_query, retired + roots).fetchall()}
 
         rows = self._conn.execute(
             "SELECT id, archived FROM nodes WHERE type NOT IN ('slice','facet_value')"
@@ -888,6 +1056,13 @@ class MemoryStore:
         only (archived nodes and structural anchors are excluded, mirroring ``traverse``).
         CONTRADICTS is not a dependency and is not followed. Read-only.
 
+        ``ABOUT`` is followed in the same backwards direction, because for a domain entity
+        it *is* the dependency relation: renaming or redefining ``Invoice`` ripples to
+        every artifact written about invoices, and that blast radius is precisely what the
+        domain-model amendment flow must see before it touches the entity. (``CONSOLIDATES``
+        is not followed — an abstraction's instances do not depend on it; the instances'
+        own DEPENDS_ON edges, written at consolidation time, carry that direction.)
+
         Fidelity is bounded by the explicit DEPENDS_ON edges in the graph; an
         undocumented dependency does not appear here. Deterministic: edges are read in
         sorted order and the result is sorted, so the same graph yields the same list.
@@ -901,7 +1076,7 @@ class MemoryStore:
             "     AND s.type NOT IN ('slice','facet_value') "
             "JOIN nodes t ON t.id = e.target_id AND t.archived = 0 "
             "     AND t.type NOT IN ('slice','facet_value') "
-            "WHERE e.type = 'DEPENDS_ON' ORDER BY e.source_id, e.target_id"
+            "WHERE e.type IN ('DEPENDS_ON','ABOUT') ORDER BY e.source_id, e.target_id"
         ).fetchall()
         reverse: dict[str, list[str]] = {}
         for source_id, target_id in rows:
@@ -930,9 +1105,22 @@ class MemoryStore:
         applied only at query time. Unflagged nodes get penalty 0, so every strategy
         reduces to the unpenalized formula (no regression); severity is looked up only
         for the few flagged nodes.
+
+        Domain entities are exempt from recency decay (the 4th dynamics class, MT3-29):
+        ``Invoice`` does not become a less valid referent because nobody mentioned it for
+        a month. Age is evidence of staleness only for *claims*; for *identity* it is
+        evidence of nothing. This is the second of the two places the class is mechanical
+        (the other is the sweep root set) — everything else about an entity scores like
+        any other node, flag penalty included, because a renamed or misdefined entity
+        should still be demotable.
         """
-        age_days = (now - node.created_at).total_seconds() / 86400 if node.created_at else 0.0
-        recency = _RECENCY_HALFLIFE_DAYS / (age_days + _RECENCY_HALFLIFE_DAYS)
+        if node.type is NodeType.entity:
+            recency = 1.0
+        else:
+            age_days = (
+                (now - node.created_at).total_seconds() / 86400 if node.created_at else 0.0
+            )
+            recency = _RECENCY_HALFLIFE_DAYS / (age_days + _RECENCY_HALFLIFE_DAYS)
         penalty = (
             compute_penalty(node, self._latest_severity(node.id))
             if node.needs_review
@@ -982,29 +1170,47 @@ class MemoryStore:
         ).fetchall()
         return [(r[0], r[1], EdgeType(r[2])) for r in rows]
 
-    def discover_seeds(self, query: str, *, k: int = _K_SEED_FACETS) -> dict[str, float]:
-        """Resolve query text to supplementary seed nodes via facet-value embeddings.
+    def discover_seeds(
+        self, query: str, *, k: int = _K_SEED_FACETS, k_entities: int = _K_SEED_ENTITIES
+    ) -> dict[str, float]:
+        """Resolve query text to supplementary seed nodes, along two independent axes.
 
-        Embeds the query, ranks live facet-value nodes by cosine similarity (ties broken
-        by id — deterministic), keeps the top ``k`` with positive similarity, and expands
-        each to the live content nodes that carry it via HAS_FACET. A node reached
-        through several matched facets takes the strongest similarity. HAS_FACET is used
-        only here, for findability — it is never walked during PPR (policy weight 0).
+        **Facet axis** — embeds the query, ranks live facet-value nodes by cosine
+        similarity (ties broken by id — deterministic), keeps the top ``k`` with positive
+        similarity, and expands each to the live content nodes that carry it via
+        HAS_FACET. A node reached through several matched facets takes the strongest
+        similarity. HAS_FACET is used only here, for findability — it is never walked
+        during PPR (policy weight 0).
+
+        **Entity axis** — ranks live domain entities by similarity to the query and seeds
+        the top ``k_entities`` *directly*, rather than expanding them. That difference is
+        the point: a facet is a label whose members are the content, while an entity is
+        itself a node with a walkable neighbourhood (reverse ABOUT), so seeding it lets
+        PPR decide how far into "everything about Invoice" to go instead of dumping the
+        whole membership in as seeds. Retired entities are excluded — a retired entity is
+        a referent the domain dropped, and seeding from it would resurrect exactly the
+        conversation the retirement ended.
+
+        A node reachable on both axes takes the stronger similarity, so the two axes
+        compose without double-counting. Deterministic throughout: hashed embeddings,
+        sorted iteration, id-broken ties.
         """
         query_vec = self._embedder.embed(query)
-        rows = self._conn.execute(
+        seeds: dict[str, float] = {}
+
+        def _top(rows: list[tuple[str, str]], limit: int) -> list[tuple[str, float]]:
+            scored = [
+                (node_id, cosine(query_vec, self._embedder.embed(body)))
+                for node_id, body in rows
+            ]
+            return sorted(
+                [(nid, sim) for nid, sim in scored if sim > 0], key=lambda x: (-x[1], x[0])
+            )[:limit]
+
+        facet_rows = self._conn.execute(
             "SELECT id, body FROM nodes WHERE type = 'facet_value' AND archived = 0 ORDER BY id"
         ).fetchall()
-        similarities = [
-            (facet_id, cosine(query_vec, self._embedder.embed(body)))
-            for facet_id, body in rows
-        ]
-        top = sorted(
-            [(fid, sim) for fid, sim in similarities if sim > 0],
-            key=lambda x: (-x[1], x[0]),
-        )[:k]
-        seeds: dict[str, float] = {}
-        for facet_id, similarity in top:
+        for facet_id, similarity in _top(facet_rows, k):
             members = self._conn.execute(
                 "SELECT e.source_id FROM edges e "
                 "JOIN nodes n ON n.id = e.source_id AND n.archived = 0 "
@@ -1014,6 +1220,17 @@ class MemoryStore:
             ).fetchall()
             for (node_id,) in members:
                 seeds[node_id] = max(seeds.get(node_id, 0.0), similarity)
+
+        retired = {nid for nid, status in self._entity_statuses().items() if status == "retired"}
+        entity_rows = [
+            (nid, body)
+            for nid, body in self._conn.execute(
+                "SELECT id, body FROM nodes WHERE type = 'entity' AND archived = 0 ORDER BY id"
+            ).fetchall()
+            if nid not in retired
+        ]
+        for entity_id, similarity in _top(entity_rows, k_entities):
+            seeds[entity_id] = max(seeds.get(entity_id, 0.0), similarity)
         return seeds
 
     def recall_multi(
@@ -1058,6 +1275,193 @@ class MemoryStore:
                 continue
             scored.append((node, self._score_node(node, reached[node_id] / max_mass, now)))
         return sorted(scored, key=lambda x: (-x[1], x[0].id))
+
+    # --- consolidation (episodic → semantic; MT3-18 / MT3-29) ---
+    #
+    # The open question was three-part: what TRIGGERS it, which DIRECTION it runs, and who
+    # OWNS it. The answers, made mechanical here:
+    #
+    # 1. TRIGGER — recurrence, not age or volume. ``_CONSOLIDATE_MIN_INSTANCES`` live
+    #    artifacts, from at least ``_CONSOLIDATE_MIN_SCOPES`` *distinct change scopes*,
+    #    sharing a facet and mutually similar. The cross-scope requirement is what makes
+    #    it a real abstraction rather than one change said the same thing three ways.
+    # 2. DIRECTION — upward and strictly additive. Consolidation MINTS; it never edits,
+    #    merges, or deletes an instance. The instances gain DEPENDS_ON → abstraction (so
+    #    the abstraction's blast radius is its instances, and recall from an instance
+    #    reaches it), the abstraction gains CONSOLIDATES → instance (provenance only).
+    # 3. OWNER — split, exactly like the trust ladder. The DETECTOR is deterministic and
+    #    read-only, so agents and the evaluator may run it freely. The WRITER is
+    #    privileged (GUI / lifecycle CLI), because the whole point of a consolidated node
+    #    is that a human then promotes it past the sweep.
+
+    def _scope_of(self, node_id: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT source_id FROM edges WHERE target_id = ? AND type = 'SCOPED_TO' "
+            "ORDER BY created_at, source_id LIMIT 1",
+            (node_id,),
+        ).fetchone()
+        return row[0] if row else None
+
+    def consolidation_candidates(
+        self,
+        *,
+        min_instances: int = _CONSOLIDATE_MIN_INSTANCES,
+        min_scopes: int = _CONSOLIDATE_MIN_SCOPES,
+        similarity: float = _CONSOLIDATE_SIMILARITY,
+    ) -> list[dict]:
+        """Detect recurrence worth abstracting. Pure read — mutates nothing, ever.
+
+        For each facet, greedily clusters the live, un-promoted content nodes carrying it:
+        take the lowest-id unclustered node as a seed and absorb every node whose body
+        embedding is within ``similarity`` of it. A cluster qualifies when it holds at
+        least ``min_instances`` nodes drawn from at least ``min_scopes`` distinct change
+        scopes. Nodes already at long-term/lifetime are excluded — they survived a human
+        promotion, which is a stronger statement than any clustering, and re-abstracting
+        them would just duplicate settled knowledge. Nodes already consolidated (they have
+        an incoming CONSOLIDATES edge) are excluded too, so a worked candidate stops
+        reappearing at every gate.
+
+        Greedy-from-sorted-ids rather than k-means or hierarchical clustering: this must be
+        a *pure function of the stored graph* like the rest of the read path (MT3-20), and
+        greedy single-link over a fixed order is the strongest thing that stays trivially
+        deterministic. Returns candidates ordered by size then facet, each a dict of
+        ``{facet, facet_id, node_ids, scopes, types, suggested_type}``.
+        """
+        rows = self._conn.execute(
+            "SELECT f.id, f.body, e.source_id FROM edges e "
+            "JOIN nodes f ON f.id = e.target_id AND f.type = 'facet_value' AND f.archived = 0 "
+            "JOIN nodes n ON n.id = e.source_id AND n.archived = 0 "
+            "     AND n.type IN ('decision','concept','constraint','issue','invariant') "
+            "     AND n.tier IN ('short-term','mid-term') "
+            "WHERE e.type = 'HAS_FACET' "
+            "  AND NOT EXISTS (SELECT 1 FROM edges c WHERE c.target_id = n.id "
+            "                  AND c.type = 'CONSOLIDATES') "
+            "ORDER BY f.id, e.source_id"
+        ).fetchall()
+        by_facet: dict[tuple[str, str], list[str]] = {}
+        for facet_id, facet_body, node_id in rows:
+            by_facet.setdefault((facet_id, facet_body), []).append(node_id)
+
+        candidates: list[dict] = []
+        for (facet_id, facet_body), node_ids in sorted(by_facet.items()):
+            if len(node_ids) < min_instances:
+                continue
+            nodes = [n for n in (self.read_node(nid) for nid in node_ids) if n is not None]
+            vectors = {n.id: self._embedder.embed(n.body) for n in nodes}
+            unclustered = [n for n in nodes]
+            while len(unclustered) >= min_instances:
+                seed, *rest = unclustered
+                cluster = [seed] + [
+                    n for n in rest if cosine(vectors[seed.id], vectors[n.id]) >= similarity
+                ]
+                unclustered = [n for n in rest if n not in cluster]
+                if len(cluster) < min_instances:
+                    continue
+                scopes = {s for s in (self._scope_of(n.id) for n in cluster) if s is not None}
+                if len(scopes) < min_scopes:
+                    continue
+                types = sorted({n.type.value for n in cluster})
+                candidates.append(
+                    {
+                        "facet": facet_body,
+                        "facet_id": facet_id,
+                        "node_ids": [n.id for n in cluster],
+                        "scopes": sorted(scopes),
+                        "types": types,
+                        # Type-crossing rule: a homogeneous cluster keeps its type (three
+                        # invariants abstract to an invariant), a mixed one becomes a
+                        # concept — the only type that can hold "these are all instances
+                        # of one idea" without overclaiming normative force.
+                        "suggested_type": types[0] if len(types) == 1 else "concept",
+                    }
+                )
+        return sorted(candidates, key=lambda c: (-len(c["node_ids"]), c["facet"], c["node_ids"][0]))
+
+    def consolidate(
+        self,
+        instance_ids: list[str],
+        content: str,
+        *,
+        type: NodeType = NodeType.concept,
+        goal_id: str | None = None,
+        tier: Tier = Tier.mid_term,
+        source: str,
+        reason: str = "",
+        path: str = "",
+    ) -> dict:
+        """Privileged: mint one abstraction over ``instance_ids``, atomically. Human path.
+
+        Deliberately NOT on the agent surface. Not because minting a node is dangerous —
+        agents mint nodes all day — but because a consolidated node exists to be *promoted*
+        past the sweep, and an agent that could both abstract and nominate its own
+        abstraction would be writing the project's long-term memory unsupervised. The
+        agent-side path is the read call plus an ordinary ``capture_artifact`` for a change
+        summary; this call is what the GUI and the lifecycle CLI use.
+
+        Writes in one transaction: the new node, ``CONSOLIDATES`` edges to every instance,
+        ``DEPENDS_ON`` edges from every instance back to the new node, an optional goal
+        anchor, and a ``consolidated`` journal event on the abstraction and each instance.
+        Nothing about the instances themselves changes — no edit, no archive, no re-tier.
+        """
+        if len(instance_ids) < 2:
+            raise ValueError("consolidate: needs at least 2 instances")
+        if not content.strip():
+            raise ValueError("consolidate: content must be non-empty")
+        seen: list[str] = []
+        for node_id in instance_ids:
+            if node_id in seen:
+                raise ValueError(f"consolidate: duplicate instance {node_id!r}")
+            node = self.read_node(node_id)
+            if node is None:
+                raise ValueError(f"consolidate: no node with id {node_id!r}")
+            if node.type in (NodeType.slice, NodeType.facet_value):
+                raise ValueError(f"consolidate: {node_id!r} is a structural anchor")
+            seen.append(node_id)
+
+        now = datetime.now(timezone.utc)
+        abstraction = Node(
+            id=str(uuid.uuid4()),
+            type=type,
+            tier=tier,
+            path=path or f"/consolidated/{slug(content[:40]) or 'abstraction'}",
+            body=content,
+            created_at=now,
+        )
+        edges: list[Edge] = []
+        if goal_id is not None:
+            if self.read_node(goal_id) is None:
+                raise ValueError(f"consolidate: no goal node {goal_id!r}")
+            edges.append(
+                Edge(source_id=goal_id, target_id=abstraction.id,
+                     type=EdgeType.depends_on, created_at=now)
+            )
+        events = [
+            Event(
+                id=str(uuid.uuid4()), node_id=abstraction.id, type=EventType.consolidated,
+                weight=0.0, polarity=1, source=source,
+                reason=reason or f"consolidated from {len(seen)} instances",
+                created_at=now,
+            )
+        ]
+        for node_id in seen:
+            edges.append(
+                Edge(source_id=abstraction.id, target_id=node_id,
+                     type=EdgeType.consolidates, created_at=now)
+            )
+            edges.append(
+                Edge(source_id=node_id, target_id=abstraction.id,
+                     type=EdgeType.depends_on, created_at=now)
+            )
+            events.append(
+                Event(
+                    id=str(uuid.uuid4()), node_id=node_id, type=EventType.consolidated,
+                    weight=0.0, polarity=1, source=source,
+                    reason=reason or f"consolidated into {abstraction.id}",
+                    created_at=now,
+                )
+            )
+        self.write_atomic([abstraction], edges, events)
+        return {"node_id": abstraction.id, "instances": seen}
 
     def dump_pairs(self) -> list[tuple[Node, list[Edge], list[Event]]]:
         rows = self._conn.execute(

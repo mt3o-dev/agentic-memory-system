@@ -158,7 +158,8 @@ def test_link_contradicts_reports_side_effect(surface, change, store):
 
 def test_link_rejects_structural_types_and_anchors(surface, change):
     a = surface.capture_artifact("a", "decision", change["goal_node_id"])
-    with pytest.raises(AgentSurfaceError, match="DEPENDS_ON or CONTRADICTS"):
+    # SCOPED_TO / HAS_FACET stay structural axes this surface manages itself.
+    with pytest.raises(AgentSurfaceError, match="type must be one of"):
         surface.link(a["node_id"], change["goal_node_id"], "SCOPED_TO")
     with pytest.raises(AgentSurfaceError, match="structural anchor"):
         surface.link(a["node_id"], change["change_node_id"], "DEPENDS_ON")
@@ -298,10 +299,13 @@ def test_mcp_server_registers_the_agent_surface():
     assert names == {
         "create_change",
         "capture_artifact",
+        "capture_entity",
         "link",
         "append_event",
         "append_events",
         "recall_context",
         "impact_of",
         "stale_nodes",
+        "domain_model",
+        "consolidation_candidates",
     }
