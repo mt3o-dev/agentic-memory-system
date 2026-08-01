@@ -140,9 +140,11 @@ class AgentSurface:
         # would not have helped either.
         if (source_is_entity or target_is_entity) and edge_type is EdgeType.contradicts:
             raise AgentSurfaceError(
-                "a domain entity names a referent, not a claim — it cannot be "
-                "contradicted. Retire it (a human act), or capture an artifact that "
-                "contradicts a claim ABOUT it."
+                "a domain entity names a referent, not a claim — nothing can contradict "
+                "it, so this edge would be meaningless. To dispute a definition: capture "
+                "the correction as a concept with an ABOUT edge to the entity, and "
+                "append_event('CONTRADICTED', <entity>) with your evidence — that flags "
+                "it for the human, who renames, redefines, or retires it."
             )
         if (source_is_entity or target_is_entity) and edge_type is EdgeType.consolidates:
             raise AgentSurfaceError(
@@ -433,8 +435,10 @@ class AgentSurface:
           Capturing ``Invoice`` twice returns the first node instead of minting a second
           — an entity the graph names twice is two half-domains that never rank into each
           other's recalls. The definition of an existing entity is never overwritten here:
-          correcting it is a human edit, and *disagreeing* with it is an ordinary
-          ``capture_artifact`` + CONTRADICTS, so the disagreement reaches review.
+          correcting it is a human edit. To *disagree* with one, capture the correction as
+          a concept ``ABOUT`` the entity and journal a ``CONTRADICTED`` event against it —
+          the event flags it for the human gate, while a CONTRADICTS *edge* is rejected,
+          because a referent is not a claim that another claim can contradict.
         - **Always proposed, never self-confirmed.** Every entity starts ``proposed`` and
           becomes part of the ratified domain model only when a human confirms it (GUI /
           lifecycle CLI). This holds for both adoption paths — greenfield elicitation and

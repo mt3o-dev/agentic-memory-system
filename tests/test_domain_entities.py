@@ -287,7 +287,7 @@ def test_an_entity_cannot_be_contradicted(surface, goal):
     entity = surface.capture_entity("Invoice", "A request for payment.", goal)["node_id"]
     artifact = surface.capture_artifact("some claim", "concept", goal)["node_id"]
     for source, target in ((artifact, entity), (entity, artifact)):
-        with pytest.raises(AgentSurfaceError, match="cannot be contradicted"):
+        with pytest.raises(AgentSurfaceError, match="nothing can contradict"):
             surface.link(source, target, "CONTRADICTS")
 
 
@@ -497,3 +497,23 @@ def test_previous_release_store_migrates_to_entities_and_consolidation(tmp_path)
         assert migrated.entity_status(entity) == "confirmed"
     finally:
         migrated.close()
+
+
+def test_disputing_a_definition_goes_through_the_event_channel(surface, store, goal):
+    """The CONTRADICTS *edge* is blocked; the CONTRADICTED *event* is the right channel.
+
+    Not an inconsistency: the edge is a claim-vs-claim relation and an entity is not a
+    claim, while the event says "a human should look at this" — which is exactly what a
+    drifted definition needs.
+    """
+    entity = surface.capture_entity("Invoice", "A request for payment.", goal)["node_id"]
+    surface.capture_artifact(
+        "The team now uses Invoice only for issued documents; drafts are Proforma.",
+        "concept",
+        goal,
+        edges=[{"target": entity, "type": "ABOUT", "direction": "out"}],
+    )
+    surface.append_event("CONTRADICTED", entity, reason="definition drifted, see concept")
+    assert store.read_node(entity).needs_review is True
+    assert entity in {n.id for n in store.flagged_nodes()}
+    assert "disputed" in surface.recall_context("invoice", goal)
