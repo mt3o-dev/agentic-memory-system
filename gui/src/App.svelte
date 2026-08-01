@@ -3,6 +3,7 @@
   import Browse from './components/Browse.svelte'
   import ReviewQueue from './components/ReviewQueue.svelte'
   import Changes from './components/Changes.svelte'
+  import Domain from './components/Domain.svelte'
   import Recall from './components/Recall.svelte'
 
   let tab = $state('browse')
@@ -30,6 +31,7 @@
   const tabs = [
     ['browse', 'Browse'],
     ['review', 'Review'],
+    ['domain', 'Domain'],
     ['changes', 'Changes'],
     ['recall', 'Recall'],
   ]
@@ -47,6 +49,9 @@
           {label}
           {#if key === 'review' && health?.flagged}
             <span class="badge text-bg-danger ms-1">{health.flagged}</span>
+          {/if}
+          {#if key === 'domain' && health?.entities_proposed}
+            <span class="badge text-bg-warning ms-1">{health.entities_proposed}</span>
           {/if}
         </button>
       </li>
@@ -68,6 +73,8 @@
     <Browse bind:selectedId onchanged={refreshHealth} />
   {:else if tab === 'review'}
     <ReviewQueue {openNode} onchanged={refreshHealth} />
+  {:else if tab === 'domain'}
+    <Domain {openNode} onchanged={refreshHealth} />
   {:else if tab === 'changes'}
     <Changes onchanged={refreshHealth} />
   {:else if tab === 'recall'}

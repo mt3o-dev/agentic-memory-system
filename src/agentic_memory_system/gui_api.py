@@ -95,6 +95,11 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
             "events": c.execute("SELECT COUNT(*) FROM events").fetchone()[0],
             "active_changes": len(store._active_slice_ids()),
         }
+        statuses = store._entity_statuses().values()
+        counts["entities"] = sum(1 for s in statuses if s != "retired")
+        # The domain-review backlog: entities an agent proposed that nobody has ruled on.
+        # Surfaced next to the flag count because it is the same kind of debt.
+        counts["entities_proposed"] = sum(1 for s in statuses if s == "proposed")
         return JSONResponse(counts)
 
     async def list_nodes(request: Request) -> JSONResponse:
@@ -483,6 +488,102 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
         changed = store.sweep(source="gui", reason="sweep via GUI")
         return JSONResponse({"ok": True, "changed": changed})
 
+    # --- domain model: the human ratification gate for entities (MT3-29/30) ---
+
+    async def list_entities(request: Request) -> JSONResponse:
+        include_retired = request.query_params.get("retired") == "1"
+        out = []
+        for node, status in store.entities(include_retired=include_retired):
+            attached = store._conn.execute(
+                "SELECT COUNT(*) FROM edges e JOIN nodes n ON n.id = e.source_id "
+                "AND n.archived = 0 WHERE e.target_id = ? AND e.type = 'ABOUT'",
+                (node.id,),
+            ).fetchone()[0]
+            proposal = store._conn.execute(
+                "SELECT reason, created_at FROM events WHERE node_id = ? AND type = ? "
+                "ORDER BY created_at ASC, id ASC LIMIT 1",
+                (node.id, EventType.entity_proposed.value),
+            ).fetchone()
+            out.append(
+                {
+                    **_node_summary(node),
+                    "body": node.body,
+                    "status": status,
+                    "attached": attached,
+                    # The provenance the agent recorded at proposal time — a file:line for
+                    # brownfield extraction, the user's words for greenfield elicitation.
+                    # This is what the human is ruling on, so it must reach the wire.
+                    "provenance": proposal[0] if proposal else None,
+                    "proposed_at": proposal[1] if proposal else None,
+                }
+            )
+        return JSONResponse(out)
+
+    async def entity_lifecycle(request: Request) -> JSONResponse:
+        node = _get_node_or_404(request.path_params["node_id"])
+        if isinstance(node, JSONResponse):
+            return node
+        payload = await request.json()
+        confirming = request.url.path.endswith("/confirm")
+        try:
+            if confirming:
+                store.confirm_entity(
+                    node.id, source="gui", reason=str(payload.get("reason", "")) or
+                    "confirmed as part of the domain model",
+                )
+            else:
+                store.retire_entity(
+                    node.id, source="gui", reason=str(payload.get("reason", "")) or
+                    "retired from the domain model",
+                )
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, "status": store.entity_status(node.id)})
+
+    # --- consolidation: detector is open, the commit is human-only ---
+
+    async def consolidation_candidates(request: Request) -> JSONResponse:
+        candidates = []
+        for candidate in store.consolidation_candidates():
+            instances = []
+            for node_id in candidate["node_ids"]:
+                instance = store.read_node(node_id)
+                if instance is not None:
+                    instances.append({**_node_summary(instance), "body": instance.body})
+            candidates.append({**candidate, "instances": instances})
+        return JSONResponse(candidates)
+
+    async def run_consolidate(request: Request) -> JSONResponse:
+        p = await request.json()
+        instance_ids = [str(i) for i in (p.get("instance_ids") or [])]
+        try:
+            node_type = NodeType(str(p.get("type", "concept")))
+        except ValueError:
+            return JSONResponse({"error": "invalid type"}, status_code=400)
+        try:
+            tier = Tier(str(p.get("tier", "mid-term")))
+        except ValueError:
+            return JSONResponse({"error": "invalid tier"}, status_code=400)
+        # Same gate as every other lifetime write on this surface (MT3-18): consolidation
+        # straight to lifetime would let one click mint permanent memory.
+        if tier is Tier.lifetime and not p.get("tier_confirmed"):
+            return JSONResponse(
+                {"error": "lifetime tier requires explicit confirmation"}, status_code=400
+            )
+        try:
+            result = store.consolidate(
+                instance_ids,
+                str(p.get("content", "")),
+                type=node_type,
+                goal_id=p.get("goal_ref") or None,
+                tier=tier,
+                source="gui",
+                reason=str(p.get("reason", "")),
+            )
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, **result})
+
     async def index(request: Request):
         index_file = _DIST / "index.html"
         if index_file.exists():
@@ -513,6 +614,11 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
         Route("/api/goals", list_goals),
         Route("/api/recall", recall_preview),
         Route("/api/sweep", run_sweep, methods=["POST"]),
+        Route("/api/entities", list_entities),
+        Route("/api/entities/{node_id}/confirm", entity_lifecycle, methods=["POST"]),
+        Route("/api/entities/{node_id}/retire", entity_lifecycle, methods=["POST"]),
+        Route("/api/consolidation/candidates", consolidation_candidates),
+        Route("/api/consolidate", run_consolidate, methods=["POST"]),
         Route("/", index),
     ]
     if _DIST.exists():

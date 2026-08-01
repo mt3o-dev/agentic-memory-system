@@ -35,8 +35,8 @@ Each issue has two layers:
 | `MT3-23` | Staleness & invalidation | Researched + decided | Flag-not-decrement, self-bounding cascade, flag-penalty strategy, origins-not-consequences queue, the 3-tier resolver, decision journal. |
 | `MT3-28` | Event-sourced trust | Designed | Trust computed by folding the journal; order-independent, merge-safe; snapshot-over-log. |
 | `MT3-27` | Evaluator agent | Designed | The middle tier of validity assessment; distinct model, batch, direct journal write, can defer. |
-| `MT3-29` | Memory type → dynamics | Designed (Urgent) | Carves episodic/procedural out of the uniform cache model; promotion/consolidation split. Revises `MT3-18`/`MT3-17`. |
-| `MT3-30` | Metadata & provenance | Designed | Property-graph rule; Person/ExternalRef nodes; journal-derived dates; no JSON blob. |
+| `MT3-29` | Memory type → dynamics | Designed + partly built | Carves episodic/procedural out of the uniform cache model; promotion/consolidation split. Revises `MT3-18`/`MT3-17`. The 4th class (domain entities) and consolidation are built (`06`, `07`); procedural lifecycle specifics remain open. |
+| `MT3-30` | Metadata & provenance | Designed + built | Property-graph rule; journal-derived dates; no JSON blob. Person/ExternalRef became members of the **domain-entity** class rather than node types of their own (`06_DOMAIN_ENTITIES.md`), and entity provenance follows the same rule — it lives in the proposal event, not on the node. |
 
 ### Normative & write-path (least developed — see `03_NEXT_STEPS`)
 
@@ -71,4 +71,4 @@ MT3-25 (normative) ── cuts across 17, 20, 24 ── inherits 10x discipline
 ## What "settled" vs "open" means here
 
 - **Settled** = a decision is locked in a comment with reasoning. Safe to build against. (Storage, retrieval, scoring, liveness, trust, staleness, categorization, types, provenance.)
-- **Open** = a real fork or unbuilt area. Listed in `03_NEXT_STEPS`. The big ones: the consolidation operation, the 4th (reference) dynamics class, per-channel edge policy, and PPR×effective_score composition. (The write-path cluster is no longer blocked — the 10x framework arrived and MT3-21/MT3-24 are now specified; see `05_10X_INTEGRATION`.)
+- **Open** = a real fork or unbuilt area. Listed in `03_NEXT_STEPS`. What remains: **per-channel edge policy** and **procedural lifecycle specifics**. Resolved since: PPR×effective_score composition (slice 8), the 4th dynamics class — now **domain entities**, not "reference entities" (slice 11, `06`), and the consolidation operation (slice 12, `07`). (The write-path cluster is no longer blocked — the 10x framework arrived and MT3-21/MT3-24 are now specified; see `05_10X_INTEGRATION`.)

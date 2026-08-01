@@ -11,7 +11,8 @@ Register with an MCP client (e.g. Claude Code) as a stdio server:
     claude mcp add agentic-memory -- uv run --directory /path/to/repo agentic-memory-mcp
 
 The safety invariant lives in ``agent_surface.py``: no tool here can mutate trust,
-clear a flag, promote a tier, or archive a node — do not add one.
+clear a flag, promote a tier, archive a node, confirm/retire a domain entity, or commit
+a consolidation — do not add one.
 """
 
 import os
@@ -82,13 +83,45 @@ def capture_artifact(
 
 
 @mcp.tool()
+def capture_entity(
+    name: str,
+    definition: str,
+    goal_ref: str,
+    facets: list[str] | None = None,
+    evidence: str = "",
+    edges: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Name a DOMAIN ENTITY — a thing the project's language refers to (Invoice,
+    Customer, Shipment; also Person and ExternalRef). Use this for nouns with identity,
+    and capture_artifact for claims that could be true or false ("invoices are immutable
+    after issue" is a constraint ABOUT the Invoice entity, not an entity). `name` is the
+    canonical singular term; capturing an existing name returns the existing node
+    instead of minting a duplicate, and never overwrites its definition. `definition`
+    is one or two sentences telling this entity apart from its neighbours. `goal_ref` is
+    MANDATORY. `evidence` records where this came from — a `file:line` when you
+    extracted it from code, or the user's own words when they named it — and is
+    journaled, not stored on the node. `edges` relates it to other entities by part-of
+    only: [{"target": id, "type": "DEPENDS_ON"}] (LineItem → Invoice). Any other
+    relationship between two entities is a statement — capture it as a concept ABOUT both.
+    Every entity starts **proposed** and only a human confirms it, so treat your output
+    as a proposal list, not a decision. Entities never decay and survive every sweep.
+    Returns {node_id, existing, status, entity_warnings?, edge_results}."""
+    return _call(
+        _get_surface().capture_entity, name, definition, goal_ref, facets, evidence, edges
+    )
+
+
+@mcp.tool()
 def link(source: str, target: str, type: str, reason: str = "") -> dict[str, Any]:
-    """Relate two existing nodes: type is DEPENDS_ON or CONTRADICTS. Use this when a
-    relationship is discovered after both nodes exist — especially a mid-work
-    CONTRADICTS when new evidence conflicts with a stored node. A CONTRADICTS edge
-    flags the target for review as a side-effect (reported transparently); you are
-    recording that a contradiction exists, not deciding the target is wrong. Returns
-    {edge, side_effects}."""
+    """Relate two existing nodes: type is DEPENDS_ON, CONTRADICTS, ABOUT, or
+    CONSOLIDATES. Use this when a relationship is discovered after both nodes exist —
+    especially a mid-work CONTRADICTS when new evidence conflicts with a stored node. A
+    CONTRADICTS edge flags the target for review as a side-effect (reported
+    transparently); you are recording that a contradiction exists, not deciding the
+    target is wrong. ABOUT attaches an artifact to the domain entity it concerns (target
+    must be an entity) — this is what makes recall serve everything known about that
+    entity. CONSOLIDATES records that a summary node was distilled from an earlier
+    artifact. Returns {edge, side_effects}."""
     return _call(_get_surface().link, source, target, type, reason)
 
 
@@ -146,6 +179,31 @@ def stale_nodes() -> str:
     queue is empty. Read-only: this call cannot clear a flag — resolving review is a
     privileged human/evaluator step, never an agent action."""
     return _call(_get_surface().review_queue)
+
+
+@mcp.tool()
+def domain_model(status: str = "all") -> str:
+    """Read the project's domain entities — its ubiquitous language as the graph holds
+    it. Call this before naming anything in code, tests, wireframes, or a plan: using a
+    term the domain model does not have (or using two terms for one entity) is how a
+    codebase and its documentation drift apart. `status` is all (default), proposed
+    (entities awaiting a human ruling — the domain-review backlog), or confirmed (the
+    ratified model). Each block is tagged with the entity's status and how many
+    artifacts are attached to it via ABOUT. Read-only: proposing goes through
+    capture_entity, and confirming is a human-only act."""
+    return _call(_get_surface().domain_model, status)
+
+
+@mcp.tool()
+def consolidation_candidates() -> str:
+    """List clusters of artifacts that say variations of the same thing across several
+    changes — recurrence worth abstracting into one durable node. Use this at review
+    time, or whenever recall keeps returning near-duplicates. Each candidate names its
+    facet, its instances with their ids and content, how many distinct change scopes
+    they span, and a suggested type for the abstraction. Read-only: bring a candidate
+    and a proposed wording to the human, who commits the consolidation — the agent never
+    mints the abstraction that will be promoted past the sweep."""
+    return _call(_get_surface().consolidation_candidates)
 
 
 def main() -> None:

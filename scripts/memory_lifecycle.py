@@ -9,6 +9,16 @@ Every operation is journaled by the store primitives it calls.
     uv run python scripts/memory_lifecycle.py activate <change-id> [--sweep]
     uv run python scripts/memory_lifecycle.py deactivate <change-id> [--sweep]
     uv run python scripts/memory_lifecycle.py sweep
+    uv run python scripts/memory_lifecycle.py entities
+    uv run python scripts/memory_lifecycle.py candidates
+
+``entities`` and ``candidates`` are READS. Entity confirmation/retirement and committing
+a consolidation are deliberately absent: unlike deactivate+sweep — a mechanical
+consequence of a merge that already happened — those are judgment calls about what the
+project's language is and what deserves to outlive a change. They live on the human GUI
+surface (``/api/entities/{id}/confirm``, ``/api/consolidate``), which an agent may drive
+only as the human's scribe, per-item, after the human rules. Adding them here would make
+the gate a formality any unattended run could walk through.
 
 Store selected with MEMORY_DB_PATH (default context/memory-graph.db).
 """
@@ -44,7 +54,10 @@ def _sweep(store: MemoryStore) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["status", "activate", "deactivate", "sweep"])
+    parser.add_argument(
+        "command",
+        choices=["status", "activate", "deactivate", "sweep", "entities", "candidates"],
+    )
     parser.add_argument("change_id", nargs="?", help="the 10x <change-id>")
     parser.add_argument("--sweep", action="store_true", help="run a sweep after the toggle")
     parser.add_argument(
@@ -64,6 +77,33 @@ def main(argv: list[str] | None = None) -> None:
             return
         if args.command == "sweep":
             _sweep(store)
+            return
+        if args.command == "entities":
+            rows = store.entities(include_retired=True)
+            if not rows:
+                print("no domain entities — the ubiquitous language is not modelled yet")
+                return
+            for node, status in rows:
+                print(f"{status:<9}  {node.path:<32}  {node.id}")
+            proposed = sum(1 for _, s in rows if s == "proposed")
+            if proposed:
+                print(f"\n{proposed} awaiting a human ruling — confirm them in the GUI")
+            return
+        if args.command == "candidates":
+            candidates = store.consolidation_candidates()
+            if not candidates:
+                print("no consolidation candidates — no cross-change recurrence detected")
+                return
+            for candidate in candidates:
+                print(
+                    f"facet={candidate['facet']!r}  instances={len(candidate['node_ids'])}"
+                    f"  scopes={len(candidate['scopes'])}"
+                    f"  suggested_type={candidate['suggested_type']}"
+                )
+                for node_id in candidate["node_ids"]:
+                    node = store.read_node(node_id)
+                    if node is not None:
+                        print(f"    {node_id}  {node.body[:88]}")
             return
         if not args.change_id:
             parser.error(f"{args.command} requires a <change-id>")

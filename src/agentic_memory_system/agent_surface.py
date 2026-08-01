@@ -1,20 +1,24 @@
-"""The agent-facing surface: four write operations and one read (Slice 9, MT3-21).
+"""The agent-facing surface: the write operations and reads an AI agent gets (MT3-21).
 
-This layer is the entire write vocabulary an AI agent gets: open a scope
-(``create_change``), add a node (``capture_artifact``), add an edge (``link``), log
-that something happened (``append_event``/``append_events``) — plus the one read call
-(``recall_context``). It is transport-independent; ``mcp_server.py`` wraps it in MCP.
+This layer is the entire write vocabulary: open a scope (``create_change``), add a
+knowledge node (``capture_artifact``), name a domain entity (``capture_entity``), add an
+edge (``link``), log that something happened (``append_event``/``append_events``) — plus
+the reads (``recall_context``, ``trace_impact``, ``review_queue``, ``domain_model``,
+``consolidation_candidates``). It is transport-independent; ``mcp_server.py`` wraps it
+in MCP.
 
 ⚠ Safety invariant (MT3-21 — protect this forever): nothing reachable from this class
-can mutate trust, clear a review flag, promote a tier, or archive a node. Those are
-either *derived* (trust folds from the journal, MT3-28) or live on *separate privileged
-paths* (evaluator batch MT3-27, sweep/merge lifecycle). Recording a CONTRADICTS edge or
-a CONTRADICTED event flags the target for review as a transparent side-effect — the
-agent is recording that a contradiction exists, not deciding the target is wrong.
-Never add a set_trust / clear_flag / promote / archive call here "for convenience".
+can mutate trust, clear a review flag, promote a tier, archive a node, confirm or retire
+a domain entity, or commit a consolidation. Those are either *derived* (trust folds from
+the journal, MT3-28; entity status folds from the journal too) or live on *separate
+privileged paths* (evaluator batch MT3-27, sweep/merge lifecycle, the human GUI).
+Recording a CONTRADICTS edge or a CONTRADICTED event flags the target for review as a
+transparent side-effect — the agent is recording that a contradiction exists, not
+deciding the target is wrong. Likewise ``capture_entity`` *proposes*; only a human
+ratifies. Never add a set_trust / clear_flag / promote / archive / confirm_entity /
+consolidate call here "for convenience".
 """
 
-import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -22,7 +26,7 @@ from typing import Any
 
 from .embedding import cosine
 from .schema import Node, NodeType, Tier, Edge, EdgeType, Event, EventType
-from .storage import MemoryStore
+from .storage import MemoryStore, slug as _slug
 
 # Node types an agent may capture. Anchors (slice, facet_value) and goals are minted
 # by create_change / facet governance, never free-form.
@@ -42,7 +46,22 @@ _CREATION_TIERS = frozenset({Tier.short_term, Tier.mid_term})
 
 # Edge types an agent may create between existing content nodes. SCOPED_TO and
 # HAS_FACET are structural axes managed by this surface itself.
-_LINKABLE_EDGE_TYPES = frozenset({EdgeType.depends_on, EdgeType.contradicts})
+#
+# ABOUT and CONSOLIDATES are agent-writable because both are *recordings*, not verdicts:
+# "this note concerns that entity" and "this summary was distilled from those episodes"
+# are facts the working agent is the best-placed party to state. Neither can demote,
+# archive, or re-tier anything, so neither widens the safety surface.
+_LINKABLE_EDGE_TYPES = frozenset(
+    {EdgeType.depends_on, EdgeType.contradicts, EdgeType.about, EdgeType.consolidates}
+)
+
+# Entity-name collision threshold. Lower bar than facets (0.35) *and* a softer response:
+# a warned facet label is skipped, a warned entity is still minted. Entities have a
+# mandatory human confirmation gate that facets do not, so the right place to rule
+# "Client and Customer are the same thing" is that gate, with a person looking at both —
+# not a silent refusal at capture time that leaves the agent unable to name a genuinely
+# distinct concept.
+_ENTITY_SUGGEST_THRESHOLD = 0.5
 
 # Agent event vocabulary → (implemented EventType, weight, polarity). Everything except
 # CONFIRMED/CONTRADICTED carries weight 0.0, so it is trust-neutral even when a
@@ -59,13 +78,6 @@ _EVENT_MAP: dict[str, tuple[EventType, float, int]] = {
 # Facet-vocabulary governance thresholds (MT3-19: embeddings are a collision
 # detector feeding the governance gate, never a silent merger).
 _FACET_SUGGEST_THRESHOLD = 0.35
-
-_SLUG_RE = re.compile(r"[^a-z0-9]+")
-
-
-def _slug(label: str) -> str:
-    return _SLUG_RE.sub("-", label.lower()).strip("-")
-
 
 class AgentSurfaceError(ValueError):
     """A rejected agent-surface call (validation, goal-first, vocabulary)."""
@@ -104,6 +116,61 @@ class AgentSurface:
             (node_id,),
         ).fetchone()
         return row[0] if row else None
+
+    @staticmethod
+    def _check_edge_endpoints(edge_type: EdgeType, source: Node, target: Node) -> None:
+        """Typed-edge endpoint rules, shared by ``capture_artifact`` and ``link``.
+
+        The graph is only as queryable as its edge types are honest: an ABOUT edge that
+        does not point at an entity turns the entity hub into noise, and a CONSOLIDATES
+        edge pointing at one is a category error (an entity is a referent, never an
+        episode to abstract). Cheap to enforce here, impossible to repair later.
+        """
+        for node in (source, target):
+            if node.type in (NodeType.slice, NodeType.facet_value):
+                raise AgentSurfaceError(
+                    f"{node.id!r} is a structural anchor, not content"
+                )
+        source_is_entity = source.type is NodeType.entity
+        target_is_entity = target.type is NodeType.entity
+
+        # Order matters: the two "an entity is not that kind of thing" rules run before
+        # the general artifact→entity rule, so an agent that tries to contradict an
+        # entity is told *why* it cannot rather than being redirected to ABOUT, which
+        # would not have helped either.
+        if (source_is_entity or target_is_entity) and edge_type is EdgeType.contradicts:
+            raise AgentSurfaceError(
+                "a domain entity names a referent, not a claim — nothing can contradict "
+                "it, so this edge would be meaningless. To dispute a definition: capture "
+                "the correction as a concept with an ABOUT edge to the entity, and "
+                "append_event('CONTRADICTED', <entity>) with your evidence — that flags "
+                "it for the human, who renames, redefines, or retires it."
+            )
+        if (source_is_entity or target_is_entity) and edge_type is EdgeType.consolidates:
+            raise AgentSurfaceError(
+                "CONSOLIDATES abstracts episodes into a semantic artifact; an entity is a "
+                "referent, not an episode and not an abstraction over episodes"
+            )
+
+        if edge_type is EdgeType.about:
+            if not target_is_entity:
+                raise AgentSurfaceError(
+                    f"ABOUT must point at an entity; {target.id!r} is a "
+                    f"{target.type.value}. Use DEPENDS_ON between artifacts."
+                )
+            if source_is_entity:
+                raise AgentSurfaceError(
+                    "ABOUT attaches an artifact to the entity it concerns; an entity does "
+                    "not hold an opinion about another entity. Relate entities with "
+                    "DEPENDS_ON (part-of), or capture a concept ABOUT both."
+                )
+        elif target_is_entity and not source_is_entity:
+            # Entity↔entity DEPENDS_ON survives this: it is the part-of spine of the
+            # domain model (LineItem DEPENDS_ON Invoice).
+            raise AgentSurfaceError(
+                f"{target.id!r} is a domain entity — relate artifacts to it with ABOUT, "
+                f"not {edge_type.value}"
+            )
 
     def _facet_values(self) -> list[Node]:
         rows = self._store._conn.execute(
@@ -203,8 +270,13 @@ class AgentSurface:
             node_type = None
         if node_type not in _CONTENT_TYPES:
             allowed = sorted(t.value for t in _CONTENT_TYPES)
+            hint = (
+                " — domain entities are named things, not claims: use capture_entity"
+                if node_type is NodeType.entity
+                else ""
+            )
             raise AgentSurfaceError(
-                f"capture_artifact: type must be one of {allowed}, got {type!r}"
+                f"capture_artifact: type must be one of {allowed}, got {type!r}{hint}"
             )
         try:
             node_tier = Tier(tier)
@@ -241,21 +313,22 @@ class AgentSurface:
         edge_results: list[str] = []
         for spec in edges or []:
             target = self._require_node(str(spec.get("target", "")), "edges.target")
-            if target.type in (NodeType.slice, NodeType.facet_value):
-                raise AgentSurfaceError(
-                    f"edges.target: {target.id!r} is a structural anchor, not content"
-                )
             try:
                 edge_type = EdgeType(str(spec.get("type", "")))
             except ValueError:
                 edge_type = None
             if edge_type not in _LINKABLE_EDGE_TYPES:
+                allowed = sorted(t.value for t in _LINKABLE_EDGE_TYPES)
                 raise AgentSurfaceError(
-                    f"edges.type must be DEPENDS_ON or CONTRADICTS, got {spec.get('type')!r}"
+                    f"edges.type must be one of {allowed}, got {spec.get('type')!r}"
                 )
             direction = str(spec.get("direction", "out"))
             if direction not in ("out", "in"):
                 raise AgentSurfaceError("edges.direction must be 'out' or 'in'")
+            if direction == "out":
+                self._check_edge_endpoints(edge_type, node, target)
+            else:
+                self._check_edge_endpoints(edge_type, target, node)
             source_id, target_id = (
                 (node.id, target.id) if direction == "out" else (target.id, node.id)
             )
@@ -342,6 +415,161 @@ class AgentSurface:
             )
         return edges, minted, warnings
 
+    # --- 2b. capture_entity — the domain model (4th dynamics class, MT3-29/30) ---
+
+    def capture_entity(
+        self,
+        name: str,
+        definition: str,
+        goal_ref: str,
+        facets: list[str] | None = None,
+        evidence: str = "",
+        edges: list[dict[str, str]] | None = None,
+    ) -> dict[str, Any]:
+        """Propose one domain entity — a named thing the project's language refers to.
+
+        Separate from ``capture_artifact`` because entities obey different rules on every
+        axis that matters:
+
+        - **Identity, not content.** The canonical name is the key (``/entity/<slug>``).
+          Capturing ``Invoice`` twice returns the first node instead of minting a second
+          — an entity the graph names twice is two half-domains that never rank into each
+          other's recalls. The definition of an existing entity is never overwritten here:
+          correcting it is a human edit. To *disagree* with one, capture the correction as
+          a concept ``ABOUT`` the entity and journal a ``CONTRADICTED`` event against it —
+          the event flags it for the human gate, while a CONTRADICTS *edge* is rejected,
+          because a referent is not a claim that another claim can contradict.
+        - **Always proposed, never self-confirmed.** Every entity starts ``proposed`` and
+          becomes part of the ratified domain model only when a human confirms it (GUI /
+          lifecycle CLI). This holds for both adoption paths — greenfield elicitation and
+          brownfield extraction differ in who *authored* the list, not in who ratifies it.
+          ``evidence`` records the provenance (a ``file:line`` for extraction, the user's
+          words for elicitation) into the ``entity_proposed`` event, where it is derived
+          journal data rather than a metadata blob on the node (MT3-30 §9).
+        - **No change scope.** Unlike an artifact, an entity gets no SCOPED_TO edge: the
+          domain outlives the change that first named it, and the sweep roots entities by
+          class. The goal→entity DEPENDS_ON edge still lands, so the entity is reachable
+          from this change's goal seed.
+
+        Returns ``{node_id, existing, status, entity_warnings?, edge_results}``.
+        """
+        clean_name = name.strip()
+        if not clean_name:
+            raise AgentSurfaceError("capture_entity: name must be non-empty")
+        if not definition.strip():
+            raise AgentSurfaceError(
+                "capture_entity: definition must be non-empty — an entity nobody can tell "
+                "apart from its neighbours is a label, not a domain model"
+            )
+        goal = self._require_goal(goal_ref)
+        entity_path = f"/entity/{_slug(clean_name)}"
+
+        existing_row = self._store._conn.execute(
+            "SELECT id FROM nodes WHERE type = 'entity' AND path = ?", (entity_path,)
+        ).fetchone()
+        if existing_row:
+            node_id = existing_row[0]
+            return {
+                "node_id": node_id,
+                "existing": True,
+                "status": self._store.entity_status(node_id),
+                "note": (
+                    f"entity {clean_name!r} already exists — reusing it. Its definition was "
+                    "not changed; capture a decision/concept with a CONTRADICTS edge if you "
+                    "disagree with it."
+                ),
+            }
+
+        now = datetime.now(timezone.utc)
+        node = Node(
+            id=str(uuid.uuid4()),
+            type=NodeType.entity,
+            tier=Tier.short_term,  # tier is irrelevant to an entity's survival — see sweep
+            path=entity_path,
+            # Name lives in the body as well as the path so the entity is readable cold in
+            # a recall bundle and so the name participates in seed-discovery embeddings.
+            body=f"{clean_name} — {definition.strip()}",
+            created_at=now,
+        )
+
+        warnings = self._entity_collisions(clean_name)
+        new_edges = [
+            Edge(source_id=goal.id, target_id=node.id, type=EdgeType.depends_on, created_at=now)
+        ]
+        edge_results: list[str] = []
+        for spec in edges or []:
+            target = self._require_node(str(spec.get("target", "")), "edges.target")
+            try:
+                edge_type = EdgeType(str(spec.get("type", "")))
+            except ValueError:
+                edge_type = None
+            if edge_type is not EdgeType.depends_on:
+                raise AgentSurfaceError(
+                    "capture_entity: edges.type must be DEPENDS_ON — the part-of spine of "
+                    "the domain model (LineItem DEPENDS_ON Invoice). Other relationships "
+                    "between entities are statements, so they belong in a concept ABOUT "
+                    f"both. Got {spec.get('type')!r}"
+                )
+            self._check_edge_endpoints(edge_type, node, target)
+            new_edges.append(
+                Edge(source_id=node.id, target_id=target.id, type=edge_type, created_at=now)
+            )
+            edge_results.append(f"{node.id} {edge_type.value} {target.id}")
+
+        reason = f"proposed via agent surface: {evidence.strip()}" if evidence.strip() else (
+            "proposed via agent surface (no provenance recorded)"
+        )
+        if warnings:
+            reason += f" | collision check: {'; '.join(warnings)}"
+        events = [
+            Event(
+                id=str(uuid.uuid4()),
+                node_id=node.id,
+                type=EventType.entity_proposed,
+                weight=0.0,  # identity is not a truth claim — trust-neutral
+                polarity=1,
+                source="agent-surface",
+                reason=reason,
+                created_at=now,
+            )
+        ]
+        facet_edges, facet_nodes, facet_warnings = self._resolve_facets(
+            facets or [], node.id, now
+        )
+        self._store.write_atomic([node, *facet_nodes], new_edges + facet_edges, events)
+        result: dict[str, Any] = {
+            "node_id": node.id,
+            "existing": False,
+            "status": "proposed",
+            "edge_results": edge_results,
+        }
+        if warnings:
+            result["entity_warnings"] = warnings
+        if facet_warnings:
+            result["facet_warnings"] = facet_warnings
+        return result
+
+    def _entity_collisions(self, name: str) -> list[str]:
+        """Near-duplicate entity names, as warnings the confirmation gate will see.
+
+        Compares against *names* (the pre-em-dash prefix of the body), not full
+        definitions: two entities with similar prose descriptions are usually genuinely
+        different things, while two similar names usually are not.
+        """
+        embedder = self._store._embedder
+        name_vec = embedder.embed(name)
+        hits = []
+        for node, status in self._store.entities():
+            if status == "retired":
+                continue
+            other_name = node.body.split(" — ", 1)[0]
+            if cosine(name_vec, embedder.embed(other_name)) >= _ENTITY_SUGGEST_THRESHOLD:
+                hits.append(
+                    f"{name!r} is close to existing entity {other_name!r} ({node.id}) — "
+                    "reuse it, or say in the definition how they differ"
+                )
+        return hits
+
     # --- 3. link — relate existing nodes ---
 
     def link(
@@ -358,16 +586,14 @@ class AgentSurface:
         except ValueError:
             edge_type = None
         if edge_type not in _LINKABLE_EDGE_TYPES:
-            raise AgentSurfaceError(
-                f"link: type must be DEPENDS_ON or CONTRADICTS, got {type!r}"
-            )
+            allowed = sorted(t.value for t in _LINKABLE_EDGE_TYPES)
+            raise AgentSurfaceError(f"link: type must be one of {allowed}, got {type!r}")
         source_node = self._require_node(source, "link.source")
         target_node = self._require_node(target, "link.target")
-        for node in (source_node, target_node):
-            if node.type in (NodeType.slice, NodeType.facet_value):
-                raise AgentSurfaceError(
-                    f"link: {node.id!r} is a structural anchor, not content"
-                )
+        try:
+            self._check_edge_endpoints(edge_type, source_node, target_node)
+        except AgentSurfaceError as exc:
+            raise AgentSurfaceError(f"link: {exc}") from exc
         side_effects: list[str] = []
         if edge_type is EdgeType.contradicts:
             self._store.raise_contradiction(
@@ -458,6 +684,11 @@ class AgentSurface:
         ids = [node.id for node, _ in ranked]
         for node, _score in ranked:
             tags = f"type={node.type.value} tier={node.tier.value}"
+            if node.type is NodeType.entity:
+                # An unratified entity read as settled domain language is the entity-side
+                # analogue of serving a disputed node as truth — tag it the same way.
+                status = self._store.entity_status(node.id)
+                tags += f" {status}" if status != "confirmed" else " confirmed"
             if node.needs_review:
                 tags += " disputed"
             blocks.append(f"[node:{node.id}] {tags}\n{node.body}")
@@ -495,6 +726,76 @@ class AgentSurface:
             if dep.needs_review:
                 tags += " disputed"
             blocks.append(f"[node:{dep.id}] {tags}\n{dep.body}")
+        return "\n\n".join(blocks)
+
+    def domain_model(self, status: str = "all") -> str:
+        """Read-only: the project's domain entities and their ratification status.
+
+        The read half of the domain-model workflow — what the graph currently believes the
+        project's ubiquitous language is. ``status`` filters to ``proposed`` (the review
+        backlog a human owes a ruling on), ``confirmed`` (the ratified model), or ``all``
+        (default; retired entities are excluded from every filter, and reachable only via
+        ``include_retired`` on the store).
+
+        Read-only by construction: proposing goes through ``capture_entity``, and
+        confirming/retiring is a privileged human act, never reachable from here.
+        """
+        wanted = status.strip().lower() or "all"
+        if wanted not in ("all", "proposed", "confirmed"):
+            raise AgentSurfaceError(
+                f"domain_model: status must be all | proposed | confirmed, got {status!r}"
+            )
+        rows = [
+            (node, node_status)
+            for node, node_status in self._store.entities()
+            if wanted == "all" or node_status == wanted
+        ]
+        if not rows:
+            if wanted == "all":
+                return (
+                    "(no domain entities yet — the project's ubiquitous language has not "
+                    "been modelled; run the domain-modelling workflow)"
+                )
+            return f"(no {wanted} domain entities)"
+        blocks = []
+        for node, node_status in rows:
+            about = self._store._conn.execute(
+                "SELECT COUNT(*) FROM edges e JOIN nodes n ON n.id = e.source_id "
+                "AND n.archived = 0 WHERE e.target_id = ? AND e.type = 'ABOUT'",
+                (node.id,),
+            ).fetchone()[0]
+            tags = f"status={node_status} attached={about}"
+            if node.needs_review:
+                tags += " disputed"
+            blocks.append(f"[node:{node.id}] {tags}\n{node.body}")
+        return "\n\n".join(blocks)
+
+    def consolidation_candidates(self) -> str:
+        """Read-only: recurrence in the graph that is worth abstracting into one node.
+
+        Surfaces clusters of live, un-promoted artifacts that say variations of the same
+        thing across several changes (the MT3-18/29 recurrence trigger). Read-only on
+        purpose: minting the abstraction is a privileged step, because a consolidated node
+        exists to be promoted past the sweep and an agent that both abstracts and nominates
+        its own abstraction is writing long-term memory unsupervised. The agent's job is to
+        bring the candidate to the human with a proposed wording.
+        """
+        candidates = self._store.consolidation_candidates()
+        if not candidates:
+            return "(no consolidation candidates — no cross-change recurrence detected)"
+        blocks = []
+        for candidate in candidates:
+            members = []
+            for node_id in candidate["node_ids"]:
+                node = self._store.read_node(node_id)
+                if node is not None:
+                    members.append(f"  [node:{node.id}] type={node.type.value}\n  {node.body}")
+            blocks.append(
+                f"candidate: facet={candidate['facet']!r} "
+                f"instances={len(candidate['node_ids'])} "
+                f"scopes={len(candidate['scopes'])} "
+                f"suggested_type={candidate['suggested_type']}\n" + "\n".join(members)
+            )
         return "\n\n".join(blocks)
 
     def review_queue(self) -> str:

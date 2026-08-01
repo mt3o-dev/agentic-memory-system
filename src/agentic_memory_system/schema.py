@@ -14,6 +14,13 @@ class NodeType(str, Enum):
     slice = "slice"
     facet_value = "facet_value"
     goal = "goal"
+    # The 4th dynamics class (MT3-29/30, formerly "reference entities"): a node that
+    # NAMES something the project's language refers to — a domain-model entity
+    # (Invoice, Customer), an actor (Person), or an external referent (ExternalRef) —
+    # rather than ASSERTING a claim that could be true or false. Identity, not
+    # validity: it does not decay, does not consolidate, and survives every sweep.
+    # See docs/06_DOMAIN_ENTITIES.md.
+    entity = "entity"
 
 
 class Tier(str, Enum):
@@ -41,6 +48,14 @@ class EdgeType(str, Enum):
     contradicts = "CONTRADICTS"
     scoped_to = "SCOPED_TO"
     has_facet = "HAS_FACET"
+    # content → entity: "this artifact is about that domain entity". The attachment
+    # edge that turns an entity into a retrieval hub — the one edge type whose
+    # REVERSE direction carries deliberate weight (see retrieval.DEFAULT_EDGE_POLICY).
+    about = "ABOUT"
+    # abstraction → instance: "this semantic node was consolidated from that episode".
+    # Provenance channel only (policy weight 0 both ways) — recalling an abstraction
+    # must never drag its dormant instances back into the live set.
+    consolidates = "CONSOLIDATES"
 
 
 class Edge(BaseModel):
@@ -64,6 +79,14 @@ class EventType(str, Enum):
     noted = "noted"
     content_edited = "content_edited"
     weight_set = "weight_set"
+    # Domain-entity lifecycle. Status is DERIVED by folding these (latest wins), never
+    # a stored column — same pattern as slice liveness. Agents may only propose;
+    # confirm/retire are privileged human acts (GUI / lifecycle CLI).
+    entity_proposed = "entity_proposed"
+    entity_confirmed = "entity_confirmed"
+    entity_retired = "entity_retired"
+    # Journaled on the minted abstraction and on every instance it consolidates.
+    consolidated = "consolidated"
 
 
 class Event(BaseModel):

@@ -1,6 +1,11 @@
-# SQLite WAL/SHM sidecar files (context/memory-graph.db is tracked via filter)
+# The store is a LOCAL BUILD ARTIFACT. context/memory-graph.dump is the tracked
+# source of truth; the database is rebuilt from it automatically on open (sync.py).
+# Never track the .db: git cannot auto-register a clean/smudge filter, so a tracked
+# binary either arrives as un-openable text or poisons history as raw SQLite.
+context/memory-graph.db
 *.db-wal
 *.db-shm
+*.db.bak
 
 # Python caches
 __pycache__/

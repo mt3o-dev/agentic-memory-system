@@ -15,49 +15,95 @@ agent's write vocabulary.
 
 | Layer | Module | What it does |
 |---|---|---|
-| Schema | `schema.py` | Node types (decision, concept, constraint, issue, invariant, slice, facet_value, goal), edge types (DEPENDS_ON, CONTRADICTS, SCOPED_TO, HAS_FACET), journal events |
-| Storage | `storage.py` | SQLite store: CRUD, recursive-CTE traversal, event journal, flag-based staleness, slice lifecycle + mark-sweep archival, single- and multi-seed recall |
+| Schema | `schema.py` | Node types (decision, concept, constraint, issue, invariant, slice, facet_value, goal, **entity**), edge types (DEPENDS_ON, CONTRADICTS, SCOPED_TO, HAS_FACET, **ABOUT**, **CONSOLIDATES**), journal events |
+| Storage | `storage.py` | SQLite store: CRUD, recursive-CTE traversal, event journal, flag-based staleness, slice lifecycle + mark-sweep archival, domain-entity lifecycle, consolidation, single- and multi-seed recall |
 | Trust | `fold.py` | Trust folded from the journal (order-independent strategies) — never stored mutation |
 | Staleness | `penalty.py`, `resolver.py`, `evaluator.py` | Query-time penalties for flagged nodes; rules → evaluator → human resolution ladder; LLM evaluator for guided review |
 | Retrieval | `retrieval.py`, `embedding.py` | Goal-dominant multi-seed Personalized PageRank; edge policy as data; deterministic hashed-BoW embeddings behind a swappable port |
-| Sync | `serialization.py`, `scripts/` | Legible text dump/restore for git-sync round-trips |
-| Agent surface | `agent_surface.py`, `mcp_server.py` | The MCP server AI agents use — 4 writes + 1 read, safe by construction |
+| Sync | `sync.py`, `serialization.py` | Git sync with no clean/smudge filter: the tracked `.dump` is the source, the `.db` is a gitignored build artifact the store rebuilds on open and refreshes on close |
+| Agent surface | `agent_surface.py` | The one place agent operations and their rules live — 5 writes + 5 reads, safe by construction |
+| Transports | `cli.py`, `mcp_server.py` | Two doors onto that surface: the CLI (default, always works) and MCP (optimization). Both pure delegation |
 | Human surface | `gui_api.py`, `gui/` | Minimal web GUI (Svelte + Bootstrap) for inspection and the human-in-the-loop checkpoints |
 
 Scoring: `effective_score = structure × (α·retrieval + β·trust + γ·recency)`, where
 `structure` is hop decay (single-seed) or normalized PPR mass (multi-seed) — see
 `context/changes/multi-seed-retrieval/ppr-composition.md`.
 
-## For AI agents (MCP)
+## For AI agents — two transports, one surface
+
+The agent surface is the system; MCP and the CLI are doors into it, neither holding
+judgment of its own. See [`docs/08_TRANSPORTS.md`](docs/08_TRANSPORTS.md) for the design.
+
+**The CLI is the default**, because it is the one that always works — no registration,
+no approval, no session restart, in a repo that was just cloned:
 
 ```sh
 uv sync
-uv run agentic-memory-mcp                                    # stdio, serves context/memory-graph.db
-MEMORY_DB_PATH=/path/to/graph.db uv run agentic-memory-mcp   # explicit store
+uv run agentic-memory --help
+uv run agentic-memory recall "VAT rounding" --goal <goal-id>
+uv run agentic-memory domain-model --status proposed
+
+# long prose never goes through shell quoting:
+uv run agentic-memory capture - --type constraint --goal <goal-id> <<'EOF'
+The payment webhook retries; handlers behind it must be idempotent.
+EOF
 ```
 
-Register with Claude Code (or any MCP client):
+**MCP is the optimization** — better ergonomics where it is available (structured
+arguments, schemas, discovery), so register it too. A `.mcp.json` is committed at the
+repo root; for other projects:
 
 ```sh
-claude mcp add agentic-memory -- uv run --directory /path/to/agentic-memory-system agentic-memory-mcp
+claude mcp add --scope project agentic-memory -- uv run --directory /path/to/agentic-memory-system agentic-memory-mcp
 ```
 
-### The agent surface — 4 writes + 3 reads
+An MCP server binds at session start, which means it cannot serve a fresh session in an
+unfamiliar checkout — the moment that needs recall most. That asymmetry is why the floor
+is the CLI and the ceiling is MCP.
+
+### The agent surface — 5 writes + 5 reads
 
 | Tool | What it does |
 |---|---|
 | `create_change(change_id, goal, parent_refs?)` | Opens a unit of work: mints the change anchor + the mandatory **Goal** node and activates the change as a liveness root. Call first. |
 | `capture_artifact(content, type, goal_ref, facets?, edges?, tier?)` | Captures a decision/concept/constraint/issue/invariant, atomically with its edges, anchored to the goal it serves and scoped to the goal's change. Facet labels are validated against the controlled vocabulary — near-synonyms come back as warnings, never silent duplicates. |
-| `link(source, target, type)` | Relates existing nodes (`DEPENDS_ON` \| `CONTRADICTS`). A CONTRADICTS edge flags the target for review as a transparent side-effect. |
+| `capture_entity(name, definition, goal_ref, facets?, evidence?, edges?)` | **Proposes** a domain entity — a named thing the project's language refers to. Keyed by name (capturing `Invoice` twice returns the first node and never rewrites its definition), always starts `proposed`, and carries its provenance into the journal. Only a human ratifies. |
+| `link(source, target, type)` | Relates existing nodes (`DEPENDS_ON` \| `CONTRADICTS` \| `ABOUT` \| `CONSOLIDATES`). A CONTRADICTS edge flags the target for review as a transparent side-effect. |
 | `append_event(event_type, node_ref, reason?)` / `append_events([...])` | The feedback loop: journal `USED` / `CONFIRMED` / `CONTRADICTED` / `REVIEWED` / `NOTED` against the stable ids the read call handed out. Append-only. |
-| `recall_context(query, goal_ref)` | The read path: goal-dominant multi-seed PPR over the live graph, returned as ranked verbatim content blocks with stable ids, coarse type/tier/disputed tags, and a compact list of contradictions among the results. Deterministic; no scores leak to the agent. |
-| `impact_of(node_ref)` | Read the blast radius of a node — the artifacts that transitively `DEPENDS_ON` it — before proposing a change to it. Nearest-first, id-tagged, with hop depth. Backs the `memory-trace-impact` skill. |
+| `recall_context(query, goal_ref)` | The read path: goal-dominant multi-seed PPR over the live graph, returned as ranked verbatim content blocks with stable ids, coarse type/tier/disputed tags (and entity status), and a compact list of contradictions among the results. Deterministic; no scores leak to the agent. |
+| `impact_of(node_ref)` | Read the blast radius of a node — the artifacts that transitively `DEPENDS_ON` it, or for an entity, everything written `ABOUT` it — before proposing a change to it. Nearest-first, id-tagged, with hop depth. |
 | `stale_nodes()` | Read the staleness queue: content nodes currently flagged for review. Read-only — it surfaces what a human should assess, and cannot clear a flag. |
+| `domain_model(status?)` | Read the project's ubiquitous language as the graph holds it, filtered to `proposed` (the ratification backlog) or `confirmed` (the settled model). Read before naming anything in code, tests, or a plan. |
+| `consolidation_candidates()` | Read clusters of artifacts that say variations of one thing across several changes. Read-only: the agent brings the candidate and a proposed wording; the human commits. |
 
 **Safety invariant:** nothing in the agent surface can mutate trust, clear a review
-flag, promote a tier, or archive a node. Trust is folded from the journal by
-privileged callers; flag resolution belongs to the evaluator/human ladder; archival is
-a consequence of change lifecycle (`sweep`). Do not add such a tool "for convenience".
+flag, promote a tier, archive a node, confirm or retire a domain entity, or commit a
+consolidation. Trust is folded from the journal by privileged callers; flag resolution
+belongs to the evaluator/human ladder; archival is a consequence of change lifecycle
+(`sweep`); entity ratification and consolidation are human judgment. Do not add such a
+tool "for convenience".
+
+### Domain entities and consolidation
+
+Two design questions that were open through slice 10, now built — the full reasoning is
+in [`docs/06_DOMAIN_ENTITIES.md`](docs/06_DOMAIN_ENTITIES.md) and
+[`docs/07_CONSOLIDATION.md`](docs/07_CONSOLIDATION.md).
+
+**Domain entities** are the 4th dynamics class. An entity *names* something the
+project's language refers to; every other node type *asserts* something that could be
+true or false. That difference is mechanical in five places: capture is keyed by name,
+the lifecycle is an identity ladder (`proposed → confirmed → retired`) rather than a
+validity one, the sweep roots entities **by class rather than by tier** so the domain
+outlives the change that named it, recency decay is switched off (age is evidence about
+claims, not identity), and `ABOUT` is the one edge whose *reverse* direction carries
+weight — which is what makes an entity a hub that pulls in what the project knows about
+it, including artifacts captured under other goals.
+
+**Consolidation** triggers on cross-change recurrence — several live artifacts from
+distinct change scopes saying variations of one thing — and runs strictly additively: it
+mints an abstraction and wires `CONSOLIDATES` (provenance, never walked by the retrieval
+walker, so an abstraction never resurrects the dormant detail it replaced) plus instance
+`DEPENDS_ON` (the content channel). No instance is edited, archived, or re-tiered.
 
 ## For humans (GUI)
 
@@ -73,7 +119,9 @@ Minimal Svelte + Bootstrap app (pre-built under `gui/dist`, no node needed to ru
 browse and search the graph, walk edges from node to node, read each node's journal,
 work the review queue (with the rules-resolver verdict as a hint), promote/demote
 tiers (lifetime promotion requires explicit confirmation), manage change liveness and
-run sweeps, and preview retrieval with full scores — humans see the mechanism that
+run sweeps, ratify the domain model (**Domain** tab: confirm/retire proposed entities,
+review consolidation candidates and commit the abstraction in your own words), and
+preview retrieval with full scores — humans see the mechanism that
 agents deliberately don't. Editing is supported and deliberately thin: create
 artifacts and add edges through the same enforced write path agents use (goal-first,
 facet governance, CONTRADICTS side-effects), edit node bodies, set weights directly,
@@ -129,9 +177,17 @@ but without the model's explanation) rather than erroring.
 
 ```sh
 uv run pytest        # full suite
-uv run python scripts/dump_db.py      # legible text dump (git-sync)
-uv run python scripts/restore_db.py   # rebuild DB from dump
+uv run agentic-memory sync status     # which side is ahead (db vs tracked dump)
+uv run agentic-memory sync dump       # refresh the dump explicitly (long-running procs)
+uv run python scripts/memory_lifecycle.py entities     # domain model + ratification backlog
+uv run python scripts/memory_lifecycle.py candidates   # consolidation candidates
 ```
+
+Both new CLI commands are **reads**. Entity ratification and committing a consolidation
+are deliberately absent from the script for the same reason they are absent from the MCP
+surface: unlike deactivate+sweep (a mechanical consequence of a merge that already
+happened), they are judgment calls about what the project's language is and what deserves
+to outlive a change.
 
 Design history lives in `docs/` (start at `docs/00_README_START_HERE.md`) and
 per-change plans under `context/changes/` / `context/archive/`. The authoritative
@@ -143,4 +199,8 @@ design record is the Linear project ("Agentic Memory System", MT3-17…MT3-30).
 trust, flag-based staleness, liveness/archival · 8 ✅ multi-seed PPR retrieval ·
 9 ✅ write-path MCP surface · GUI ✅ (v1.5 with editing) · 10 ✅ 10x lifecycle
 binding (`.claude/skills/memory-*` + `CLAUDE.md` binding table) · evaluator agent ✅
-(MT3-27 guided review in the GUI) · consolidation ⏳
+(MT3-27 guided review in the GUI) · 11 ✅ domain entities (`06`) · 12 ✅ consolidation
+(`07`)
+
+Remaining design work: procedural lifecycle specifics (`MT3-29`) and the per-channel
+edge-policy question (`MT3-20`/`MT3-30`).
