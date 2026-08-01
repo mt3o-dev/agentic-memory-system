@@ -59,6 +59,9 @@ def test_cli_commands_match_the_surface_operations():
     assert _cli_commands() == {
         "create-change", "capture", "capture-entity", "link", "event", "events",
         "recall", "impact", "stale", "domain-model", "candidates",
+        # `sync` is transport plumbing, not a surface operation — it moves bytes
+        # between the database and its tracked dump and reaches no agent verb.
+        "sync",
     }
 
 

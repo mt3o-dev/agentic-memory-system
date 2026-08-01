@@ -20,7 +20,7 @@ agent's write vocabulary.
 | Trust | `fold.py` | Trust folded from the journal (order-independent strategies) — never stored mutation |
 | Staleness | `penalty.py`, `resolver.py`, `evaluator.py` | Query-time penalties for flagged nodes; rules → evaluator → human resolution ladder; LLM evaluator for guided review |
 | Retrieval | `retrieval.py`, `embedding.py` | Goal-dominant multi-seed Personalized PageRank; edge policy as data; deterministic hashed-BoW embeddings behind a swappable port |
-| Sync | `serialization.py`, `scripts/` | Legible text dump/restore for git-sync round-trips |
+| Sync | `sync.py`, `serialization.py` | Git sync with no clean/smudge filter: the tracked `.dump` is the source, the `.db` is a gitignored build artifact the store rebuilds on open and refreshes on close |
 | Agent surface | `agent_surface.py` | The one place agent operations and their rules live — 5 writes + 5 reads, safe by construction |
 | Transports | `cli.py`, `mcp_server.py` | Two doors onto that surface: the CLI (default, always works) and MCP (optimization). Both pure delegation |
 | Human surface | `gui_api.py`, `gui/` | Minimal web GUI (Svelte + Bootstrap) for inspection and the human-in-the-loop checkpoints |
@@ -177,8 +177,8 @@ but without the model's explanation) rather than erroring.
 
 ```sh
 uv run pytest        # full suite
-uv run python scripts/dump_db.py      # legible text dump (git-sync)
-uv run python scripts/restore_db.py   # rebuild DB from dump
+uv run agentic-memory sync status     # which side is ahead (db vs tracked dump)
+uv run agentic-memory sync dump       # refresh the dump explicitly (long-running procs)
 uv run python scripts/memory_lifecycle.py entities     # domain model + ratification backlog
 uv run python scripts/memory_lifecycle.py candidates   # consolidation candidates
 ```

@@ -84,19 +84,22 @@ workflow is a different threat model, and one no in-process API can address. Rea
 containment would need a process boundary — which `gui_api.py` already half-demonstrates,
 by putting the privileged operations behind HTTP on a surface the agent is not pointed at.
 
-## 5. The store has to be a database
+## 5. The store has to be a database (solved, see `09_GIT_SYNC.md`)
 
-A blocker specific to this repo, and easy to miss: `context/memory-graph.db` is committed
-through the `memory-db` clean/smudge filter, but **`git config filter.*` is local repo
-config and is never cloned**. A fresh clone therefore checks out the *text dump*, and any
-transport opening it reports `DatabaseError: file is not a database`.
+This used to be the sharpest edge in the whole system. `context/memory-graph.db` was
+committed *through* a `memory-db` clean/smudge filter, but **`git config filter.*` is
+local repo config and is never cloned** — and git will never auto-register a
+repo-provided filter, because running arbitrary commands from a clone is a security
+boundary. A fresh clone therefore checked out the *text dump* into a file named `.db`,
+and every transport reported `DatabaseError: file is not a database`.
 
-`scripts/session_start.sh` (wired as a `SessionStart` hook in `.claude/settings.json`)
-registers the filter, rebuilds the store, and reports which transport is live. It is
-idempotent and never fatal — a hook that blocks a session because memory had a bad day is
-worse than no hook.
+It is gone. The dump is now the tracked source, the database is a gitignored build
+artifact, and `MemoryStore` rebuilds it on open. No filter, no registration, no setup
+script — see `09_GIT_SYNC.md`.
 
-On your own machine, run `scripts/setup-git-filter.sh` once per clone.
+The lesson generalizes to transports: **a design that needs out-of-band local setup is
+not transparent, and cannot be made transparent by documenting the setup better.** That
+is the same reason the CLI, not MCP, is the default door.
 
 ## 6. Degraded mode, narrowed
 

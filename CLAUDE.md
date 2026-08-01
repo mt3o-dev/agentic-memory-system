@@ -47,8 +47,8 @@ EOF
 
 Never skip a memory step because the MCP tools are absent — that is what the CLI is
 for, and the degraded-mode backlog is reserved for the store being genuinely
-unreachable. `scripts/session_start.sh` runs at session start, repairs the store if
-the clone checked out the text dump, and reports which transport is live.
+unreachable. `scripts/session_start.sh` runs at session start and reports which
+transport is live; the store repairs itself on open, with no hook needed.
 
 To bind another project, register the server there with `MEMORY_DB_PATH` pointing at
 that project's store and copy `.claude/skills/memory-*` across.
@@ -71,3 +71,8 @@ that project's store and copy `.claude/skills/memory-*` across.
   membership check, so every widening must move it forward).
 - New store operations that change node state must journal an event
   (`_journaled_update`) — no silent mutations, anywhere.
+- Git sync needs no setup: `context/memory-graph.dump` is tracked, the `.db` is a
+  gitignored build artifact the store rebuilds on open and refreshes on close
+  (`sync.py`, `docs/09_GIT_SYNC.md`). Never track the `.db` — a clean/smudge filter
+  cannot be auto-registered by git, which is what made the old design silently break
+  every fresh clone.

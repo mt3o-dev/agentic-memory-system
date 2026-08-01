@@ -18,7 +18,7 @@ The system is also **normative**: it doesn't just store context, it shapes how t
 
 Storage is **SQLite-as-graph**: two core tables (`nodes`, `edges`), traversal via recursive CTEs. Not a dedicated graph DB — Kuzu was the original pick but was **archived in October 2025** (Apple acqui-hire), and separately, the git-sync requirement is only cleanly solvable on SQLite.
 
-**Git sync** works by a clean/smudge filter that dumps the DB to text on commit and rebuilds it on checkout, so the database produces real line-wise diffs and merges like source code rather than an opaque binary blob.
+**Git sync** tracks a legible **text dump** and treats the database as a local build artifact, so the store produces real line-wise diffs and merges like source code rather than an opaque binary blob. The store rebuilds itself from the dump on open and refreshes the dump on close, which needs no setup at all. (It was originally a git clean/smudge filter — but filter config is local-only and git will never auto-register one, so that design could not be made transparent. See `09_GIT_SYNC.md`.)
 
 → `MT3-22` (storage + sync), `MT3-17` (schema)
 

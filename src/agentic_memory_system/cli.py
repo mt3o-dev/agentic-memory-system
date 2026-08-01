@@ -165,6 +165,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("candidates", help="cross-change recurrence worth abstracting")
 
+    p = sub.add_parser(
+        "sync",
+        help="git-sync state: refresh the dump, rebuild the database, or just report",
+    )
+    p.add_argument("direction", nargs="?", default="status",
+                   choices=["status", "dump", "restore"],
+                   help="status (default) reports; dump writes the .dump; restore rebuilds the .db")
+
     return parser
 
 
@@ -212,11 +220,53 @@ def _dispatch(surface: AgentSurface, args: argparse.Namespace) -> Any:
     raise SystemExit(f"error: unknown command {command!r}")
 
 
+def _sync_command(store, db_path: str, direction: str) -> str:
+    """Explicit git-sync, for the cases the automatic path deliberately does not cover.
+
+    ``dump`` before a commit made by a long-running process (the GUI never calls
+    ``close()``); ``restore`` to discard local writes in favour of the tracked dump;
+    ``status`` to see which side is ahead without touching either.
+    """
+    from . import sync
+
+    dump = sync.dump_path_for(db_path)
+    if direction == "dump":
+        sync.write_dump(store, dump)
+        return f"wrote {dump}"
+    if direction == "restore":
+        if not dump.is_file():
+            raise SystemExit(f"error: no dump at {dump}")
+        store.close()
+        count = sync.restore_from_text(dump.read_text(encoding="utf-8"), db_path)
+        return f"rebuilt {db_path} from {dump.name} ({count} nodes)"
+
+    db_exists = sync.is_database(db_path)
+    lines = [
+        f"database: {db_path} {'ok' if db_exists else 'missing or not a database'}",
+        f"dump:     {dump} {'present' if dump.is_file() else 'absent'}",
+    ]
+    if db_exists and dump.is_file():
+        import os
+
+        newer = "database" if os.path.getmtime(db_path) > os.path.getmtime(dump) else "dump"
+        lines.append(f"newer:    {newer}")
+    lines.append(
+        f"auto-sync: {'on' if sync.auto_sync_enabled() else 'off (MEMORY_AUTO_SYNC=0)'}"
+    )
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     store = MemoryStore(args.db)
+    for note in store.sync_notes:
+        # stderr, not stdout: stdout is the command's result and may be piped.
+        print(f"sync: {note}", file=sys.stderr)
     try:
-        result = _dispatch(AgentSurface(store), args)
+        if args.command == "sync":
+            result = _sync_command(store, args.db, args.direction)
+        else:
+            result = _dispatch(AgentSurface(store), args)
     except AgentSurfaceError as exc:
         # Exit 2, message on stderr: the same agent-actionable text the MCP tool would
         # surface as its error result. A rejected call is not a crash.

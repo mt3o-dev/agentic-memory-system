@@ -5,6 +5,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import sync
 from .schema import Node, NodeType, Tier, Edge, EdgeType, Event, EventType
 from .fold import FoldStrategy, SumAndClampFold
 from .penalty import (
@@ -117,7 +118,25 @@ class MemoryStore:
         penalty_strategy: PenaltyStrategy | None = None,
         embedder: Embedder | None = None,
         edge_policy: dict[tuple[EdgeType, Direction], float] | None = None,
+        auto_sync: bool | None = None,
     ) -> None:
+        # Git sync is the store's job, not a git filter's (see sync.py). Rebuild from
+        # the tracked dump when it is authoritative — a fresh clone, a fresh machine, or
+        # a `git pull` that moved the dump forward — so the caller never has to know the
+        # database is a build artifact. Notes are collected rather than printed: a
+        # library must not write to stdout, which on the CLI transport is the result.
+        self._db_path = str(db_path)
+        self._auto_sync = sync.auto_sync_enabled() if auto_sync is None else auto_sync
+        self.sync_notes: list[str] = []
+        self._dump_stale = False
+        if self._auto_sync:
+            note = sync.auto_restore(self._db_path)
+            if note:
+                self.sync_notes.append(note)
+            # A database ahead of its dump means the previous session died before
+            # closing. Remember it, so this session refreshes the dump on the way out
+            # even if it only reads.
+            self._dump_stale = sync.dump_is_stale(self._db_path)
         # check_same_thread=False: the GUI server's event loop may touch the
         # connection from a different thread than the one that opened it. Access is
         # still effectively serialized (single event loop / single test portal);
@@ -1499,5 +1518,18 @@ class MemoryStore:
         return result
 
     def close(self) -> None:
+        """Checkpoint, refresh the tracked dump if anything changed, and disconnect.
+
+        ``total_changes`` counts rows written on this connection and ignores reads, so
+        it is a dirty flag that no call site has to maintain — and therefore one that a
+        future write path cannot forget to set. Refreshing here is what keeps
+        ``git add -A`` honest: by the time a commit is staged, the legible dump beside
+        the database already reflects it.
+        """
+        changed = self._conn.total_changes > 0 or self._dump_stale
         self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        if self._auto_sync and changed:
+            note = sync.auto_dump(self, self._db_path, changed)
+            if note:
+                self.sync_notes.append(note)
         self._conn.close()
