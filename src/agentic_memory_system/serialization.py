@@ -71,7 +71,13 @@ def dump_node(
     ]
     for edge in (outgoing_edges or []):
         edge_ts = edge.created_at.isoformat() if edge.created_at else ""
-        lines.append(f"-> {edge.type.value} [node:{edge.target_id}] @ {edge_ts}")
+        # An edge is written in *one* block, not both, and it is not always the source's
+        # — see `MemoryStore.dump_pairs` for why. `<-` is that same edge seen from the
+        # target end; the pair (arrow, named node) reconstructs source and target exactly.
+        if edge.source_id == node.id:
+            lines.append(f"-> {edge.type.value} [node:{edge.target_id}] @ {edge_ts}")
+        else:
+            lines.append(f"<- {edge.type.value} [node:{edge.source_id}] @ {edge_ts}")
     lines.append("")
     lines.append(_escape_body(node.body))
     node_block = "\n".join(lines)
@@ -88,7 +94,7 @@ def dump_all(pairs: list[tuple[Node, list[Edge], list[Event]]], *, header: bool 
     return body + "\n"
 
 
-_EDGE_RE = re.compile(r"^-> (\S+) \[node:([^\]]+)\](?: @ (.+))?$")
+_EDGE_RE = re.compile(r"^(->|<-) (\S+) \[node:([^\]]+)\](?: @ (.+))?$")
 _NODE_HEADER_RE = re.compile(r"^\[node:([^\]]+)\]$")
 _EVENT_HEADER_RE = re.compile(r"^\[event:([^\]]+)\]$")
 
@@ -143,11 +149,12 @@ def parse_dump(text: str) -> list[tuple[Node, list[Edge], list[Event]]]:
                 else:
                     em = _EDGE_RE.match(line)
                     if em:
-                        etype, target_id, edge_ts = em.group(1), em.group(2), em.group(3)
+                        arrow, etype, other_id, edge_ts = em.groups()
                         edge_created = datetime.fromisoformat(edge_ts) if edge_ts else None
+                        outgoing = arrow == "->"
                         edges.append(Edge(
-                            source_id=node_id,
-                            target_id=target_id,
+                            source_id=node_id if outgoing else other_id,
+                            target_id=other_id if outgoing else node_id,
                             type=EdgeType(etype),
                             created_at=edge_created,
                         ))

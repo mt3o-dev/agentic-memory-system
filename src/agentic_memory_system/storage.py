@@ -620,10 +620,18 @@ class MemoryStore:
             )
         return event.model_copy(update={"id": event_id, "created_at": created_at})
 
-    def read_events(self, node_id: str) -> list[Event]:
+    def read_events(self, node_id: str, *, by_id: bool = False) -> list[Event]:
+        """A node's journal, oldest first — or ordered by id for ``by_id=True``.
+
+        The id order exists for ``dump_pairs``: chronological events all append to the
+        end of a block, so two branches that both journal against the same node conflict
+        even though the events are independent. Every consumer that *reads* a journal
+        (the GUI, folding) wants chronology, so this stays the default.
+        """
+        order = "id ASC" if by_id else "created_at ASC, id ASC"
         rows = self._conn.execute(
             "SELECT id, node_id, type, weight, polarity, source, reason, created_at "
-            "FROM events WHERE node_id = ? ORDER BY created_at ASC, id ASC",
+            f"FROM events WHERE node_id = ? ORDER BY {order}",
             (node_id,),
         ).fetchall()
         return [
@@ -1494,28 +1502,86 @@ class MemoryStore:
         return {"node_id": abstraction.id, "instances": seen}
 
     def dump_pairs(self) -> list[tuple[Node, list[Edge], list[Event]]]:
+        """Every node with its outgoing edges and journal, ordered by **id**.
+
+        Ordered by id rather than creation time so the dump *merges*. Chronological order
+        puts every newly-created node at the end of the file, so two people adding
+        unrelated nodes on two branches both append to the same region and git reports a
+        conflict — for changes that do not actually conflict. Node ids are random uuids,
+        so ordering by them scatters new blocks uniformly through the file and independent
+        additions land far apart, which git merges cleanly.
+
+        The same argument applies *inside* a block, where the stakes are actually higher:
+        a node's journal is the busiest thing in the file (every session's
+        ``append_events`` lands on the nodes it recalled), and chronological events append
+        to the tail, so two branches that merely *used* the same foundation node collide.
+        Ordering events by id scatters them among the ones already there. Edges get a
+        deterministic order for a plainer reason: without one SQLite is free to return
+        them in any order, which shows up as phantom diffs on an unchanged graph.
+
+        This makes independent work merge; it does not make every merge clean. Two
+        branches whose first-ever edges hang off the *same* hub node still land adjacent
+        in a list with nothing to scatter them through — one line each, and the resolution
+        is to keep both.
+
+        Nothing depends on the file being chronological: each block carries its own
+        ``created_at``, and trust folding is order-independent by construction (MT3-28).
+        """
         rows = self._conn.execute(
-            "SELECT id FROM nodes ORDER BY created_at ASC, id ASC"
+            "SELECT id FROM nodes ORDER BY id ASC"
         ).fetchall()
+        anchored = self._edges_anchored_at_the_newer_endpoint()
         result: list[tuple[Node, list[Edge], list[Event]]] = []
         for (node_id,) in rows:
             node = self.read_node(node_id)
-            edge_rows = self._conn.execute(
-                "SELECT source_id, target_id, type, created_at FROM edges WHERE source_id = ?",
-                (node_id,),
-            ).fetchall()
-            edges = [
-                Edge(
-                    source_id=r[0],
-                    target_id=r[1],
-                    type=EdgeType(r[2]),
-                    created_at=datetime.fromisoformat(r[3]),
-                )
-                for r in edge_rows
-            ]
-            events = self.read_events(node_id)
+            edges = anchored.get(node_id, [])
+            events = self.read_events(node_id, by_id=True)
             result.append((node, edges, events))
         return result
+
+    def _edges_anchored_at_the_newer_endpoint(self) -> dict[str, list[Edge]]:
+        """Group every edge under exactly one endpoint: whichever node is younger.
+
+        This is the placement rule that makes the dominant write pattern merge. Almost
+        every edge in this system is minted *with* a new node and hangs off something
+        long-lived — an artifact onto its goal, an artifact onto an entity. Written in
+        the older endpoint's block, that one line is an insertion into a list two branches
+        are both appending to, and git calls it a conflict. Written in the younger
+        endpoint's block, it is part of a block that exists on only one side of the merge,
+        so it cannot collide with anything — no scattering, no probability, just absent
+        from the other side.
+
+        Direction is not lost: ``serialization`` writes ``->`` when the anchor is the
+        source and ``<-`` when it is the target, and the parser restores source/target
+        from the arrow. The only edges left in a shared block are ones linking two nodes
+        that both already existed, which is a much rarer act than capturing.
+        """
+        rows = self._conn.execute(
+            "SELECT e.source_id, e.target_id, e.type, e.created_at, s.created_at, t.created_at "
+            "FROM edges e "
+            "JOIN nodes s ON s.id = e.source_id "
+            "JOIN nodes t ON t.id = e.target_id"
+        ).fetchall()
+        anchored: dict[str, list[Edge]] = {}
+        for source_id, target_id, etype, edge_ts, source_ts, target_ts in rows:
+            # Tie-break on id so the choice is stable for nodes created in the same
+            # instant — the dump must not shuffle between runs of an unchanged graph.
+            anchor = (
+                target_id
+                if (target_ts, target_id) >= (source_ts, source_id)
+                else source_id
+            )
+            anchored.setdefault(anchor, []).append(
+                Edge(
+                    source_id=source_id,
+                    target_id=target_id,
+                    type=EdgeType(etype),
+                    created_at=datetime.fromisoformat(edge_ts),
+                )
+            )
+        for edges in anchored.values():
+            edges.sort(key=lambda e: (e.target_id, e.source_id, e.type.value))
+        return anchored
 
     def close(self) -> None:
         """Checkpoint, refresh the tracked dump if anything changed, and disconnect.

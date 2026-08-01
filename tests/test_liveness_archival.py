@@ -194,9 +194,13 @@ def test_slice_scoped_archived_event_round_trip(store):
 
     assert by_id[sl.id][0].type == NodeType.slice             # slice node type round-trips
     assert by_id[detail.id][0].archived is True               # materialized archived state round-trips
-    assert any(                                               # SCOPED_TO edge round-trips
-        e.type == EdgeType.scoped_to and e.target_id == detail.id
-        for e in by_id[sl.id][1]
+    # SCOPED_TO edge round-trips — asserted over the whole graph, because which block an
+    # edge is written in is the dump's business (it anchors edges at the younger endpoint
+    # so parallel branches do not collide); what must survive is the edge itself.
+    all_edges = [e for _n, edges, _ev in parsed for e in edges]
+    assert any(
+        e.type == EdgeType.scoped_to and e.source_id == sl.id and e.target_id == detail.id
+        for e in all_edges
     )
     assert any(ev.type == EventType.slice_deactivated for ev in by_id[sl.id][2])  # lifecycle event
     assert any(ev.type == EventType.archived for ev in by_id[detail.id][2])       # archival event

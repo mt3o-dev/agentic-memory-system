@@ -76,3 +76,11 @@ that project's store and copy `.claude/skills/memory-*` across.
   (`sync.py`, `docs/09_GIT_SYNC.md`). Never track the `.db` — a clean/smudge filter
   cannot be auto-registered by git, which is what made the old design silently break
   every fresh clone.
+- If a `git merge` conflicts in the dump, run `uv run agentic-memory sync resolve` and
+  `git add` the result. Never hand-edit the markers out: git aligns two similar blocks
+  and reports only their differing lines, so "keep both sides" can splice half of one
+  event onto half of another. The store refuses to open against a conflicted dump, and
+  refuses to overwrite one, so neither mistake can pass silently.
+- The dump is ordered for *merging*, not for reading — nodes and events by id, edges
+  anchored at the younger endpoint. Anything that reorders it (a new `ORDER BY` in
+  `dump_pairs`) trades away that property; chronological order guarantees conflicts.

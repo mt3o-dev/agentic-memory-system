@@ -170,8 +170,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="git-sync state: refresh the dump, rebuild the database, or just report",
     )
     p.add_argument("direction", nargs="?", default="status",
-                   choices=["status", "dump", "restore"],
-                   help="status (default) reports; dump writes the .dump; restore rebuilds the .db")
+                   choices=["status", "dump", "restore", "resolve"],
+                   help="status (default) reports; dump writes the .dump; restore rebuilds "
+                        "the .db; resolve merges a conflicted .dump after a git merge")
 
     return parser
 
@@ -230,7 +231,19 @@ def _sync_command(store, db_path: str, direction: str) -> str:
     from . import sync
 
     dump = sync.dump_path_for(db_path)
+    if direction == "resolve":
+        nodes, events = sync.resolve_conflict(dump)
+        return (
+            f"resolved {dump} as the union of both sides ({nodes} nodes, {events} events).\n"
+            "Review the diff, then `git add` it to complete the merge."
+        )
     if direction == "dump":
+        # Same clobber the automatic path refuses, reached through the explicit door.
+        if sync.conflicted(dump):
+            raise SystemExit(
+                f"error: {dump} has unresolved merge conflict markers. Writing over it "
+                "would discard the other side of the merge — resolve it first."
+            )
         sync.write_dump(store, dump)
         return f"wrote {dump}"
     if direction == "restore":
@@ -258,7 +271,18 @@ def _sync_command(store, db_path: str, direction: str) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
-    store = MemoryStore(args.db)
+    from .sync import DumpUnusableError
+
+    try:
+        # `sync` is the repair tool, so it must still open when the store needs repairing:
+        # auto-sync is exactly what refuses to run against a conflicted dump, and
+        # `sync resolve` exists to fix that. Every other command wants the healing open.
+        store = MemoryStore(args.db, auto_sync=False if args.command == "sync" else None)
+    except DumpUnusableError as exc:
+        # A refusal to open, not a crash: the message names the file and the fix, and a
+        # traceback would bury both. Exit 2 matches a rejected surface call.
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(2)
     for note in store.sync_notes:
         # stderr, not stdout: stdout is the command's result and may be piped.
         print(f"sync: {note}", file=sys.stderr)

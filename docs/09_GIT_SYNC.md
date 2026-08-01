@@ -98,6 +98,7 @@ triggers a restore. This is the one non-obvious line in the module, and it is lo
 | See which side is ahead | `uv run agentic-memory sync status` |
 | Refresh the dump from a long-running process (the GUI never calls `close()`) | `uv run agentic-memory sync dump` |
 | Discard local writes in favour of the tracked dump | `uv run agentic-memory sync restore` |
+| Finish a `git merge` that conflicted in the dump | `uv run agentic-memory sync resolve` |
 | Turn both halves off (hot loops, benchmarks) | `MEMORY_AUTO_SYNC=0` |
 
 `scripts/dump_db.py` and `scripts/restore_db.py` still work as stdin→stdout filters, for
@@ -117,7 +118,84 @@ Nothing to do. On the next pull:
 If your working copy still has dump text sitting at the `.db` path — the broken state the
 old design produced — the next open heals it and says so.
 
-## 8. The failure-mode asymmetry, which is the whole argument
+## 8. Merge conflicts
+
+A tracked text file that two branches both write is going to conflict sometimes. Three
+separate things make that safe, and they are worth keeping distinct: **the dump is
+ordered so conflicts are rarer**, **a conflicted dump can never be silently mishandled**,
+and **one command resolves it correctly**.
+
+### 8.1 The ordering that makes independent work merge
+
+Chronological order is the worst possible order for merging: every new node lands at the
+end of the file, every new event lands at the end of its node, so two branches doing
+completely unrelated work both append to the same region and git calls it a conflict.
+The dump is therefore ordered for merging, not for reading:
+
+- **node blocks by id** — ids are random uuids, so new blocks scatter through the file
+  instead of piling up at the end;
+- **events by id within a node** — the journal is the busiest thing in the file, and two
+  sessions that merely `USED` the same foundation node should not collide;
+- **edges anchored at the younger endpoint**, written `->` from the source's block or
+  `<-` from the target's. Nearly every edge is minted *with* a new node and hangs off
+  something long-lived (an artifact onto its goal, an artifact onto an entity). Written
+  in the hub's block it is one line appended to a list two branches are both appending
+  to; written in the new node's block it lives inside a block that exists on only one
+  side of the merge, and cannot collide at all.
+
+This lowers the odds; it does not abolish them. Two insertions can still land at the same
+offset, and the chance is highest in a *small* store, where there is little to scatter
+through. Measured on a deliberately tiny graph — two branches each capturing one artifact
+and journalling against the same node — git merged cleanly about **40%** of the time. The
+remaining 60% is what §8.3 is for.
+
+### 8.2 A conflicted dump is never silently mishandled
+
+Two failure modes existed here, both silent, and both are now closed:
+
+- **It could serve an empty graph.** A conflicted dump does not parse, the restore failed,
+  and the store opened with zero nodes — after which "(no domain entities yet)" is a
+  perfectly fluent sentence about a graph that exists and simply was not loaded. A store
+  that cannot load its graph now **refuses to open** (`DumpUnusableError`), rather than
+  answering as though the graph were empty.
+- **It could be overwritten.** A session that wrote anything would dump over the
+  conflicted file on close — deleting the incoming branch's nodes *and* the markers, so
+  `git status` read as a clean resolution and the loss got committed. `auto_dump` and
+  `sync dump` both refuse to write over a dump with markers in it.
+
+Refusing to open is deliberately stricter than the degraded mode used for a merely
+*malformed* dump (there, an older database is kept and reported). An unresolved merge is a
+transient state with an exact fix, and serving the pre-merge database would let the session
+write into it — stranding work that whichever side of the resolution wins would then lose.
+
+### 8.3 `sync resolve` — union by id, not by line
+
+```sh
+git merge feature-branch          # CONFLICT (content): context/memory-graph.dump
+uv run agentic-memory sync resolve
+git add context/memory-graph.dump && git commit
+```
+
+The conflicted file contains both versions of every hunk, so the two original dumps can be
+reconstructed from it with no git invocation, no configured merge driver, and no network.
+Both are parsed and unioned **by id**: nodes, edges, and events all carry one, so "the same
+thing" and "two things" are never in question, and the union of two append-only graphs is
+simply both.
+
+**Do not resolve it by hand.** This is the trap the command exists for. Two `used` events
+differ only in id, timestamp, and reason, so git aligns them and reports *those lines*
+rather than two whole blocks. Deleting the markers and keeping "both sides" then splices
+half of one event onto half of the other — producing a single mangled block that parses
+without complaint and quietly loses an event. Union by id cannot produce that.
+
+Where the two sides genuinely disagree — the same node's materialized state — the merge
+preserves work rather than trying to be clever: a review flag raised on either side stays
+raised, a node archived on only one side stays live (the next sweep can archive it again;
+un-archiving is a human act), and derived weights take the larger value. None of this is
+lost information, because the journal that produced it is itself merged and trust is
+re-derivable from events.
+
+## 9. The failure-mode asymmetry, which is the whole argument
 
 The old design's failure was a **broken checkout, silently**, plus a way for one machine's
 missing config to poison shared history.
