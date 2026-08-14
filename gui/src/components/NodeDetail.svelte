@@ -1,4 +1,6 @@
 <script>
+  import { marked } from 'marked'
+  import DOMPurify from 'dompurify'
   import { get, post, tierBadge } from '../api.js'
 
   let { id, onselect, onchanged } = $props()
@@ -8,7 +10,12 @@
   let newTier = $state('')
   let busy = $state(false)
   let editing = $state(false)
+  let previewing = $state(false)
   let draftBody = $state('')
+
+  function renderMarkdown(text) {
+    return DOMPurify.sanitize(marked.parse(text ?? ''))
+  }
   let trust = $state(0)
   let retrieval = $state(0)
   let edgeType = $state('DEPENDS_ON')
@@ -22,6 +29,7 @@
       trust = detail.node.trust_weight
       retrieval = detail.node.retrieval_weight
       editing = false
+      previewing = false
       error = ''
     } catch (e) {
       error = e.message
@@ -103,7 +111,27 @@
     </div>
     <div class="card-body">
       {#if editing}
-        <textarea class="form-control mb-2" rows="5" bind:value={draftBody}></textarea>
+        <div class="btn-group btn-group-sm mb-2" role="group">
+          <button
+            type="button"
+            class="btn {previewing ? 'btn-outline-secondary' : 'btn-secondary'}"
+            onclick={() => (previewing = false)}
+          >
+            edit
+          </button>
+          <button
+            type="button"
+            class="btn {previewing ? 'btn-secondary' : 'btn-outline-secondary'}"
+            onclick={() => (previewing = true)}
+          >
+            preview
+          </button>
+        </div>
+        {#if previewing}
+          <div class="markdown-body border rounded p-2 mb-2">{@html renderMarkdown(draftBody)}</div>
+        {:else}
+          <textarea class="form-control mb-2" rows="5" bind:value={draftBody}></textarea>
+        {/if}
         <div class="d-flex gap-2 mb-3">
           <button
             class="btn btn-sm btn-primary"
@@ -121,7 +149,7 @@
           </span>
         </div>
       {:else}
-        <p class="mb-2" style="white-space: pre-wrap">{n.body}</p>
+        <div class="markdown-body mb-2">{@html renderMarkdown(n.body)}</div>
       {/if}
       <div class="small text-secondary mb-3">
         id <code>{n.id}</code> · trust {n.trust_weight.toFixed(2)} · retrieval
@@ -131,6 +159,7 @@
             class="btn btn-link btn-sm p-0 align-baseline"
             onclick={() => {
               draftBody = n.body
+              previewing = false
               editing = true
             }}
           >
@@ -281,3 +310,56 @@
     </div>
   </div>
 {/if}
+
+<style>
+  /* Rendered markdown fits the card layout. `:global` is needed because the HTML
+     is injected via {@html} and would otherwise escape Svelte's scoping. */
+  .markdown-body :global(> :first-child) {
+    margin-top: 0;
+  }
+  .markdown-body :global(> :last-child) {
+    margin-bottom: 0;
+  }
+  .markdown-body :global(h1) {
+    font-size: 1.35rem;
+  }
+  .markdown-body :global(h2) {
+    font-size: 1.2rem;
+  }
+  .markdown-body :global(h3) {
+    font-size: 1.1rem;
+  }
+  .markdown-body :global(h4),
+  .markdown-body :global(h5),
+  .markdown-body :global(h6) {
+    font-size: 1rem;
+  }
+  .markdown-body :global(pre) {
+    background: var(--bs-tertiary-bg);
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+  }
+  .markdown-body :global(:not(pre) > code) {
+    background: var(--bs-tertiary-bg);
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+  .markdown-body :global(blockquote) {
+    border-left: 0.25rem solid var(--bs-border-color);
+    padding-left: 0.75rem;
+    color: var(--bs-secondary-color);
+    margin-left: 0;
+  }
+  .markdown-body :global(table) {
+    border-collapse: collapse;
+  }
+  .markdown-body :global(th),
+  .markdown-body :global(td) {
+    border: 1px solid var(--bs-border-color);
+    padding: 0.25rem 0.5rem;
+  }
+  .markdown-body :global(img) {
+    max-width: 100%;
+  }
+</style>

@@ -1,7 +1,7 @@
 <script>
   import { get, post } from '../api.js'
 
-  let { onchanged } = $props()
+  let { openNode, onchanged } = $props()
 
   let changes = $state([])
   let sweepResult = $state(null)
@@ -76,7 +76,11 @@
   <tbody>
     {#each changes as change (change.id)}
       <tr>
-        <td><code>{change.path}</code></td>
+        <td>
+          <button class="btn btn-link btn-sm p-0" onclick={() => openNode(change.id)}>
+            <code>{change.path}</code>
+          </button>
+        </td>
         <td class="small text-secondary">{change.preview}</td>
         <td>{change.scoped_nodes}</td>
         <td>

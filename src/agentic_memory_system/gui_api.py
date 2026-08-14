@@ -17,6 +17,10 @@ inspect-after-the-fact rather than real-time sync.
 """
 
 import os
+import platform
+import re
+import sys
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 from starlette.applications import Starlette
@@ -36,8 +40,24 @@ _DIST = Path(__file__).resolve().parents[2] / "gui" / "dist"
 _ANCHOR_TYPES = ("slice", "facet_value")
 
 
+# Body is Markdown; previews are short plaintext, so strip the common markers rather
+# than rendering. A lightweight regex is enough here — the detail view does the real
+# rendering client-side with `marked`.
+_MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")  # [text](url) -> text
+_MD_STRIP_RE = re.compile(
+    r"^#{1,6}\s+|"  # headings
+    r"[*_`~]{1,3}|"  # emphasis/code markers
+    r"^\s*[-*+]\s+|"  # bullet markers
+    r"^\s*\d+\.\s+|"  # ordered list markers
+    r"^\s*>\s?",  # blockquote markers
+    re.MULTILINE,
+)
+
+
 def _preview(body: str, limit: int = 160) -> str:
-    flat = " ".join(body.split())
+    stripped = _MD_LINK_RE.sub(r"\1", body)
+    stripped = _MD_STRIP_RE.sub("", stripped)
+    flat = " ".join(stripped.split())
     return flat if len(flat) <= limit else flat[: limit - 1] + "…"
 
 
@@ -102,6 +122,28 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
         counts["entities_proposed"] = sum(1 for s in statuses if s == "proposed")
         return JSONResponse(counts)
 
+    async def info(request: Request) -> JSONResponse:
+        try:
+            version = importlib_metadata.version("agentic-memory-system")
+        except importlib_metadata.PackageNotFoundError:
+            version = None
+        db_path = None
+        for _, name, file in store._conn.execute("PRAGMA database_list"):
+            if name == "main" and file:
+                db_path = file
+                break
+        return JSONResponse(
+            {
+                "project": "agentic-memory-system",
+                "version": version,
+                "cwd": os.getcwd(),
+                "db_path": db_path,
+                "python_version": platform.python_version(),
+                "pid": os.getpid(),
+                "argv": sys.argv,
+            }
+        )
+
     async def list_nodes(request: Request) -> JSONResponse:
         q = request.query_params
         sql = "SELECT id FROM nodes WHERE 1=1"
@@ -120,9 +162,9 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
         if q.get("archived") != "1":
             sql += " AND archived = 0"
         if q.get("q"):
-            sql += " AND (body LIKE ? OR path LIKE ?)"
+            sql += " AND (body LIKE ? OR path LIKE ? OR id LIKE ?)"
             needle = f"%{q['q']}%"
-            args.extend([needle, needle])
+            args.extend([needle, needle, needle])
         sql += " ORDER BY path, id LIMIT 500"
         rows = store._conn.execute(sql, args).fetchall()
         return JSONResponse([_node_summary(store.read_node(r[0])) for r in rows])
@@ -595,6 +637,7 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
 
     routes = [
         Route("/api/health", health),
+        Route("/api/info", info),
         Route("/api/nodes", list_nodes, methods=["GET"]),
         Route("/api/nodes", create_artifact, methods=["POST"]),
         Route("/api/edges", create_edge, methods=["POST"]),

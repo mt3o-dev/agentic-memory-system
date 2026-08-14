@@ -41,7 +41,7 @@
     <div class="d-flex gap-2 mb-2 flex-wrap">
       <input
         class="form-control form-control-sm w-auto flex-grow-1"
-        placeholder="search body or path…"
+        placeholder="search body, path, or id…"
         bind:value={q}
       />
       <select class="form-select form-select-sm w-auto" bind:value={type}>
@@ -91,8 +91,17 @@
               {#if node.archived}<span class="badge text-bg-warning">archived</span>{/if}
             </span>
           </div>
-          <div class="small text-truncate {selectedId === node.id ? '' : 'text-secondary'}">
+          <div
+            class="small {selectedId === node.id ? '' : 'text-secondary'}"
+            style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;"
+          >
             {node.preview}
+          </div>
+          <div
+            class="text-truncate {selectedId === node.id ? 'text-white-50' : 'text-muted'}"
+            style="font-size: 0.75em;"
+          >
+            id: <code class="small">{node.id}</code>
           </div>
         </button>
       {:else}
