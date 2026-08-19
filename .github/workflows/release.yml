@@ -1,0 +1,47 @@
+name: release
+
+# Build the install-only-what-you-need assets and attach them to the GitHub
+# Release when a version tag is pushed (e.g. `git tag v0.1.0 && git push --tags`).
+# Bump `version` in pyproject.toml to match the tag before tagging.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build the GUI
+        run: npm ci && npm run build
+        working-directory: gui
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      - name: Package GUI + skills tarballs
+        run: uv run python scripts/build-assets.py all --version "${GITHUB_REF_NAME#v}"
+
+      - name: List built assets
+        run: ls -la dist/
+
+      - name: Attach assets to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          fail_on_unmatched_files: true

@@ -7,6 +7,9 @@ context/memory-graph.db
 *.db-shm
 *.db.bak
 
+# Build output (uv build + scripts/build-assets.py)
+/dist/
+
 # Python caches
 __pycache__/
 *.pyc
@@ -18,5 +21,8 @@ __pycache__/
 .serena/
 graphify-out/
 
-# GUI toolchain (gui/dist IS tracked so the GUI runs without node)
+# GUI build output — a build artifact, rebuilt with `npm run build` in gui/
+# (locally via `make dist`, and in CI on release). Not tracked, so a fresh clone
+# must build the GUI before agentic-memory-gui can serve it.
 gui/node_modules/
+gui/dist/
