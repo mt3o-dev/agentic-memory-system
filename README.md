@@ -204,3 +204,56 @@ binding (`.claude/skills/memory-*` + `CLAUDE.md` binding table) · evaluator age
 
 Remaining design work: procedural lifecycle specifics (`MT3-29`) and the per-channel
 edge-policy question (`MT3-20`/`MT3-30`).
+
+## Building & installing
+
+Releases carry three **install-only-what-you-need** assets. `uv build` produces the
+Python distribution; `scripts/build-assets.py` (stdlib only) packages the GUI and
+skills. Everything lands in `dist/`:
+
+```bash
+make dist          # uv build + python3 scripts/build-assets.py all
+```
+
+- **`agentic_memory_system-<ver>-py3-none-any.whl`** (+ sdist) — the engine: the
+  `agentic-memory` CLI, the `agentic-memory-mcp` server, and the `agentic-memory-gui`
+  API. Install with `uv tool install` (or pipx):
+
+  ```bash
+  uv tool install ./agentic_memory_system-<ver>-py3-none-any.whl
+  ```
+
+- **`memory-gui-<ver>.tar.gz`** — the built Svelte GUI (`gui/dist`) as a static
+  bundle, for serving the human GUI behind the API.
+
+- **`memory-skills-<ver>.tar.gz`** — the `memory-*` skills (the primitive bindings
+  for the MCP surface) plus an installer:
+
+  ```bash
+  tar xzf memory-skills-*.tar.gz && cd memory-skills-*
+  ./install.sh                           # → ~/.claude/skills
+  ./install.sh --target ~/.agent/skills  # or .kiro / .opencode / a project dir
+  ```
+
+Each asset is standalone — grab only what you need.
+
+### Releasing
+
+The version lives in `pyproject.toml` (`[project] version`); both `uv build` and the
+asset packager read it (CI prefers the tag).
+
+1. Bump `version` in `pyproject.toml` and commit.
+2. Tag and push:
+
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+3. The tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml),
+   which runs `uv build` and `scripts/build-assets.py` on a clean checkout and
+   **attaches the wheel, sdist, GUI tarball, and skills tarball to the GitHub Release**
+   for that tag.
+
+`dist/` is gitignored and nothing is published from a developer's machine — the tag
+is the only trigger. `make dist` dry-runs the same assets locally.
