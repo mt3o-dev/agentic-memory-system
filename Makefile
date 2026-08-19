@@ -1,12 +1,15 @@
 # Build the distributable release assets. See scripts/build-assets.py.
-.PHONY: dist wheel assets gui skills clean
+.PHONY: dist wheel gui-build assets gui skills clean
 
-dist: wheel assets   ## Build wheel + sdist + GUI/skills tarballs into dist/
+dist: wheel gui-build assets   ## Build wheel + sdist + GUI/skills tarballs into dist/
 
 wheel:               ## Build the Python wheel + sdist (uv)
 	uv build
 
-assets:              ## Build the GUI + skills tarballs
+gui-build:           ## Build the Svelte GUI (node) → gui/dist
+	cd gui && npm ci && npm run build
+
+assets:              ## Package the GUI + skills tarballs (needs gui/dist built)
 	python3 scripts/build-assets.py all
 
 gui:                 ## Build just the GUI tarball

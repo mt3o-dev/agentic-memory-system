@@ -208,12 +208,15 @@ edge-policy question (`MT3-20`/`MT3-30`).
 ## Building & installing
 
 Releases carry three **install-only-what-you-need** assets. `uv build` produces the
-Python distribution; `scripts/build-assets.py` (stdlib only) packages the GUI and
-skills. Everything lands in `dist/`:
+Python distribution, `npm run build` produces the GUI, and `scripts/build-assets.py`
+(stdlib only) packages the GUI and skills. `make dist` runs all of it; everything
+lands in `dist/`:
 
 ```bash
-make dist          # uv build + python3 scripts/build-assets.py all
+make dist          # uv build + (cd gui && npm ci && npm run build) + package tarballs
 ```
+
+Building the GUI needs Node (it is a build artifact — `gui/dist` is not tracked).
 
 - **`agentic_memory_system-<ver>-py3-none-any.whl`** (+ sdist) — the engine: the
   `agentic-memory` CLI, the `agentic-memory-mcp` server, and the `agentic-memory-gui`
@@ -223,8 +226,8 @@ make dist          # uv build + python3 scripts/build-assets.py all
   uv tool install ./agentic_memory_system-<ver>-py3-none-any.whl
   ```
 
-- **`memory-gui-<ver>.tar.gz`** — the built Svelte GUI (`gui/dist`) as a static
-  bundle, for serving the human GUI behind the API.
+- **`memory-gui-<ver>.tar.gz`** — the Svelte GUI, built fresh (`gui/dist`) and
+  packaged as a static bundle for serving behind the API.
 
 - **`memory-skills-<ver>.tar.gz`** — the `memory-*` skills (the primitive bindings
   for the MCP surface) plus an installer:

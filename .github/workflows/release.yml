@@ -21,6 +21,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build the GUI
+        run: npm ci && npm run build
+        working-directory: gui
+
       - name: Build wheel + sdist
         run: uv build
 

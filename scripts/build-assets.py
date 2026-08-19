@@ -39,9 +39,16 @@ def _skip_junk(ti: tarfile.TarInfo) -> tarfile.TarInfo | None:
 
 
 def build_gui(version: str) -> Path:
-    """Tar the tracked, prebuilt GUI (gui/dist) as a servable static bundle."""
+    """Tar the built GUI (gui/dist) as a servable static bundle.
+
+    gui/dist is a build artifact (not tracked): build it first with
+    `make gui-build`, or `cd gui && npm ci && npm run build`.
+    """
     if not (GUI_DIST / "index.html").is_file():
-        raise SystemExit(f"error: no built GUI at {GUI_DIST} (index.html missing)")
+        raise SystemExit(
+            f"error: no built GUI at {GUI_DIST}. Build it first: "
+            "`make gui-build` (or `cd gui && npm ci && npm run build`)."
+        )
     DIST.mkdir(exist_ok=True)
     top = f"memory-gui-{version}"
     target = DIST / f"{top}.tar.gz"
