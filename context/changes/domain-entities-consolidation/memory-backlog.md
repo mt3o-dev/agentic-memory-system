@@ -1,5 +1,11 @@
 # memory backlog — domain-entities-consolidation
 
+> **REPLAYED 2026-09-06 — do not replay again.** Every operation below is now in the
+> store under `memory_goal: 585f39c8-3810-40fb-8bb5-378819d2dc88`. Replaying a second
+> time would mint duplicate nodes, since capture is append-only and has no idempotency
+> key. Kept as the record of what was queued and why. Still open, and deliberately: the
+> §7 promotion candidates and the six `proposed` entities await a human ruling in the GUI.
+
 The `agentic-memory` MCP server was not reachable in the session that implemented this
 change, so per the standing degraded-mode rule every would-be memory operation is queued
 here for replay rather than skipped. A capture made only against a dead server never

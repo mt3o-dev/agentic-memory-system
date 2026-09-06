@@ -189,3 +189,538 @@ trust_weight: 1.0
 archived: false
 
 git-sync
+---
+[node:585f39c8-3810-40fb-8bb5-378819d2dc88]
+type: goal
+tier: short-term
+path: /goal/domain-entities-consolidation
+created_at: 2026-09-06T11:27:22.445359+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:13bc72ff-36b4-4ddc-b625-c9d275ff44bd] @ 2026-09-06T11:27:22.465741+00:00
+-> DEPENDS_ON [node:146411ac-ec60-4c71-a6a8-9b02becda7ce] @ 2026-09-06T11:27:22.462552+00:00
+-> DEPENDS_ON [node:15b1200f-38f9-4720-a3fa-4ae9f7de6c46] @ 2026-09-06T11:27:22.454305+00:00
+-> DEPENDS_ON [node:29d1223a-5e53-4ac8-8ef3-14d34d9f9e7c] @ 2026-09-06T11:27:22.458642+00:00
+-> DEPENDS_ON [node:3552de0d-0173-495a-b48e-7e62abcd9b46] @ 2026-09-06T11:27:22.456437+00:00
+-> DEPENDS_ON [node:3b95cbbc-4974-480e-a483-c88572850b99] @ 2026-09-06T11:27:22.461830+00:00
+-> DEPENDS_ON [node:4145f868-8a02-45c5-afa0-58ee07d9fd32] @ 2026-09-06T11:27:22.465015+00:00
+-> DEPENDS_ON [node:4a3b8d2c-7c88-448b-8eab-b9726b9bcc2b] @ 2026-09-06T11:27:22.457467+00:00
+-> DEPENDS_ON [node:4ea5dab7-0243-4c28-a0bf-5675a56b3ae2] @ 2026-09-06T11:27:22.460119+00:00
+-> DEPENDS_ON [node:6be8d0ae-cc64-46b7-9979-3a3ceb270cf0] @ 2026-09-06T11:27:22.459406+00:00
+-> DEPENDS_ON [node:7af9ff72-43f2-4057-afac-f014d579de6f] @ 2026-09-06T11:27:22.466447+00:00
+-> DEPENDS_ON [node:7e5c85c2-61c8-4061-9631-f3079d4cea25] @ 2026-09-06T11:27:22.452099+00:00
+-> DEPENDS_ON [node:8c7019d2-df1b-4e4e-8642-21e6aa1d5480] @ 2026-09-06T11:27:22.463303+00:00
+-> DEPENDS_ON [node:b286f392-d242-4bc2-86ee-f6c3476c3af4] @ 2026-09-06T11:27:22.455338+00:00
+-> DEPENDS_ON [node:c49f7ab0-a1f0-406d-ba07-24f03d5a2b4e] @ 2026-09-06T11:27:22.460842+00:00
+-> DEPENDS_ON [node:d807990a-6613-4b04-8d66-94fcfba0e1c4] @ 2026-09-06T11:27:22.464256+00:00
+-> DEPENDS_ON [node:dd5eb147-a6a4-4c7e-b9a4-1fe0ad475b0c] @ 2026-09-06T11:27:22.453305+00:00
+
+Resolve the two remaining design questions — the 4th dynamics class and the consolidation operation — with running code plus a design note
+---
+[node:fb904d9a-5b7e-4e36-bd61-ae8d821ea439]
+type: slice
+tier: short-term
+path: /change/domain-entities-consolidation
+created_at: 2026-09-06T11:27:22.445359+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:13bc72ff-36b4-4ddc-b625-c9d275ff44bd] @ 2026-09-06T11:27:22.465741+00:00
+-> SCOPED_TO [node:146411ac-ec60-4c71-a6a8-9b02becda7ce] @ 2026-09-06T11:27:22.462552+00:00
+-> SCOPED_TO [node:29d1223a-5e53-4ac8-8ef3-14d34d9f9e7c] @ 2026-09-06T11:27:22.458642+00:00
+-> SCOPED_TO [node:3b95cbbc-4974-480e-a483-c88572850b99] @ 2026-09-06T11:27:22.461830+00:00
+-> SCOPED_TO [node:4145f868-8a02-45c5-afa0-58ee07d9fd32] @ 2026-09-06T11:27:22.465015+00:00
+-> SCOPED_TO [node:4ea5dab7-0243-4c28-a0bf-5675a56b3ae2] @ 2026-09-06T11:27:22.460119+00:00
+-> SCOPED_TO [node:585f39c8-3810-40fb-8bb5-378819d2dc88] @ 2026-09-06T11:27:22.445359+00:00
+-> SCOPED_TO [node:6be8d0ae-cc64-46b7-9979-3a3ceb270cf0] @ 2026-09-06T11:27:22.459406+00:00
+-> SCOPED_TO [node:7af9ff72-43f2-4057-afac-f014d579de6f] @ 2026-09-06T11:27:22.466447+00:00
+-> SCOPED_TO [node:8c7019d2-df1b-4e4e-8642-21e6aa1d5480] @ 2026-09-06T11:27:22.463303+00:00
+-> SCOPED_TO [node:c49f7ab0-a1f0-406d-ba07-24f03d5a2b4e] @ 2026-09-06T11:27:22.460842+00:00
+-> SCOPED_TO [node:d807990a-6613-4b04-8d66-94fcfba0e1c4] @ 2026-09-06T11:27:22.464256+00:00
+
+change scope: domain-entities-consolidation
+---
+[event:ad019767-2919-4a92-abb3-d19c54f16ac9]
+node_id: fb904d9a-5b7e-4e36-bd61-ae8d821ea439
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.451317+00:00
+
+create_change domain-entities-consolidation
+---
+[node:7e5c85c2-61c8-4061-9631-f3079d4cea25]
+type: entity
+tier: short-term
+path: /entity/node
+created_at: 2026-09-06T11:27:22.452099+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:27:22.452099+00:00
+
+Node — One artifact in the memory graph: a typed, tiered, path-addressed body of text with a stable uuid.
+---
+[event:04e3d05a-80bf-467e-b3b4-3d3c9410d097]
+node_id: 7e5c85c2-61c8-4061-9631-f3079d4cea25
+type: entity_proposed
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.452099+00:00
+
+proposed via agent surface: src/agentic_memory_system/schema.py:26
+---
+[node:d0b815e4-5f91-4e65-83a2-04444a4d74ca]
+type: facet_value
+tier: lifetime
+path: /facet/schema
+created_at: 2026-09-06T11:27:22.452099+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+schema
+---
+[node:71ed798c-7548-4e53-aa09-e072beeaea01]
+type: facet_value
+tier: lifetime
+path: /facet/lifecycle
+created_at: 2026-09-06T11:27:22.453305+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+lifecycle
+---
+[node:dd5eb147-a6a4-4c7e-b9a4-1fe0ad475b0c]
+type: entity
+tier: short-term
+path: /entity/change
+created_at: 2026-09-06T11:27:22.453305+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:27:22.453305+00:00
+
+Change — One unit of work. Anchored by a slice node, owns exactly one Goal, and acts as a liveness root while active.
+---
+[event:ca1eeeb1-d019-4cfd-96dc-67f34509576f]
+node_id: dd5eb147-a6a4-4c7e-b9a4-1fe0ad475b0c
+type: entity_proposed
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.453305+00:00
+
+proposed via agent surface: src/agentic_memory_system/agent_surface.py:create_change
+---
+[node:15b1200f-38f9-4720-a3fa-4ae9f7de6c46]
+type: entity
+tier: short-term
+path: /entity/goal
+created_at: 2026-09-06T11:27:22.454305+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:27:22.454305+00:00
+
+Goal — The mandatory anchor every capture and recall serves; the dominant PPR seed. A change has exactly one.
+---
+[event:c2dc3af6-dbe5-472b-afcd-cf391b8c7fb3]
+node_id: 15b1200f-38f9-4720-a3fa-4ae9f7de6c46
+type: entity_proposed
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.454305+00:00
+
+proposed via agent surface: docs/01_CORE_CONCEPTS.md §3
+---
+[node:ac7287ee-97a0-4725-9a12-1441b544f6a9]
+type: facet_value
+tier: lifetime
+path: /facet/retrieval
+created_at: 2026-09-06T11:27:22.454305+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+retrieval
+---
+[node:b286f392-d242-4bc2-86ee-f6c3476c3af4]
+type: entity
+tier: short-term
+path: /entity/domain-entity
+created_at: 2026-09-06T11:27:22.455338+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:27:22.455338+00:00
+
+Domain entity — A node that names something the project's language refers to rather than asserting a claim; the 4th dynamics class.
+---
+[event:f458afa9-5a7d-4af4-87eb-a5326bfa2302]
+node_id: b286f392-d242-4bc2-86ee-f6c3476c3af4
+type: entity_proposed
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.455338+00:00
+
+proposed via agent surface: docs/06_DOMAIN_ENTITIES.md
+---
+[node:3552de0d-0173-495a-b48e-7e62abcd9b46]
+type: entity
+tier: short-term
+path: /entity/facet-value
+created_at: 2026-09-06T11:27:22.456437+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:27:22.456437+00:00
+
+Facet value — One term of the controlled classification vocabulary; findability only, never walked by the retrieval walker.
+---
+[event:ba3cae65-8626-4b28-90d9-1c125992fae7]
+node_id: 3552de0d-0173-495a-b48e-7e62abcd9b46
+type: entity_proposed
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.456437+00:00
+
+proposed via agent surface: src/agentic_memory_system/storage.py:discover_seeds
+---
+[node:4a3b8d2c-7c88-448b-8eab-b9726b9bcc2b]
+type: entity
+tier: short-term
+path: /entity/journal-event
+created_at: 2026-09-06T11:27:22.457467+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T11:27:22.457467+00:00
+
+Journal event — One append-only record against a node. Trust, liveness, and entity status are all folded from these, never stored.
+---
+[event:4335d814-df0f-4393-a9b8-9a504b65d55c]
+node_id: 4a3b8d2c-7c88-448b-8eab-b9726b9bcc2b
+type: entity_proposed
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.457467+00:00
+
+proposed via agent surface: src/agentic_memory_system/schema.py:Event
+---
+[node:7be44b5d-a570-4dd8-9963-64a56554321f]
+type: facet_value
+tier: lifetime
+path: /facet/journal
+created_at: 2026-09-06T11:27:22.457467+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+journal
+---
+[node:29d1223a-5e53-4ac8-8ef3-14d34d9f9e7c]
+type: decision
+tier: short-term
+path: /artifact/the-4th-dynamics-class-is-domain-entitie
+created_at: 2026-09-06T11:27:22.458642+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:b286f392-d242-4bc2-86ee-f6c3476c3af4] @ 2026-09-06T11:27:22.458642+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:27:22.458642+00:00
+
+The 4th dynamics class is DOMAIN ENTITIES, not 'reference entities'. Person/ExternalRef named a subcase; the class is defined by identity-bearing reference — the node names a referent rather than asserting a claim — which makes it the project's domain model, with actors and external refs as ordinary members.
+---
+[event:dd04c7b3-5127-4011-8996-a529e760e196]
+node_id: 29d1223a-5e53-4ac8-8ef3-14d34d9f9e7c
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.468419+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:6be8d0ae-cc64-46b7-9979-3a3ceb270cf0]
+type: decision
+tier: short-term
+path: /artifact/domain-entities-are-roots-of-the-live-se
+created_at: 2026-09-06T11:27:22.459406+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:27:22.459406+00:00
+-> ABOUT [node:b286f392-d242-4bc2-86ee-f6c3476c3af4] @ 2026-09-06T11:27:22.459406+00:00
+
+Domain entities are roots of the live set BY CLASS, not by tier: the domain outlives the change that named it, so an entity must not need a promotion to survive that change's sweep. Retirement, not archival, is how an entity leaves — and retirement outranks a lifetime promotion.
+---
+[event:93d02d9f-c59b-4bf6-be54-7ad9dfcaae5b]
+node_id: 6be8d0ae-cc64-46b7-9979-3a3ceb270cf0
+type: confirmation_added
+weight: 1.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.467225+00:00
+
+liveness/mark-sweep design exercised by the entity lifecycle implementation
+---
+[node:4ea5dab7-0243-4c28-a0bf-5675a56b3ae2]
+type: decision
+tier: short-term
+path: /artifact/about-reverse-carries-deliberate-weight
+created_at: 2026-09-06T11:27:22.460119+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:27:22.460119+00:00
+-> ABOUT [node:b286f392-d242-4bc2-86ee-f6c3476c3af4] @ 2026-09-06T11:27:22.460119+00:00
+
+ABOUT reverse carries deliberate weight (0.35) — the only non-zero reverse direction in the edge policy. An entity is the one node class whose purpose is to be walked backwards from; PPR row-normalization keeps a popular hub broadening the bundle rather than swamping it.
+---
+[event:790f826c-fdf7-4df8-a36d-5a2b84216e21]
+node_id: 4ea5dab7-0243-4c28-a0bf-5675a56b3ae2
+type: confirmation_added
+weight: 1.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.467855+00:00
+
+PPR composition exercised by the ABOUT-reverse edge policy
+---
+[node:775f9ad3-3734-4b06-8c0f-e1e899547b3f]
+type: facet_value
+tier: lifetime
+path: /facet/review
+created_at: 2026-09-06T11:27:22.460842+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+review
+---
+[node:c49f7ab0-a1f0-406d-ba07-24f03d5a2b4e]
+type: decision
+tier: short-term
+path: /artifact/consolidation-s-owner-is-split-like-the
+created_at: 2026-09-06T11:27:22.460842+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:27:22.460842+00:00
+
+Consolidation's owner is SPLIT like the trust ladder: a deterministic read-only detector any agent may run, and a privileged commit. A consolidated node exists to be promoted past the sweep, so an agent that both abstracts and nominates its own abstraction would be writing long-term memory unsupervised.
+---
+[event:efdb58b6-6053-4f01-aa67-19c508f9bda4]
+node_id: c49f7ab0-a1f0-406d-ba07-24f03d5a2b4e
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.468992+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:3b95cbbc-4974-480e-a483-c88572850b99]
+type: decision
+tier: short-term
+path: /artifact/consolidation-runs-upward-and-strictly-a
+created_at: 2026-09-06T11:27:22.461830+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:27:22.461830+00:00
+
+Consolidation runs upward and strictly additively — it mints an abstraction and never edits, archives, merges, or re-tiers an instance. CONSOLIDATES is a provenance channel at policy weight 0, because an abstraction's instances are dormant on purpose and walking it at query time would undo the sweep.
+---
+[event:c7772257-6318-46d0-a357-3c225099ee14]
+node_id: 3b95cbbc-4974-480e-a483-c88572850b99
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.469550+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:146411ac-ec60-4c71-a6a8-9b02becda7ce]
+type: constraint
+tier: short-term
+path: /artifact/the-migrate-check-guards-are-newest-t
+created_at: 2026-09-06T11:27:22.462552+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:7e5c85c2-61c8-4061-9631-f3079d4cea25] @ 2026-09-06T11:27:22.462552+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:27:22.462552+00:00
+
+The _migrate_*_check guards are NEWEST-TOKEN checks, not membership checks: every CHECK widening must move its guard to the new newest token, or live stores silently fail to migrate and reject the new value at insert time.
+---
+[event:9c2c8022-af2f-4307-9aa3-d98f2b7d744e]
+node_id: 146411ac-ec60-4c71-a6a8-9b02becda7ce
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.470132+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:8c7019d2-df1b-4e4e-8642-21e6aa1d5480]
+type: constraint
+tier: short-term
+path: /artifact/id-not-in-null-is-null-for-every-row
+created_at: 2026-09-06T11:27:22.463303+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T11:27:22.463303+00:00
+
+`id NOT IN (NULL)` is NULL for every row in SQLite, so a NOT IN exclusion built from an empty list silently filters out everything it was meant to preserve. Omit the clause entirely when the list is empty; the positive `IN (NULL)` form is safe.
+---
+[event:5a076954-af77-44b2-94c1-350d36d31bdf]
+node_id: 8c7019d2-df1b-4e4e-8642-21e6aa1d5480
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.470733+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac]
+type: facet_value
+tier: lifetime
+path: /facet/storage
+created_at: 2026-09-06T11:27:22.463303+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+storage
+---
+[node:d807990a-6613-4b04-8d66-94fcfba0e1c4]
+type: invariant
+tier: short-term
+path: /artifact/the-sweep-root-set-expands-along-scoped
+created_at: 2026-09-06T11:27:22.464256+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:27:22.464256+00:00
+-> ABOUT [node:dd5eb147-a6a4-4c7e-b9a4-1fe0ad475b0c] @ 2026-09-06T11:27:22.464256+00:00
+
+The sweep root set expands along SCOPED_TO only. A root that expanded along ABOUT would let one long-lived entity pin every artifact ever written about it, and nothing would go dormant again.
+---
+[event:6f9f1fd5-dcc5-4b21-8d8e-0003f54f9aed]
+node_id: d807990a-6613-4b04-8d66-94fcfba0e1c4
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.471341+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:4145f868-8a02-45c5-afa0-58ee07d9fd32]
+type: constraint
+tier: short-term
+path: /artifact/capture-entity-never-overwrites-an-exist
+created_at: 2026-09-06T11:27:22.465015+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:b286f392-d242-4bc2-86ee-f6c3476c3af4] @ 2026-09-06T11:27:22.465015+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:27:22.465015+00:00
+
+capture_entity never overwrites an existing entity's definition. Disagreement is captured as an artifact with a CONTRADICTS edge so it reaches review; silent redefinition would let any agent move the domain mid-change with no gate.
+---
+[event:f2066777-094a-40de-a104-cecb6b40158a]
+node_id: 4145f868-8a02-45c5-afa0-58ee07d9fd32
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.471982+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:13bc72ff-36b4-4ddc-b625-c9d275ff44bd]
+type: constraint
+tier: short-term
+path: /artifact/consolidation-candidates-require-instanc
+created_at: 2026-09-06T11:27:22.465741+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:27:22.465741+00:00
+-> ABOUT [node:dd5eb147-a6a4-4c7e-b9a4-1fe0ad475b0c] @ 2026-09-06T11:27:22.465741+00:00
+
+Consolidation candidates require instances from at least two distinct change scopes. Three artifacts inside one change saying the same thing is repetition — a capture-quality finding for review, not knowledge to abstract.
+---
+[event:8e4bd74d-b032-4aa6-b270-b1168b832b08]
+node_id: 13bc72ff-36b4-4ddc-b625-c9d275ff44bd
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.472671+00:00
+
+replayed from the degraded-mode backlog
+---
+[node:7af9ff72-43f2-4057-afac-f014d579de6f]
+type: concept
+tier: short-term
+path: /artifact/entity-governance-and-facet-governance-a
+created_at: 2026-09-06T11:27:22.466447+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:3552de0d-0173-495a-b48e-7e62abcd9b46] @ 2026-09-06T11:27:22.466447+00:00
+-> ABOUT [node:b286f392-d242-4bc2-86ee-f6c3476c3af4] @ 2026-09-06T11:27:22.466447+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:27:22.466447+00:00
+
+Entity governance and facet governance are deliberately asymmetric: a warned facet label is SKIPPED, a warned entity name is MINTED with the warning carried into its proposal event. Entities have a mandatory human ratification gate that facets do not, so identity questions are ruled on there, by a person looking at both definitions.
+---
+[event:90a2e439-9494-47cb-9614-70906a76fb98]
+node_id: 7af9ff72-43f2-4057-afac-f014d579de6f
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:27:22.473332+00:00
+
+replayed from the degraded-mode backlog
