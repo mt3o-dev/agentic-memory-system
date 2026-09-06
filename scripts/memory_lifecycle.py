@@ -11,6 +11,18 @@ Every operation is journaled by the store primitives it calls.
     uv run python scripts/memory_lifecycle.py sweep
     uv run python scripts/memory_lifecycle.py entities
     uv run python scripts/memory_lifecycle.py candidates
+    uv run python scripts/memory_lifecycle.py backlogs
+
+``backlogs`` is a READ that touches no store at all: it lists degraded-mode backlogs
+that were queued and never replayed. The workflow's rule is that when the store is
+genuinely unreachable, every would-be memory operation is written to
+``context/changes/<id>/memory-backlog.md`` and replayed later — but nothing used to
+notice when "later" never came. One such file sat unreplayed for a month while this
+project's own graph held two nodes; that is the entire reason this command exists. A
+backlog counts as discharged once its text carries a ``REPLAYED`` marker at the start of
+a line (``> **REPLAYED <date> — do not replay again.**`` is the form used here), which is
+also what stops a second replay from minting duplicates, since capture is append-only and
+has no idempotency key.
 
 ``entities`` and ``candidates`` are READS. Entity confirmation/retirement and committing
 a consolidation are deliberately absent: unlike deactivate+sweep — a mechanical
@@ -32,11 +44,47 @@ is what did it.
 
 import argparse
 import os
+import re
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from agentic_memory_system.storage import MemoryStore  # noqa: E402
+
+
+_REPLAYED = re.compile(r"^\s*>?\s*\**\s*REPLAYED\b", re.MULTILINE)
+
+
+def _outstanding_backlogs(changes_dir: str) -> list[Path]:
+    """Backlog files with no ``REPLAYED`` marker, sorted. Never opens the store.
+
+    Deliberately a filesystem question, not a graph one: a backlog exists *because* the
+    graph could not be reached, so a detector that needed the graph would be silent in
+    exactly the situation it is meant to catch.
+    """
+    root = Path(changes_dir)
+    if not root.is_dir():
+        return []
+    return sorted(
+        path
+        for path in root.glob("*/memory-backlog.md")
+        if not _REPLAYED.search(path.read_text(encoding="utf-8", errors="replace"))
+    )
+
+
+def _backlogs(changes_dir: str) -> int:
+    """Report outstanding backlogs. Returns the count so a caller can branch on it."""
+    outstanding = _outstanding_backlogs(changes_dir)
+    if not outstanding:
+        return 0
+    for path in outstanding:
+        print(f"backlog: {path} — queued memory operations, never replayed")
+    print(
+        f"{len(outstanding)} unreplayed backlog(s): replay against the store, then mark "
+        f"each file with a leading 'REPLAYED <date>' line so it is not replayed twice"
+    )
+    return len(outstanding)
 
 
 def _find_change(store: MemoryStore, change_id: str) -> str:
@@ -63,14 +111,28 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=["status", "activate", "deactivate", "sweep", "entities", "candidates"],
+        choices=[
+            "status", "activate", "deactivate", "sweep", "entities", "candidates",
+            "backlogs",
+        ],
     )
     parser.add_argument("change_id", nargs="?", help="the 10x <change-id>")
     parser.add_argument("--sweep", action="store_true", help="run a sweep after the toggle")
     parser.add_argument(
         "--db", default=os.environ.get("MEMORY_DB_PATH", "context/memory-graph.db")
     )
+    parser.add_argument(
+        "--changes-dir",
+        default="context/changes",
+        help="where change folders live, for `backlogs` (default: context/changes)",
+    )
     args = parser.parse_args(argv)
+
+    if args.command == "backlogs":
+        # Handled before the store is opened: this command answers a filesystem
+        # question, and must work when the store is the thing that is broken.
+        _backlogs(args.changes_dir)
+        return
 
     store = MemoryStore(args.db)
     try:

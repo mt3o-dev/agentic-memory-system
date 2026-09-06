@@ -108,3 +108,26 @@ The workflow's degraded-mode rule — queue every would-be operation in
 down". With a CLI transport, *"the server was never registered"* stops being a
 server-down case. The backlog goes back to meaning what it should: the store is genuinely
 unreachable. That is a much rarer event, and a much more honest signal when it appears.
+
+### The backlog needs an alarm, or it is not a queue
+
+Narrowing when a backlog gets *written* did nothing about what happens after. One was
+written for `domain-entities-consolidation` and never replayed; it sat in the repo for a
+month while this project's own graph held two nodes, and nothing anywhere said so. A
+queue whose only reader is whoever remembers it exists is a queue that loses work.
+
+So a backlog is now **detected**, and the rule has two halves:
+
+| | |
+|---|---|
+| Writing one | `context/changes/<id>/memory-backlog.md`, when the store is genuinely unreachable |
+| Discharging one | replay it, then add a line starting with `REPLAYED <date>` to the file |
+
+`uv run python scripts/memory_lifecycle.py backlogs` lists every backlog without that
+marker, and the SessionStart hook runs it, so an unreplayed backlog is in front of the
+next agent before its first turn. The command opens no store — a backlog exists *because*
+the store could not be reached, so a detector that needed the graph would be silent in
+exactly the case it is for.
+
+The marker is also what makes a second replay safe to refuse: capture is append-only with
+no idempotency key, so replaying twice mints duplicates rather than reconciling.

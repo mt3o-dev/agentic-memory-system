@@ -724,3 +724,1467 @@ source: agent-surface
 created_at: 2026-09-06T11:27:22.473332+00:00
 
 replayed from the degraded-mode backlog
+---
+[node:3110561d-92d5-45ac-98cb-7a2fb7199e52]
+type: slice
+tier: short-term
+path: /change/capture-recall-one-node
+created_at: 2026-09-06T11:52:38.412248+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:6ef1d881-d27c-4a67-b680-972cd27fe615] @ 2026-09-06T11:52:38.418252+00:00
+-> SCOPED_TO [node:921ae6cf-7f43-4322-ad65-aad10fa4734c] @ 2026-09-06T11:52:38.417068+00:00
+-> SCOPED_TO [node:c6954d04-dd62-4911-b186-516d258e378f] @ 2026-09-06T11:52:38.416002+00:00
+-> SCOPED_TO [node:d0532079-0f66-4e4b-8e52-3819227fba07] @ 2026-09-06T11:52:38.415009+00:00
+-> SCOPED_TO [node:dd92c635-4ba7-4d88-a887-a3955297f242] @ 2026-09-06T11:52:38.412248+00:00
+
+change scope: capture-recall-one-node
+---
+[event:4723a3f0-186a-482d-bd48-ecf735d83d03]
+node_id: 3110561d-92d5-45ac-98cb-7a2fb7199e52
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.414163+00:00
+
+create_change capture-recall-one-node
+---
+[node:dd92c635-4ba7-4d88-a887-a3955297f242]
+type: goal
+tier: short-term
+path: /goal/capture-recall-one-node
+created_at: 2026-09-06T11:52:38.412248+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:6ef1d881-d27c-4a67-b680-972cd27fe615] @ 2026-09-06T11:52:38.418252+00:00
+-> DEPENDS_ON [node:921ae6cf-7f43-4322-ad65-aad10fa4734c] @ 2026-09-06T11:52:38.417068+00:00
+-> DEPENDS_ON [node:c6954d04-dd62-4911-b186-516d258e378f] @ 2026-09-06T11:52:38.416002+00:00
+-> DEPENDS_ON [node:d0532079-0f66-4e4b-8e52-3819227fba07] @ 2026-09-06T11:52:38.415009+00:00
+
+Prove the pipeline alive end-to-end: write one typed node to SQLite, read it back by id, serialize it to the agent wire format
+---
+[node:d0532079-0f66-4e4b-8e52-3819227fba07]
+type: invariant
+tier: short-term
+path: /artifact/created-at-is-the-only-stored-date-colum
+created_at: 2026-09-06T11:52:38.415009+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:7e5c85c2-61c8-4061-9631-f3079d4cea25] @ 2026-09-06T11:52:38.415009+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:52:38.415009+00:00
+
+created_at is the ONLY stored date column on a node. updated_at and every other timestamp is derived from the event journal, never written in place (MT3-30). A future reader looking for a modified-at column should stop looking and read events instead — the absence is the design.
+---
+[event:d7d0a332-939b-4f3d-8b6f-119fdb0f38bb]
+node_id: d0532079-0f66-4e4b-8e52-3819227fba07
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.462516+00:00
+
+backfilled from the change's own design record
+---
+[node:c6954d04-dd62-4911-b186-516d258e378f]
+type: constraint
+tier: short-term
+path: /artifact/the-serialized-node-is-a-node-id-h
+created_at: 2026-09-06T11:52:38.416002+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:7e5c85c2-61c8-4061-9631-f3079d4cea25] @ 2026-09-06T11:52:38.416002+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:52:38.416002+00:00
+
+The serialized node is a `[node:<id>]` header block, a blank line, then the body. The blank-line separator is load-bearing: edge-lines are inserted ABOVE it, so moving it silently changes what parses as body text. serialization.py's parser depends on this and so does every dump in git history.
+---
+[event:2bd44b86-492a-4ce5-84d4-7706a21c2cc3]
+node_id: c6954d04-dd62-4911-b186-516d258e378f
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.463138+00:00
+
+backfilled from the change's own design record
+---
+[node:921ae6cf-7f43-4322-ad65-aad10fa4734c]
+type: decision
+tier: short-term
+path: /artifact/a-node-s-identity-is-its-store-generated
+created_at: 2026-09-06T11:52:38.417068+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:7e5c85c2-61c8-4061-9631-f3079d4cea25] @ 2026-09-06T11:52:38.417068+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:52:38.417068+00:00
+
+A node's identity is its store-generated uuid4; `path` is a display label, not an address. Two labels colliding on one slug is a readability wart, never a data bug (MT3-30). This is why capture never needs to negotiate a name, and why the same wording captured twice is two nodes.
+---
+[event:a422a55b-e885-40bd-8a2e-df12549a07e9]
+node_id: 921ae6cf-7f43-4322-ad65-aad10fa4734c
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.463716+00:00
+
+backfilled from the change's own design record
+---
+[node:6ef1d881-d27c-4a67-b680-972cd27fe615]
+type: constraint
+tier: short-term
+path: /artifact/tests-use-memory-sqlite-through-the
+created_at: 2026-09-06T11:52:38.418252+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T11:52:38.418252+00:00
+
+Tests use `:memory:` SQLite through the pytest fixture and must never create context/memory-graph.db. A test that writes the real store pollutes the tracked dump, which is committed — the diff shows up in someone's PR as unexplained graph churn.
+---
+[event:f96382c4-c982-4954-abca-a7a37ca2b271]
+node_id: 6ef1d881-d27c-4a67-b680-972cd27fe615
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.464336+00:00
+
+backfilled from the change's own design record
+---
+[node:4e7def51-7229-4c22-891a-33bec67e48da]
+type: slice
+tier: short-term
+path: /change/relate-two-nodes
+created_at: 2026-09-06T11:52:38.419181+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:1c1a7ed2-ea2a-45d2-b0cb-12438c05502d] @ 2026-09-06T11:52:38.421387+00:00
+-> SCOPED_TO [node:5f9a8003-7a7b-4802-aacc-2ece5c179171] @ 2026-09-06T11:52:38.420638+00:00
+-> SCOPED_TO [node:8512fce0-cba6-4e92-9795-789a58c3f30d] @ 2026-09-06T11:52:38.419181+00:00
+
+change scope: relate-two-nodes
+---
+[event:83501a7a-137e-454b-a8ce-f4d903c936f4]
+node_id: 4e7def51-7229-4c22-891a-33bec67e48da
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.419975+00:00
+
+create_change relate-two-nodes
+---
+[node:8512fce0-cba6-4e92-9795-789a58c3f30d]
+type: goal
+tier: short-term
+path: /goal/relate-two-nodes
+created_at: 2026-09-06T11:52:38.419181+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:1c1a7ed2-ea2a-45d2-b0cb-12438c05502d] @ 2026-09-06T11:52:38.421387+00:00
+-> DEPENDS_ON [node:5f9a8003-7a7b-4802-aacc-2ece5c179171] @ 2026-09-06T11:52:38.420638+00:00
+
+Prove typed graph traversal: one edge type, a recursive-CTE walk, and the content-plus-relationships wire format in a single block
+---
+[node:5f9a8003-7a7b-4802-aacc-2ece5c179171]
+type: decision
+tier: short-term
+path: /artifact/an-edge-s-primary-key-is-the-composite
+created_at: 2026-09-06T11:52:38.420638+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:52:38.420638+00:00
+
+An edge's primary key is the composite (source_id, target_id, type) — there is no edge uuid. A duplicate typed edge between the same pair is therefore impossible by construction rather than by a check, which is why write_edge can be called repeatedly without guarding.
+---
+[event:e240a997-1be5-4a47-bb6c-5ac0b4e0ee0e]
+node_id: 5f9a8003-7a7b-4802-aacc-2ece5c179171
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.464891+00:00
+
+backfilled from the change's own design record
+---
+[node:1c1a7ed2-ea2a-45d2-b0cb-12438c05502d]
+type: constraint
+tier: short-term
+path: /artifact/the-traversal-cte-uses-union-not-union
+created_at: 2026-09-06T11:52:38.421387+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.421387+00:00
+
+The traversal CTE uses UNION, not UNION ALL. The deduplication is what makes a cyclic graph terminate — switching to UNION ALL for speed would hang the walker on the first cycle, and the graph deliberately allows cycles (CONTRADICTS pairs, mutual DEPENDS_ON).
+---
+[event:8d3853a9-3ead-4cf9-8cfa-05ca2de414f9]
+node_id: 1c1a7ed2-ea2a-45d2-b0cb-12438c05502d
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.465442+00:00
+
+backfilled from the change's own design record
+---
+[node:aea9515e-6278-498a-87b6-ab4633246f64]
+type: goal
+tier: short-term
+path: /goal/rank-by-relevance
+created_at: 2026-09-06T11:52:38.422141+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:183a1a02-3e76-4b46-b8db-86c5998ce269] @ 2026-09-06T11:52:38.423328+00:00
+-> DEPENDS_ON [node:b472b777-2c95-458f-8223-3a827caf83ab] @ 2026-09-06T11:52:38.424060+00:00
+-> DEPENDS_ON [node:f54ca2f8-fd25-4b80-b04c-4190406f1ba5] @ 2026-09-06T11:52:38.424816+00:00
+
+Put a ranking signal on recall: effective_score over retrieval weight, trust, and recency, gated by structure
+---
+[node:f2cd271f-9c9f-4b7e-94fa-5450e5872ecf]
+type: slice
+tier: short-term
+path: /change/rank-by-relevance
+created_at: 2026-09-06T11:52:38.422141+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:183a1a02-3e76-4b46-b8db-86c5998ce269] @ 2026-09-06T11:52:38.423328+00:00
+-> SCOPED_TO [node:aea9515e-6278-498a-87b6-ab4633246f64] @ 2026-09-06T11:52:38.422141+00:00
+-> SCOPED_TO [node:b472b777-2c95-458f-8223-3a827caf83ab] @ 2026-09-06T11:52:38.424060+00:00
+-> SCOPED_TO [node:f54ca2f8-fd25-4b80-b04c-4190406f1ba5] @ 2026-09-06T11:52:38.424816+00:00
+
+change scope: rank-by-relevance
+---
+[event:57eafcc1-efa9-4673-9bbd-7e12ee00fe34]
+node_id: f2cd271f-9c9f-4b7e-94fa-5450e5872ecf
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.422739+00:00
+
+create_change rank-by-relevance
+---
+[node:183a1a02-3e76-4b46-b8db-86c5998ce269]
+type: decision
+tier: short-term
+path: /artifact/effective-score-structure-x-a-retriev
+created_at: 2026-09-06T11:52:38.423328+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.423328+00:00
+
+effective_score = structure x (a*retrieval_weight + b*trust_weight + c*recency), with a=0.5, b=0.3, c=0.2, hop halflife 3.0 and recency halflife 7 days as hard-coded defaults. The structural term is a multiplicative GATE, not another addend: zero structure means not returned at all, which is why selection and ranking are one number.
+---
+[event:ee178740-8f20-4335-8fe3-ff724eb56100]
+node_id: 183a1a02-3e76-4b46-b8db-86c5998ce269
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.466023+00:00
+
+backfilled from the change's own design record
+---
+[node:b472b777-2c95-458f-8223-3a827caf83ab]
+type: constraint
+tier: short-term
+path: /artifact/traverse-cte-s-select-list-and-the-posi
+created_at: 2026-09-06T11:52:38.424060+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T11:52:38.424060+00:00
+
+_TRAVERSE_CTE's SELECT list and the positional row parser in traverse() must be changed together. They are coupled only by column ORDER, so adding a column to one and not the other misparses every row silently instead of raising — the failure looks like corrupted data, not like a bug.
+---
+[event:3ec7c1ea-dae7-46c7-ab5d-4166c0ec37fb]
+node_id: b472b777-2c95-458f-8223-3a827caf83ab
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.466554+00:00
+
+backfilled from the change's own design record
+---
+[node:f54ca2f8-fd25-4b80-b04c-4190406f1ba5]
+type: constraint
+tier: short-term
+path: /artifact/the-scoring-coefficients-are-pinned-by-t
+created_at: 2026-09-06T11:52:38.424816+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.424816+00:00
+
+The scoring coefficients are pinned by test_recall_higher_weight_scores_higher, which arithmetically depends on a=0.5/b=0.3 and retrieval_weight=3.0 at depth 1. Retuning the coefficients is therefore never a one-line change; the test encodes the intended ordering and has to be re-derived with them.
+---
+[event:a3b47483-2d00-4b5d-b854-4ca9e6374c7a]
+node_id: f54ca2f8-fd25-4b80-b04c-4190406f1ba5
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.467172+00:00
+
+backfilled from the change's own design record
+---
+[node:f6edbff1-507a-4ae8-8012-12922ed5dd56]
+type: slice
+tier: short-term
+path: /change/journal-event-sourced-trust
+created_at: 2026-09-06T11:52:38.425552+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:266eb9d3-8a8b-426b-acb4-5e64c6761e3d] @ 2026-09-06T11:52:38.428206+00:00
+-> SCOPED_TO [node:d91b92e8-903c-4e40-b2c3-58d7241c900a] @ 2026-09-06T11:52:38.427475+00:00
+-> SCOPED_TO [node:df2c29b0-4340-45d3-9473-2952610add87] @ 2026-09-06T11:52:38.426761+00:00
+-> SCOPED_TO [node:ea7c464b-4ccc-4bb8-8a75-21070559dcb2] @ 2026-09-06T11:52:38.428994+00:00
+-> SCOPED_TO [node:f7640c47-b6f9-45fd-99a5-809e3d4cb86d] @ 2026-09-06T11:52:38.425552+00:00
+
+change scope: journal-event-sourced-trust
+---
+[event:0ea595a1-18f0-43e9-b232-58e8d2a0bb8f]
+node_id: f6edbff1-507a-4ae8-8012-12922ed5dd56
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.426157+00:00
+
+create_change journal-event-sourced-trust
+---
+[node:f7640c47-b6f9-45fd-99a5-809e3d4cb86d]
+type: goal
+tier: short-term
+path: /goal/journal-event-sourced-trust
+created_at: 2026-09-06T11:52:38.425552+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:266eb9d3-8a8b-426b-acb4-5e64c6761e3d] @ 2026-09-06T11:52:38.428206+00:00
+-> DEPENDS_ON [node:d91b92e8-903c-4e40-b2c3-58d7241c900a] @ 2026-09-06T11:52:38.427475+00:00
+-> DEPENDS_ON [node:df2c29b0-4340-45d3-9473-2952610add87] @ 2026-09-06T11:52:38.426761+00:00
+-> DEPENDS_ON [node:ea7c464b-4ccc-4bb8-8a75-21070559dcb2] @ 2026-09-06T11:52:38.428994+00:00
+
+Make trust derived rather than mutated: an append-only event log plus an order-independent fold
+---
+[node:df2c29b0-4340-45d3-9473-2952610add87]
+type: decision
+tier: short-term
+path: /artifact/snapshot-over-log-the-events-table-is-t
+created_at: 2026-09-06T11:52:38.426761+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:4a3b8d2c-7c88-448b-8eab-b9726b9bcc2b] @ 2026-09-06T11:52:38.426761+00:00
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T11:52:38.426761+00:00
+-> DEPENDS_ON [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:52:38.460116+00:00
+
+Snapshot-over-log: the events table is the append-only source of truth, nodes.trust_weight is a materialized cache, and recompute_trust() is the explicit bridge between them. Recompute is LAZY — append_event never triggers it — which keeps the write path cheap and means a trust_weight column can legitimately lag its journal.
+---
+[event:3b9e92ae-a141-4e09-9217-422367a9e868]
+node_id: df2c29b0-4340-45d3-9473-2952610add87
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.467727+00:00
+
+backfilled from the change's own design record
+---
+[node:d91b92e8-903c-4e40-b2c3-58d7241c900a]
+type: decision
+tier: short-term
+path: /artifact/the-default-fold-is-sum-and-clamp-1-0
+created_at: 2026-09-06T11:52:38.427475+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:4a3b8d2c-7c88-448b-8eab-b9726b9bcc2b] @ 2026-09-06T11:52:38.427475+00:00
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T11:52:38.427475+00:00
+
+The default fold is sum-and-clamp (1.0 + sum(polarity*weight), clamped to [0,1]) behind a FoldStrategy port. It was chosen because a commutative sum is TRIVIALLY order-independent, which is the slice's literal acceptance criterion under git merge — two clones applying the same events in different orders must agree. Verified with a Hypothesis property test over arbitrary permutations, not two hand-picked orderings.
+---
+[event:55b7fb41-9fad-4551-8227-c9737d2bd588]
+node_id: d91b92e8-903c-4e40-b2c3-58d7241c900a
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.468300+00:00
+
+backfilled from the change's own design record
+---
+[node:266eb9d3-8a8b-426b-acb4-5e64c6761e3d]
+type: constraint
+tier: short-term
+path: /artifact/event-polarity-is-literal-1-1-a-futu
+created_at: 2026-09-06T11:52:38.428206+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:4a3b8d2c-7c88-448b-8eab-b9726b9bcc2b] @ 2026-09-06T11:52:38.428206+00:00
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T11:52:38.428206+00:00
+
+Event polarity is Literal[-1, 1]. A future event type needing fractional or multi-valued polarity is a schema migration, not a value change — and under the CHECK constraint an out-of-range polarity is rejected at insert time rather than silently folded.
+---
+[event:0e2eecef-1305-495f-bf64-5ad95db417b0]
+node_id: 266eb9d3-8a8b-426b-acb4-5e64c6761e3d
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.468896+00:00
+
+backfilled from the change's own design record
+---
+[node:ea7c464b-4ccc-4bb8-8a75-21070559dcb2]
+type: issue
+tier: short-term
+path: /artifact/compact-events-is-a-deliberate-no-op-s
+created_at: 2026-09-06T11:52:38.428994+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:4a3b8d2c-7c88-448b-8eab-b9726b9bcc2b] @ 2026-09-06T11:52:38.428994+00:00
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T11:52:38.428994+00:00
+
+compact_events() is a deliberate no-op stub and the events log is unbounded. Trust folds over a node's FULL history on every recompute, so a hot node's cost grows without limit. Fine at demo and project scale, undesigned beyond it (MT3-28).
+---
+[event:fe92617c-feb2-4aec-b7d2-40202457fd08]
+node_id: ea7c464b-4ccc-4bb8-8a75-21070559dcb2
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.469425+00:00
+
+backfilled from the change's own design record
+---
+[node:40df0f72-4194-4cab-9877-14c39611f487]
+type: goal
+tier: short-term
+path: /goal/multi-seed-retrieval
+created_at: 2026-09-06T11:52:38.429759+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:06fd70a3-be67-4511-8d00-2f1e17666940] @ 2026-09-06T11:52:38.431074+00:00
+-> DEPENDS_ON [node:3ef8d9a0-397c-4c8d-b2d7-b377c3adc80f] @ 2026-09-06T11:52:38.433396+00:00
+-> DEPENDS_ON [node:789ed067-7cbb-4bc8-b141-bf504a148482] @ 2026-09-06T11:52:38.431802+00:00
+-> DEPENDS_ON [node:92a91b4e-34c0-490a-9979-6478b4f946d3] @ 2026-09-06T11:52:38.432610+00:00
+-> DEPENDS_ON [node:a7ed6ebb-4925-474e-b220-f0ad16aab5e2] @ 2026-09-06T11:52:38.434140+00:00
+-> DEPENDS_ON [node:e08e5065-ba2a-4c0b-8883-6f528dff948e] @ 2026-09-06T11:52:38.434870+00:00
+
+Replace single-seed hop traversal with goal-dominant multi-seed Personalized PageRank as the selection engine
+---
+[node:c7d0624b-1381-44d4-9a28-b5ce167c2b4c]
+type: slice
+tier: short-term
+path: /change/multi-seed-retrieval
+created_at: 2026-09-06T11:52:38.429759+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:06fd70a3-be67-4511-8d00-2f1e17666940] @ 2026-09-06T11:52:38.431074+00:00
+-> SCOPED_TO [node:3ef8d9a0-397c-4c8d-b2d7-b377c3adc80f] @ 2026-09-06T11:52:38.433396+00:00
+-> SCOPED_TO [node:40df0f72-4194-4cab-9877-14c39611f487] @ 2026-09-06T11:52:38.429759+00:00
+-> SCOPED_TO [node:789ed067-7cbb-4bc8-b141-bf504a148482] @ 2026-09-06T11:52:38.431802+00:00
+-> SCOPED_TO [node:92a91b4e-34c0-490a-9979-6478b4f946d3] @ 2026-09-06T11:52:38.432610+00:00
+-> SCOPED_TO [node:a7ed6ebb-4925-474e-b220-f0ad16aab5e2] @ 2026-09-06T11:52:38.434140+00:00
+-> SCOPED_TO [node:e08e5065-ba2a-4c0b-8883-6f528dff948e] @ 2026-09-06T11:52:38.434870+00:00
+
+change scope: multi-seed-retrieval
+---
+[event:b4f4d39d-bf15-4e66-8864-d79e0a381109]
+node_id: c7d0624b-1381-44d4-9a28-b5ce167c2b4c
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.430402+00:00
+
+create_change multi-seed-retrieval
+---
+[node:06fd70a3-be67-4511-8d00-2f1e17666940]
+type: decision
+tier: short-term
+path: /artifact/ppr-does-not-replace-the-score-it-repl
+created_at: 2026-09-06T11:52:38.431074+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:183a1a02-3e76-4b46-b8db-86c5998ce269] @ 2026-09-06T11:52:38.455372+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.431074+00:00
+
+PPR does not replace the score — it replaces hop_decay in the structural-gate SEAT of it, generalizing 'how far by edges' to 'how reachable from the seed set'. The additive quality blend is untouched. That is what let slice 8 land without changing slice 3's formula, and it is why zero PPR mass still means 'not returned'.
+---
+[event:f80fb856-9223-46d1-87fa-73e7988431d4]
+node_id: 06fd70a3-be67-4511-8d00-2f1e17666940
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.469971+00:00
+
+backfilled from the change's own design record
+---
+[node:789ed067-7cbb-4bc8-b141-bf504a148482]
+type: decision
+tier: short-term
+path: /artifact/the-goal-seeds-ppr-at-weight-0-7-every
+created_at: 2026-09-06T11:52:38.431802+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:15b1200f-38f9-4720-a3fa-4ae9f7de6c46] @ 2026-09-06T11:52:38.431802+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.431802+00:00
+-> DEPENDS_ON [node:d1b8fcfb-c1ed-4a81-9b03-5bfd983f68c8] @ 2026-09-06T11:52:38.456011+00:00
+
+The goal seeds PPR at weight 0.7; every supplementary seed discovered from the query shares the remaining 0.3 by similarity. Goal-first is therefore STRUCTURAL, not a convention an agent could forget — and single-seed versus multi-seed collapses into one config dial (goal_weight=1.0 reproduces traverse(goal) exactly).
+---
+[event:164f7e6c-249f-4f92-a239-c61fb7d3ea93]
+node_id: 789ed067-7cbb-4bc8-b141-bf504a148482
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.470493+00:00
+
+backfilled from the change's own design record
+---
+[node:92a91b4e-34c0-490a-9979-6478b4f946d3]
+type: decision
+tier: short-term
+path: /artifact/where-two-edges-of-different-types-join
+created_at: 2026-09-06T11:52:38.432610+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.432610+00:00
+
+Where two edges of different types join the same pair, the strongest policy weight wins and weights never stack. Found during testing: with stacking, adding a CONTRADICTS on top of an existing DEPENDS_ON would BOOST the target's structural pull — disagreement would have made a node more retrievable.
+---
+[event:11182e45-a514-4695-9bda-8dd933f0971b]
+node_id: 92a91b4e-34c0-490a-9979-6478b4f946d3
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.471026+00:00
+
+backfilled from the change's own design record
+---
+[node:3ef8d9a0-397c-4c8d-b2d7-b377c3adc80f]
+type: constraint
+tier: short-term
+path: /artifact/ppr-row-normalizes-so-edge-policy-weigh
+created_at: 2026-09-06T11:52:38.433396+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.433396+00:00
+
+PPR row-normalizes, so edge-policy weights are relative per node, not absolute. A node whose only out-edge is CONTRADICTS (policy 0.25) still passes its full damped mass through it, because 0.25 normalizes to 1.0 when it is the only row entry. The policy table controls proportion between a node's edges, never the total it emits.
+---
+[event:cfb3dd18-58b0-4b95-b7ae-e355d8a3d718]
+node_id: 3ef8d9a0-397c-4c8d-b2d7-b377c3adc80f
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.471566+00:00
+
+backfilled from the change's own design record
+---
+[node:a7ed6ebb-4925-474e-b220-f0ad16aab5e2]
+type: constraint
+tier: short-term
+path: /artifact/the-embedder-hashes-tokens-with-sha-256
+created_at: 2026-09-06T11:52:38.434140+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:3552de0d-0173-495a-b48e-7e62abcd9b46] @ 2026-09-06T11:52:38.434140+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.434140+00:00
+
+The embedder hashes tokens with SHA-256, never Python's builtin hash(), which is salted per process — the same query would embed differently in two runs and retrieval would stop being a pure function. Any future feature-hashing code has the same obligation.
+---
+[event:6f36ee06-fda7-44b9-a3af-a2b404730557]
+node_id: a7ed6ebb-4925-474e-b220-f0ad16aab5e2
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.472127+00:00
+
+backfilled from the change's own design record
+---
+[node:e08e5065-ba2a-4c0b-8883-6f528dff948e]
+type: issue
+tier: short-term
+path: /artifact/seed-discovery-embeds-the-query-with-has
+created_at: 2026-09-06T11:52:38.434870+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:3552de0d-0173-495a-b48e-7e62abcd9b46] @ 2026-09-06T11:52:38.434870+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.434870+00:00
+
+Seed discovery embeds the query with hashed bag-of-words and compares it to facet-value bodies, so matching is LEXICAL: a query for 'billing' will not find a facet named 'invoicing'. The controlled facet vocabulary is the entire bridge between a query string and the graph, so this bounds recall for everything downstream. The Embedder port swap is the designed fix.
+---
+[event:35cd6f1a-3214-44c9-b669-4fc7d1dec157]
+node_id: e08e5065-ba2a-4c0b-8883-6f528dff948e
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.472664+00:00
+
+backfilled from the change's own design record
+---
+[node:1b627ad3-4596-48dc-a3f4-992268c71809]
+type: goal
+tier: short-term
+path: /goal/write-path-mcp-surface
+created_at: 2026-09-06T11:52:38.435527+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:487a3928-ffcb-4f0c-88e0-e3b7d0479008] @ 2026-09-06T11:52:38.438795+00:00
+-> DEPENDS_ON [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:52:38.436647+00:00
+-> DEPENDS_ON [node:beb09514-82ad-483f-ad7b-a41c4f7fc49e] @ 2026-09-06T11:52:38.439541+00:00
+-> DEPENDS_ON [node:d1b8fcfb-c1ed-4a81-9b03-5bfd983f68c8] @ 2026-09-06T11:52:38.437329+00:00
+-> DEPENDS_ON [node:f7ef55bb-2d95-461d-983c-e3fb40cf4ac1] @ 2026-09-06T11:52:38.438034+00:00
+
+Give agents a write vocabulary that is safe by construction: four writes and one read, with the privileged operations unreachable
+---
+[node:5d0c2fbf-3e65-4150-9f83-2acdf941d8f5]
+type: slice
+tier: short-term
+path: /change/write-path-mcp-surface
+created_at: 2026-09-06T11:52:38.435527+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:1b627ad3-4596-48dc-a3f4-992268c71809] @ 2026-09-06T11:52:38.435527+00:00
+-> SCOPED_TO [node:487a3928-ffcb-4f0c-88e0-e3b7d0479008] @ 2026-09-06T11:52:38.438795+00:00
+-> SCOPED_TO [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:52:38.436647+00:00
+-> SCOPED_TO [node:beb09514-82ad-483f-ad7b-a41c4f7fc49e] @ 2026-09-06T11:52:38.439541+00:00
+-> SCOPED_TO [node:d1b8fcfb-c1ed-4a81-9b03-5bfd983f68c8] @ 2026-09-06T11:52:38.437329+00:00
+-> SCOPED_TO [node:f7ef55bb-2d95-461d-983c-e3fb40cf4ac1] @ 2026-09-06T11:52:38.438034+00:00
+
+change scope: write-path-mcp-surface
+---
+[event:47747b37-e52e-4d01-8653-ea22364785a3]
+node_id: 5d0c2fbf-3e65-4150-9f83-2acdf941d8f5
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.436100+00:00
+
+create_change write-path-mcp-surface
+---
+[node:b025e125-9a2b-4591-abf5-1982ea27e1a4]
+type: invariant
+tier: short-term
+path: /artifact/nothing-reachable-from-the-agent-surface
+created_at: 2026-09-06T11:52:38.436647+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:52:38.436647+00:00
+
+Nothing reachable from the agent surface can mutate trust, clear a review flag, promote a tier, or archive a node. Those are either DERIVED (trust folds from the journal) or PRIVILEGED (the human GUI, the evaluator batch, the merge lifecycle). This is the invariant the whole system is arranged around: every other design decision that looks odd is usually this one being protected.
+---
+[event:2c9eb4a6-9f44-4a03-8923-35593fefd8f7]
+node_id: b025e125-9a2b-4591-abf5-1982ea27e1a4
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.473281+00:00
+
+backfilled from the change's own design record
+---
+[node:d1b8fcfb-c1ed-4a81-9b03-5bfd983f68c8]
+type: decision
+tier: short-term
+path: /artifact/the-change-anchor-is-a-slice-node-activ
+created_at: 2026-09-06T11:52:38.437329+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:15b1200f-38f9-4720-a3fa-4ae9f7de6c46] @ 2026-09-06T11:52:38.437329+00:00
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:52:38.437329+00:00
+-> ABOUT [node:dd5eb147-a6a4-4c7e-b9a4-1fe0ad475b0c] @ 2026-09-06T11:52:38.437329+00:00
+
+The change anchor IS a slice node, activated as a liveness root, and the goal node type is minted only by create_change. Together they make goal-first structurally checkable rather than conventional: capture_artifact rejects a non-goal anchor, so an artifact with no goal cannot be written at all.
+---
+[event:86f04b4e-7a23-4672-87be-33c67776651e]
+node_id: d1b8fcfb-c1ed-4a81-9b03-5bfd983f68c8
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.473891+00:00
+
+backfilled from the change's own design record
+---
+[node:f7ef55bb-2d95-461d-983c-e3fb40cf4ac1]
+type: decision
+tier: short-term
+path: /artifact/write-atomic-commits-a-node-with-its-edg
+created_at: 2026-09-06T11:52:38.438034+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:52:38.438034+00:00
+
+write_atomic commits a node with its edges and events in one transaction. An orphan node — captured but never anchored or scoped — is therefore not a state the store can reach, rather than a state that cleanup has to find later.
+---
+[event:b6457c50-7730-4157-a0e3-d341e0cc8a93]
+node_id: f7ef55bb-2d95-461d-983c-e3fb40cf4ac1
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.474483+00:00
+
+backfilled from the change's own design record
+---
+[node:487a3928-ffcb-4f0c-88e0-e3b7d0479008]
+type: decision
+tier: short-term
+path: /artifact/facet-handling-is-exact-label-reuse-nea
+created_at: 2026-09-06T11:52:38.438795+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:3552de0d-0173-495a-b48e-7e62abcd9b46] @ 2026-09-06T11:52:38.438795+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T11:52:38.438795+00:00
+
+Facet handling is exact-label reuse, near-match warn-and-SKIP, otherwise mint. The embedding finds collision candidates and the agent keeps the equivalence call — the surface never silently merges two facets nor silently duplicates one. Contrast the entity ladder, which mints on a warning and defers to a human; the asymmetry is deliberate.
+---
+[event:ed1e6a10-5e9b-4e90-ac43-4a202e9852ea]
+node_id: 487a3928-ffcb-4f0c-88e0-e3b7d0479008
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.475104+00:00
+
+backfilled from the change's own design record
+---
+[node:beb09514-82ad-483f-ad7b-a41c4f7fc49e]
+type: decision
+tier: short-term
+path: /artifact/the-recall-bundle-returns-verbatim-block
+created_at: 2026-09-06T11:52:38.439541+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:6c492fa4-82b0-48e4-b246-1ddfd4d2b5ab] @ 2026-09-06T11:52:38.460715+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.439541+00:00
+
+The recall bundle returns verbatim blocks, stable ids, and coarse type/tier/disputed tags — and no scores. Scores are a debugging surface for humans (the GUI); handing them to an agent invites it to reason about the ranker instead of the knowledge. The ids double as write-back handles, which is what makes the feedback loop closable.
+---
+[event:9de926d9-eb18-4096-a482-a465e9ffc3fe]
+node_id: beb09514-82ad-483f-ad7b-a41c4f7fc49e
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.475634+00:00
+
+backfilled from the change's own design record
+---
+[node:4d53291c-10ad-4a96-a371-c2f73e0759cc]
+type: slice
+tier: short-term
+path: /change/lifecycle-binding
+created_at: 2026-09-06T11:52:38.440325+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:9a146808-9866-484a-8ade-cd7279ff3d18] @ 2026-09-06T11:52:38.443071+00:00
+-> SCOPED_TO [node:a58d5a46-a2d1-4678-8b96-0c27dfbed2fd] @ 2026-09-06T11:52:38.444016+00:00
+-> SCOPED_TO [node:a81b10f4-b3d4-4d1a-aa47-da8b56bf37fd] @ 2026-09-06T11:52:38.442291+00:00
+-> SCOPED_TO [node:c07d53fe-a592-4be1-93a0-06c638016c30] @ 2026-09-06T11:52:38.441476+00:00
+-> SCOPED_TO [node:c55f59c2-bda0-4424-a19d-84db36a79368] @ 2026-09-06T11:52:38.440325+00:00
+
+change scope: lifecycle-binding
+---
+[event:5b853142-8a64-4205-96fd-185d3b12d1dd]
+node_id: 4d53291c-10ad-4a96-a371-c2f73e0759cc
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.440913+00:00
+
+create_change lifecycle-binding
+---
+[node:c55f59c2-bda0-4424-a19d-84db36a79368]
+type: goal
+tier: short-term
+path: /goal/lifecycle-binding
+created_at: 2026-09-06T11:52:38.440325+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:9a146808-9866-484a-8ade-cd7279ff3d18] @ 2026-09-06T11:52:38.443071+00:00
+-> DEPENDS_ON [node:a58d5a46-a2d1-4678-8b96-0c27dfbed2fd] @ 2026-09-06T11:52:38.444016+00:00
+-> DEPENDS_ON [node:a81b10f4-b3d4-4d1a-aa47-da8b56bf37fd] @ 2026-09-06T11:52:38.442291+00:00
+-> DEPENDS_ON [node:c07d53fe-a592-4be1-93a0-06c638016c30] @ 2026-09-06T11:52:38.441476+00:00
+
+Make memory participation a property of the 10x workflow rather than of agent discipline
+---
+[node:c07d53fe-a592-4be1-93a0-06c638016c30]
+type: decision
+tier: short-term
+path: /artifact/tools-never-embed-judgment-skills-never
+created_at: 2026-09-06T11:52:38.441476+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:52:38.441476+00:00
+-> DEPENDS_ON [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:52:38.457825+00:00
+
+Tools never embed judgment; skills never bypass tools. The MCP calls are deterministic operations, and the memory-* skills are the judgment layer that decides when to call them. Kept strictly (MT3-24): a tool that started deciding would make the surface untestable, and a skill that reached past the tools would escape the safety invariant.
+---
+[event:06c5c699-e62a-466e-9b6e-7ac1d1d0f9b7]
+node_id: c07d53fe-a592-4be1-93a0-06c638016c30
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.476241+00:00
+
+backfilled from the change's own design record
+---
+[node:a81b10f4-b3d4-4d1a-aa47-da8b56bf37fd]
+type: decision
+tier: short-term
+path: /artifact/deactivation-and-sweep-live-in-scripts-m
+created_at: 2026-09-06T11:52:38.442291+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:52:38.442291+00:00
+-> DEPENDS_ON [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:52:38.459004+00:00
+-> ABOUT [node:dd5eb147-a6a4-4c7e-b9a4-1fe0ad475b0c] @ 2026-09-06T11:52:38.442291+00:00
+
+Deactivation and sweep live in scripts/memory_lifecycle.py, not on the agent surface, because they are consequences of a merge that already happened rather than judgments. An agent that could archive its own scope could quietly forget its own mistakes.
+---
+[event:74a8c236-f96d-4a4d-9c6b-e2ecc5562fee]
+node_id: a81b10f4-b3d4-4d1a-aa47-da8b56bf37fd
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.476816+00:00
+
+backfilled from the change's own design record
+---
+[node:9a146808-9866-484a-8ade-cd7279ff3d18]
+type: decision
+tier: short-term
+path: /artifact/the-goal-id-is-plumbed-as-a-memory-goal
+created_at: 2026-09-06T11:52:38.443071+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> ABOUT [node:15b1200f-38f9-4720-a3fa-4ae9f7de6c46] @ 2026-09-06T11:52:38.443071+00:00
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:52:38.443071+00:00
+-> DEPENDS_ON [node:d1b8fcfb-c1ed-4a81-9b03-5bfd983f68c8] @ 2026-09-06T11:52:38.461947+00:00
+
+The goal id is plumbed as a `memory_goal:` line in the change's change.md — the one piece of state the binding needs, stored where the 10x lifecycle already keeps its state. It is also the only durable link back from a folder on disk to a scope in the graph, so a change.md without it is a change whose memory cannot be found again.
+---
+[event:03b3ca1e-2cfd-4010-942a-0793b0b97c80]
+node_id: 9a146808-9866-484a-8ade-cd7279ff3d18
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.477340+00:00
+
+backfilled from the change's own design record
+---
+[node:a58d5a46-a2d1-4678-8b96-0c27dfbed2fd]
+type: decision
+tier: short-term
+path: /artifact/at-the-pr-gate-the-skill-surfaces-disput
+created_at: 2026-09-06T11:52:38.444016+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:52:38.444016+00:00
+-> DEPENDS_ON [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:52:38.459576+00:00
+
+At the PR gate the skill SURFACES disputed nodes and promotion candidates into the PR text and points at the GUI. It never resolves a flag or promotes a tier. The agent's job at a human gate is to make the queue visible and complete, not to shorten it.
+---
+[event:02742376-d394-49e8-b70e-91029ad99b9a]
+node_id: a58d5a46-a2d1-4678-8b96-0c27dfbed2fd
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.477897+00:00
+
+backfilled from the change's own design record
+---
+[node:c80edccd-c3a3-4488-a48d-508d0a4f0f3f]
+type: goal
+tier: short-term
+path: /goal/graph-gui
+created_at: 2026-09-06T11:52:38.444953+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:6c492fa4-82b0-48e4-b246-1ddfd4d2b5ab] @ 2026-09-06T11:52:38.447095+00:00
+-> DEPENDS_ON [node:c8107466-25cf-40e2-a414-24f05648bc5e] @ 2026-09-06T11:52:38.447960+00:00
+-> DEPENDS_ON [node:e3b96c8d-c322-4272-b497-6d41a7600fe8] @ 2026-09-06T11:52:38.448758+00:00
+-> DEPENDS_ON [node:fe0da020-4b5c-4520-bfef-f5551d72b360] @ 2026-09-06T11:52:38.446308+00:00
+
+Build the surface where the human-in-the-loop checkpoints actually happen: staleness review, promotion, and change liveness
+---
+[node:d99d59a2-4eb9-4a94-8c1c-325333ea2089]
+type: slice
+tier: short-term
+path: /change/graph-gui
+created_at: 2026-09-06T11:52:38.444953+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:6c492fa4-82b0-48e4-b246-1ddfd4d2b5ab] @ 2026-09-06T11:52:38.447095+00:00
+-> SCOPED_TO [node:c80edccd-c3a3-4488-a48d-508d0a4f0f3f] @ 2026-09-06T11:52:38.444953+00:00
+-> SCOPED_TO [node:c8107466-25cf-40e2-a414-24f05648bc5e] @ 2026-09-06T11:52:38.447960+00:00
+-> SCOPED_TO [node:e3b96c8d-c322-4272-b497-6d41a7600fe8] @ 2026-09-06T11:52:38.448758+00:00
+-> SCOPED_TO [node:fe0da020-4b5c-4520-bfef-f5551d72b360] @ 2026-09-06T11:52:38.446308+00:00
+
+change scope: graph-gui
+---
+[event:4509aed3-d95b-468c-aa3d-d29f51703ca2]
+node_id: d99d59a2-4eb9-4a94-8c1c-325333ea2089
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.445647+00:00
+
+create_change graph-gui
+---
+[node:fe0da020-4b5c-4520-bfef-f5551d72b360]
+type: decision
+tier: short-term
+path: /artifact/the-gui-holds-exactly-the-operations-the
+created_at: 2026-09-06T11:52:38.446308+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:52:38.446308+00:00
+-> DEPENDS_ON [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:52:38.458418+00:00
+
+The GUI holds exactly the operations the agent surface forbids, and every human override is journaled as an event. That is what keeps a human override inside the audit trail instead of outside it: trust stays derived even when a person is the one deriving it, and the graph never has a state nobody can explain.
+---
+[event:0eb6e313-11e0-422d-bbaa-b05f032dee2e]
+node_id: fe0da020-4b5c-4520-bfef-f5551d72b360
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.478416+00:00
+
+backfilled from the change's own design record
+---
+[node:6c492fa4-82b0-48e4-b246-1ddfd4d2b5ab]
+type: decision
+tier: short-term
+path: /artifact/scores-weights-and-the-raw-journal-are
+created_at: 2026-09-06T11:52:38.447095+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:52:38.447095+00:00
+
+Scores, weights, and the raw journal are shown to humans and withheld from agents, which makes the GUI the retrieval debugging tool as well as the review surface. When a ranking looks wrong, the recall playground is where you find out why.
+---
+[event:e4905fa0-ea62-469d-acf7-0a67bb73acdb]
+node_id: 6c492fa4-82b0-48e4-b246-1ddfd4d2b5ab
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.478955+00:00
+
+backfilled from the change's own design record
+---
+[node:c8107466-25cf-40e2-a414-24f05648bc5e]
+type: constraint
+tier: short-term
+path: /artifact/promotion-to-the-lifetime-tier-requires
+created_at: 2026-09-06T11:52:38.447960+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:52:38.447960+00:00
+
+Promotion to the lifetime tier requires `confirmed: true` on the REQUEST, not just a client-side confirm dialog. A gate enforced only in the UI is not a gate — anything driving the API directly (a script, an agent with network access) would walk straight through it.
+---
+[event:28ebbf93-05e4-478a-af22-2b4b127e4d9b]
+node_id: c8107466-25cf-40e2-a414-24f05648bc5e
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.479474+00:00
+
+backfilled from the change's own design record
+---
+[node:e3b96c8d-c322-4272-b497-6d41a7600fe8]
+type: decision
+tier: short-term
+path: /artifact/gui-dist-is-a-build-artifact-untracked
+created_at: 2026-09-06T11:52:38.448758+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T11:52:38.448758+00:00
+
+gui/dist is a build artifact, untracked, built by CI on release and by `make dist` locally. This REVERSES the original graph-gui decision to commit dist so Python-only users got the GUI for free; the tracked build output was churn in every diff. A fresh clone must therefore build the GUI before agentic-memory-gui can serve it.
+---
+[event:4b4145fe-22ee-438a-98ff-5ec4629fcfb5]
+node_id: e3b96c8d-c322-4272-b497-6d41a7600fe8
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.479997+00:00
+
+backfilled from the change's own design record
+---
+[node:0f395fd9-b601-4f85-b813-c4b7386fc4ea]
+type: goal
+tier: short-term
+path: /goal/retrieval-benchmark-harness
+created_at: 2026-09-06T11:52:38.449479+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:8c6ea00a-cd54-410d-b81e-5e995931fe0b] @ 2026-09-06T11:52:38.450701+00:00
+-> DEPENDS_ON [node:8d0e5438-0d42-4e7d-a3c4-d805b4af3572] @ 2026-09-06T11:52:38.452102+00:00
+-> DEPENDS_ON [node:c3645137-a8ec-452f-b0bb-d42594843ead] @ 2026-09-06T11:52:38.451418+00:00
+
+Design a reproducible offline benchmark for retrieval quality that can attribute a regression to the stage that caused it
+---
+[node:1b4dc285-5f14-4635-bdce-eb3fe82ac185]
+type: slice
+tier: short-term
+path: /change/retrieval-benchmark-harness
+created_at: 2026-09-06T11:52:38.449479+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:0f395fd9-b601-4f85-b813-c4b7386fc4ea] @ 2026-09-06T11:52:38.449479+00:00
+-> SCOPED_TO [node:8c6ea00a-cd54-410d-b81e-5e995931fe0b] @ 2026-09-06T11:52:38.450701+00:00
+-> SCOPED_TO [node:8d0e5438-0d42-4e7d-a3c4-d805b4af3572] @ 2026-09-06T11:52:38.452102+00:00
+-> SCOPED_TO [node:c3645137-a8ec-452f-b0bb-d42594843ead] @ 2026-09-06T11:52:38.451418+00:00
+
+change scope: retrieval-benchmark-harness
+---
+[event:f22b8ecf-3abd-4779-b62f-99a310b54558]
+node_id: 1b4dc285-5f14-4635-bdce-eb3fe82ac185
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.450127+00:00
+
+create_change retrieval-benchmark-harness
+---
+[node:8c6ea00a-cd54-410d-b81e-5e995931fe0b]
+type: decision
+tier: short-term
+path: /artifact/recall-multi-is-two-independent-stages
+created_at: 2026-09-06T11:52:38.450701+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:789ed067-7cbb-4bc8-b141-bf504a148482] @ 2026-09-06T11:52:38.456559+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.450701+00:00
+-> DEPENDS_ON [node:e08e5065-ba2a-4c0b-8883-6f528dff948e] @ 2026-09-06T11:52:38.457224+00:00
+
+recall_multi is two independent stages: seed discovery (query embedded, compared against facet-value bodies, expanded through HAS_FACET) and structural-plus-quality composition (PPR over the content graph, then the score blend). Any benchmark treating it as one black box misattributes regressions — swapping the embedder can only ever move stage 1, so a single blended number cannot tell you whether the swap worked.
+---
+[event:ab6236d0-9bec-40c6-a57f-103f635bc3be]
+node_id: 8c6ea00a-cd54-410d-b81e-5e995931fe0b
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.480567+00:00
+
+backfilled from the change's own design record
+---
+[node:c3645137-a8ec-452f-b0bb-d42594843ead]
+type: decision
+tier: short-term
+path: /artifact/the-benchmark-corpus-is-synthetic-rather
+created_at: 2026-09-06T11:52:38.451418+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.451418+00:00
+
+The benchmark corpus is synthetic rather than mined from real project history. Nothing here asks an LLM to answer from context — the question is whether a deterministic algorithm ranks the right node first — so pretraining leakage is irrelevant and CONTROLLED VOCABULARY OVERLAP is what matters: you write the query and its gold node together and construct the hard cases deliberately.
+---
+[event:e3cce42e-f183-445b-be6b-6245822fa9b1]
+node_id: c3645137-a8ec-452f-b0bb-d42594843ead
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.481144+00:00
+
+backfilled from the change's own design record
+---
+[node:8d0e5438-0d42-4e7d-a3c4-d805b4af3572]
+type: issue
+tier: short-term
+path: /artifact/the-benchmark-harness-is-researched-and
+created_at: 2026-09-06T11:52:38.452102+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.452102+00:00
+-> DEPENDS_ON [node:f54ca2f8-fd25-4b80-b04c-4190406f1ba5] @ 2026-09-06T11:52:38.461365+00:00
+
+The benchmark harness is researched and designed (benchmark-harness-design.md) but NOT implemented. Until it exists, every retrieval change — a new edge weight, a different embedder, a coefficient retune — is justified by argument and unit tests rather than measured, and there is no way to tell a real improvement from a plausible one.
+---
+[event:6198cd73-1a6a-4d5b-a19b-64f95f17afeb]
+node_id: 8d0e5438-0d42-4e7d-a3c4-d805b4af3572
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.481714+00:00
+
+backfilled from the change's own design record
+---
+[node:098d82f1-7ca1-4c75-b8fc-febcb7406df4]
+type: goal
+tier: short-term
+path: /goal/bootstrap-verification
+created_at: 2026-09-06T11:52:38.452813+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:53a0fee4-bab0-4bb4-8f2c-760a10ba6599] @ 2026-09-06T11:52:38.454656+00:00
+-> DEPENDS_ON [node:bd38cccc-3705-4abb-adda-b208889e2a36] @ 2026-09-06T11:52:38.453947+00:00
+
+Record the stack choice and the bootstrap contract this project was scaffolded under
+---
+[node:aeafec71-4b9e-4381-9ae0-976cd89019ea]
+type: slice
+tier: short-term
+path: /change/bootstrap-verification
+created_at: 2026-09-06T11:52:38.452813+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:098d82f1-7ca1-4c75-b8fc-febcb7406df4] @ 2026-09-06T11:52:38.452813+00:00
+-> SCOPED_TO [node:53a0fee4-bab0-4bb4-8f2c-760a10ba6599] @ 2026-09-06T11:52:38.454656+00:00
+-> SCOPED_TO [node:bd38cccc-3705-4abb-adda-b208889e2a36] @ 2026-09-06T11:52:38.453947+00:00
+
+change scope: bootstrap-verification
+---
+[event:b8a62d4f-1f99-4704-abc3-19d31ded38f0]
+node_id: aeafec71-4b9e-4381-9ae0-976cd89019ea
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.453378+00:00
+
+create_change bootstrap-verification
+---
+[node:bd38cccc-3705-4abb-adda-b208889e2a36]
+type: decision
+tier: short-term
+path: /artifact/python-uv-stdlib-sqlite3-chosen-ove
+created_at: 2026-09-06T11:52:38.453947+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T11:52:38.453947+00:00
+
+Python + uv + stdlib sqlite3, chosen over Go and Rust because the decisive workload — multi-seed PPR with embeddings — is Python-first, and the MCP Python SDK is the reference implementation for the agent surface. Porting or binding those in another language would have consumed the whole timeline before the graph core was stable. Solo developer, after-hours, local-only store.
+---
+[event:91e726d5-7da3-456e-b504-e1bd3eb28e50]
+node_id: bd38cccc-3705-4abb-adda-b208889e2a36
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.482310+00:00
+
+backfilled from the change's own design record
+---
+[node:53a0fee4-bab0-4bb4-8f2c-760a10ba6599]
+type: issue
+tier: short-term
+path: /artifact/the-bootstrap-record-specifies-github-ac
+created_at: 2026-09-06T11:52:38.454656+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T11:52:38.454656+00:00
+
+The bootstrap record specifies GitHub Actions running lint, type-check and tests on push. In fact .github/workflows/ contains only release.yml, which triggers on version tags and builds artifacts — it never runs pytest. The full suite runs on contributors' machines and nowhere else, so a green PR means only that whoever opened it ran the tests locally.
+---
+[event:fda2adbd-6d65-4529-86fb-0efb624cd248]
+node_id: 53a0fee4-bab0-4bb4-8f2c-760a10ba6599
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:52:38.482864+00:00
+
+backfilled from the change's own design record
+---
+[node:26ef9168-17f1-4b89-bc9a-2d177a5a4acb]
+type: goal
+tier: short-term
+path: /goal/memory-backfill
+created_at: 2026-09-06T11:56:03.428015+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:2d1e995b-8945-4de3-971b-ef4db78834cd] @ 2026-09-06T11:56:03.438932+00:00
+-> DEPENDS_ON [node:9c0052fa-bb07-41d5-9cb3-5511dd59f968] @ 2026-09-06T11:56:03.437314+00:00
+-> DEPENDS_ON [node:a2a528ad-faa4-4e7c-a4ab-84cee56bb556] @ 2026-09-06T11:56:03.435186+00:00
+-> DEPENDS_ON [node:b0ceb87c-a326-4b1f-adbe-556c0df3635c] @ 2026-09-06T11:56:03.436445+00:00
+-> DEPENDS_ON [node:b9029b10-010a-4a01-ae10-0fcbdd3753c9] @ 2026-09-06T11:56:03.438128+00:00
+
+Give this project the memory it never captured, and make an unreplayed backlog impossible to miss again
+---
+[node:338f66b3-5741-45e7-8fdd-94c4dfb2d354]
+type: slice
+tier: short-term
+path: /change/memory-backfill
+created_at: 2026-09-06T11:56:03.428015+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:26ef9168-17f1-4b89-bc9a-2d177a5a4acb] @ 2026-09-06T11:56:03.428015+00:00
+-> SCOPED_TO [node:2d1e995b-8945-4de3-971b-ef4db78834cd] @ 2026-09-06T11:56:03.438932+00:00
+-> SCOPED_TO [node:9c0052fa-bb07-41d5-9cb3-5511dd59f968] @ 2026-09-06T11:56:03.437314+00:00
+-> SCOPED_TO [node:a2a528ad-faa4-4e7c-a4ab-84cee56bb556] @ 2026-09-06T11:56:03.435186+00:00
+-> SCOPED_TO [node:b0ceb87c-a326-4b1f-adbe-556c0df3635c] @ 2026-09-06T11:56:03.436445+00:00
+-> SCOPED_TO [node:b9029b10-010a-4a01-ae10-0fcbdd3753c9] @ 2026-09-06T11:56:03.438128+00:00
+
+change scope: memory-backfill
+---
+[event:9cd330f9-c507-4a5a-957d-a24aa7a5c1c1]
+node_id: 338f66b3-5741-45e7-8fdd-94c4dfb2d354
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:56:03.434092+00:00
+
+create_change memory-backfill
+---
+[node:a2a528ad-faa4-4e7c-a4ab-84cee56bb556]
+type: constraint
+tier: short-term
+path: /artifact/a-degraded-mode-backlog-needs-a-detector
+created_at: 2026-09-06T11:56:03.435186+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:56:03.435186+00:00
+-> DEPENDS_ON [node:9a146808-9866-484a-8ade-cd7279ff3d18] @ 2026-09-06T11:56:03.440259+00:00
+
+A degraded-mode backlog needs a DETECTOR, not just a rule. The workflow said 'queue it and replay later'; nothing anywhere noticed that later never came, so one backlog sat unreplayed for a month while this project's own graph held two nodes. `memory_lifecycle.py backlogs` lists every backlog with no leading REPLAYED marker and the SessionStart hook runs it, so the queue is in front of the next agent before its first turn.
+---
+[event:90e60287-f371-45e9-98c5-8af8e35911dd]
+node_id: a2a528ad-faa4-4e7c-a4ab-84cee56bb556
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:56:03.440810+00:00
+
+decided during the backfill
+---
+[node:b0ceb87c-a326-4b1f-adbe-556c0df3635c]
+type: decision
+tier: short-term
+path: /artifact/the-backlog-detector-opens-no-store-and
+created_at: 2026-09-06T11:56:03.436445+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:56:03.436445+00:00
+
+The backlog detector opens NO store and answers a pure filesystem question. A backlog exists precisely because the store was unreachable, so a detector that needed the graph would be silent in exactly the situation it is built for. It also means the check costs nothing and cannot fail for the reason it is reporting on.
+---
+[event:8eff3185-138d-4158-a3b2-cb6051aca793]
+node_id: b0ceb87c-a326-4b1f-adbe-556c0df3635c
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:56:03.441347+00:00
+
+decided during the backfill
+---
+[node:9c0052fa-bb07-41d5-9cb3-5511dd59f968]
+type: constraint
+tier: short-term
+path: /artifact/a-replayed-backlog-is-marked-with-a-line
+created_at: 2026-09-06T11:56:03.437314+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:71ed798c-7548-4e53-aa09-e072beeaea01] @ 2026-09-06T11:56:03.437314+00:00
+
+A replayed backlog is marked with a line starting `REPLAYED <date>`, and the marker must LEAD a line — 'not yet REPLAYED' still counts as outstanding. The marker is what makes a second replay refusable: capture is append-only with no idempotency key, so replaying a backlog twice mints duplicate nodes rather than reconciling with the first run.
+---
+[event:9701c735-d732-4db0-be7c-54167c008c5d]
+node_id: 9c0052fa-bb07-41d5-9cb3-5511dd59f968
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:56:03.441892+00:00
+
+decided during the backfill
+---
+[node:b9029b10-010a-4a01-ae10-0fcbdd3753c9]
+type: decision
+tier: short-term
+path: /artifact/backfilled-scopes-are-left-active-rather
+created_at: 2026-09-06T11:56:03.438128+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:56:03.438128+00:00
+-> DEPENDS_ON [node:b025e125-9a2b-4591-abf5-1982ea27e1a4] @ 2026-09-06T11:56:03.439699+00:00
+
+Backfilled scopes are left ACTIVE rather than deactivated on capture. A completed change would normally be swept dormant, but only long-term and lifetime nodes survive a sweep, and those tiers are reachable only through human promotion — so sweeping a fresh backfill would bury every node before anyone had ruled on it. The scope stays live until the promotion gate has been walked, and closing it is the human's move.
+---
+[event:fb0c5228-c1d1-4817-80fa-9692eec20bf9]
+node_id: b9029b10-010a-4a01-ae10-0fcbdd3753c9
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:56:03.442417+00:00
+
+decided during the backfill
+---
+[node:2d1e995b-8945-4de3-971b-ef4db78834cd]
+type: issue
+tier: short-term
+path: /artifact/ten-changes-were-implemented-reviewed-a
+created_at: 2026-09-06T11:56:03.438932+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T11:56:03.438932+00:00
+
+Ten changes were implemented, reviewed and merged without capturing anything into the memory graph, and nothing detected that either. The backfill recovered the knowledge from their design records, but the recurrence risk is unaddressed: there is no check that a change reaching PR has a memory_goal or any captured artifact. The backlog detector only catches sessions that knew they were degraded.
+---
+[event:fb6ba36b-70f1-43d0-8aa5-aeaac49a6b0e]
+node_id: 2d1e995b-8945-4de3-971b-ef4db78834cd
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:56:03.442995+00:00
+
+decided during the backfill

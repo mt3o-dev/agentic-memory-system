@@ -107,3 +107,11 @@ Useful manual steps in the meantime:
 - Replace the `hello()` stub in `src/agentic_memory_system/__init__.py`.
 - Add core dependencies: `uv add mcp` (MCP Python SDK) and any others needed by Slice 1.
 - Install pip-audit for future audit runs: `uv tool install pip-audit`.
+
+## Memory scope
+
+`memory_goal: 098d82f1-7ca1-4c75-b8fc-febcb7406df4`
+
+This folder has no `change.md` — it records a bootstrap, not a change — so the goal id
+lives here instead, which is the only durable link from this folder to its scope in the
+memory graph.

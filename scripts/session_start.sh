@@ -10,7 +10,15 @@
 # depends on this hook having run.
 #
 # What remains is orientation: tell the agent which transport is live, so it uses the
-# right door instead of discovering the answer by failure.
+# right door instead of discovering the answer by failure — plus one alarm.
+#
+# The alarm is for unreplayed degraded-mode backlogs. When the store is genuinely
+# unreachable the workflow queues every would-be memory operation to
+# `context/changes/<id>/memory-backlog.md` to be replayed later, and for one change
+# "later" never came: the file sat there for a month while this project's own graph held
+# two nodes. Nothing was broken and nothing was reported, because nobody was looking.
+# A queue with no alarm on it is a queue that loses work, so the first turn of every
+# session now says so.
 
 set -uo pipefail
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -21,4 +29,10 @@ STATUS=$(uv run --directory "$ROOT" agentic-memory sync status 2>&1 | tr '\n' ' 
 echo "memory: CLI transport ready — 'uv run agentic-memory --help'"
 echo "memory: ${STATUS}"
 echo "memory: MCP is the optimization; if its tools are absent this session, use the CLI."
+
+BACKLOGS=$(uv run --directory "$ROOT" python scripts/memory_lifecycle.py backlogs 2>/dev/null || true)
+if [ -n "$BACKLOGS" ]; then
+  echo "$BACKLOGS" | while IFS= read -r line; do echo "memory: $line"; done
+  echo "memory: replay these BEFORE capturing anything new — they are memory this project already decided to keep."
+fi
 exit 0
