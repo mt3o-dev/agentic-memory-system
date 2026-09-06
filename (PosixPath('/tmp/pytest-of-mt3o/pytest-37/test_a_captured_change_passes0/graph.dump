@@ -1,0 +1,65 @@
+# agentic-memory-system dump
+# format_version: 1
+
+[node:419bb477-94a5-4542-9cb0-0433dbd32d47]
+type: slice
+tier: short-term
+path: /change/captured
+created_at: 2026-09-06T14:33:23.855726+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:60b95a12-f17a-4a11-bee3-c2e3e448b484] @ 2026-09-06T14:33:23.857934+00:00
+-> SCOPED_TO [node:95f85c2d-8189-40ab-aaf8-ee372afb1cd9] @ 2026-09-06T14:33:23.857114+00:00
+-> SCOPED_TO [node:c9373c52-6f1a-4016-8699-e4dc2810d1df] @ 2026-09-06T14:33:23.855726+00:00
+
+change scope: captured
+---
+[event:feaeb775-5efe-43ad-8206-e4c694babeed]
+node_id: 419bb477-94a5-4542-9cb0-0433dbd32d47
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T14:33:23.856444+00:00
+
+create_change captured
+---
+[node:c9373c52-6f1a-4016-8699-e4dc2810d1df]
+type: goal
+tier: short-term
+path: /goal/captured
+created_at: 2026-09-06T14:33:23.855726+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:60b95a12-f17a-4a11-bee3-c2e3e448b484] @ 2026-09-06T14:33:23.857934+00:00
+-> DEPENDS_ON [node:95f85c2d-8189-40ab-aaf8-ee372afb1cd9] @ 2026-09-06T14:33:23.857114+00:00
+
+do captured
+---
+[node:95f85c2d-8189-40ab-aaf8-ee372afb1cd9]
+type: decision
+tier: short-term
+path: /artifact/a-decision-number-0
+created_at: 2026-09-06T14:33:23.857114+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+A decision number 0.
+---
+[node:60b95a12-f17a-4a11-bee3-c2e3e448b484]
+type: decision
+tier: short-term
+path: /artifact/a-decision-number-1
+created_at: 2026-09-06T14:33:23.857934+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+A decision number 1.

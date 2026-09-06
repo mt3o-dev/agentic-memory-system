@@ -1923,7 +1923,7 @@ type: issue
 tier: short-term
 path: /artifact/the-benchmark-harness-is-researched-and
 created_at: 2026-09-06T11:52:38.452102+00:00
-needs_review: false
+needs_review: true
 retrieval_weight: 1.0
 trust_weight: 1.0
 archived: false
@@ -1941,6 +1941,16 @@ source: agent-surface
 created_at: 2026-09-06T11:52:38.481714+00:00
 
 backfilled from the change's own design record
+---
+[event:f43f198c-fac7-49d2-8a5d-1e036eead7f6]
+node_id: 8d0e5438-0d42-4e7d-a3c4-d805b4af3572
+type: contradiction_raised
+weight: 1.0
+polarity: -1
+source: agent-surface
+created_at: 2026-09-06T14:34:03.071072+00:00
+
+contradicted at capture of f9d7105f-ac5e-401b-a8b1-552b9c513c5f
 ---
 [node:098d82f1-7ca1-4c75-b8fc-febcb7406df4]
 type: goal
@@ -2510,3 +2520,115 @@ archived: false
 -> DEPENDS_ON [node:ea7c464b-4ccc-4bb8-8a75-21070559dcb2] @ 2026-09-06T14:27:33.970214+00:00
 
 Journal compaction cannot be strategy-agnostic, which is why compact_events() is still a no-op rather than merely unwritten. SumAndClampFold needs only the SUM of a node's events, so collapsing them is lossless for it; LastNWindowFold reads the last N events INDIVIDUALLY, so the same collapse changes its answer. Any compaction is therefore correct for some fold strategies and wrong for others, and a compaction design has to name which strategies it is allowed to break — or the FoldStrategy port has to grow a compaction operation each strategy implements for itself. `doctor` reports the busiest node's journal so the growth is noticed while it is still cheap.
+---
+[node:62ae3823-ad6e-4bf5-b696-c7c3cd940d05]
+type: goal
+tier: short-term
+path: /goal/retrieval-benchmark-harness-build
+created_at: 2026-09-06T14:34:03.064425+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:4b2ee944-4899-4ae9-a6b0-951804bc7cfc] @ 2026-09-06T14:34:03.072363+00:00
+-> DEPENDS_ON [node:b2874ca8-76f7-419e-bb6e-99d4e5c1a653] @ 2026-09-06T14:34:03.073242+00:00
+-> DEPENDS_ON [node:c4b9143a-23c5-4fc7-90db-2079c61f891b] @ 2026-09-06T14:34:03.074794+00:00
+-> DEPENDS_ON [node:c93d1e00-1032-4b07-980b-2f74fb27e405] @ 2026-09-06T14:34:03.074005+00:00
+-> DEPENDS_ON [node:f9d7105f-ac5e-401b-a8b1-552b9c513c5f] @ 2026-09-06T14:34:03.071072+00:00
+
+Build the designed harness so retrieval changes are measured per stage instead of argued
+---
+[node:ed91edc3-95e9-4b93-a506-55a5f57a1655]
+type: slice
+tier: short-term
+path: /change/retrieval-benchmark-harness-build
+created_at: 2026-09-06T14:34:03.064425+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:4b2ee944-4899-4ae9-a6b0-951804bc7cfc] @ 2026-09-06T14:34:03.072363+00:00
+-> SCOPED_TO [node:62ae3823-ad6e-4bf5-b696-c7c3cd940d05] @ 2026-09-06T14:34:03.064425+00:00
+-> SCOPED_TO [node:b2874ca8-76f7-419e-bb6e-99d4e5c1a653] @ 2026-09-06T14:34:03.073242+00:00
+-> SCOPED_TO [node:c4b9143a-23c5-4fc7-90db-2079c61f891b] @ 2026-09-06T14:34:03.074794+00:00
+-> SCOPED_TO [node:c93d1e00-1032-4b07-980b-2f74fb27e405] @ 2026-09-06T14:34:03.074005+00:00
+-> SCOPED_TO [node:f9d7105f-ac5e-401b-a8b1-552b9c513c5f] @ 2026-09-06T14:34:03.071072+00:00
+
+change scope: retrieval-benchmark-harness-build
+---
+[event:4e03a176-2b3f-43c2-9dec-616c7795e26b]
+node_id: ed91edc3-95e9-4b93-a506-55a5f57a1655
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T14:34:03.070323+00:00
+
+create_change retrieval-benchmark-harness-build
+---
+[node:f9d7105f-ac5e-401b-a8b1-552b9c513c5f]
+type: decision
+tier: short-term
+path: /artifact/the-harness-measures-stage-1-and-stage-2
+created_at: 2026-09-06T14:34:03.071072+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> CONTRADICTS [node:8d0e5438-0d42-4e7d-a3c4-d805b4af3572] @ 2026-09-06T14:34:03.071072+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T14:34:03.071072+00:00
+
+The harness measures stage 1 and stage 2 separately and reports end-to-end as the headline, because an embedder swap can only move seed discovery and a weight retune can only move composition — a single blended number cannot say which happened. Stage 2 is isolated by seeding it with the MEMBERS OF THE GOLD FACET, which is what a perfect stage 1 would return, not with the gold node itself, which would make the measurement trivial.
+---
+[node:4b2ee944-4899-4ae9-a6b0-951804bc7cfc]
+type: constraint
+tier: short-term
+path: /artifact/the-goal-node-must-be-excluded-from-any
+created_at: 2026-09-06T14:34:03.072363+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T14:34:03.072363+00:00
+
+The goal node must be excluded from any measured ranking. recall_multi seeds the goal at weight 0.7, so it returns at rank 1 of every single query; leaving it in caps MRR at 0.5 no matter how good the ranker is and reports a perfect answer as mediocre. The goal is the question, not an answer to it.
+---
+[node:b2874ca8-76f7-419e-bb6e-99d4e5c1a653]
+type: constraint
+tier: short-term
+path: /artifact/a-benchmark-corpus-must-mint-node-ids-fr
+created_at: 2026-09-06T14:34:03.073242+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T14:34:03.073242+00:00
+
+A benchmark corpus must mint node ids from a seeded generator. Retrieval breaks score ties BY ID, so a corpus built with fresh uuid4s ranks tied nodes differently on every build and the numbers jitter for reasons unrelated to the code under test. Determinism of the algorithm is not enough — the corpus has to be rebuildable byte-identically or the benchmark measures its own randomness.
+---
+[node:c93d1e00-1032-4b07-980b-2f74fb27e405]
+type: issue
+tier: short-term
+path: /artifact/the-ablation-matrix-is-not-yet-interpret
+created_at: 2026-09-06T14:34:03.074005+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T14:34:03.074005+00:00
+
+The ablation matrix is not yet interpretable and must not be used to retune production weights. Every node in the corpus is created in one run with almost no journal events, so trust_weight and recency are nearly uniform; terms carrying no signal cannot help ranking and can only dilute the one term that does. That is why structure-only (alpha=1) currently beats the shipped blend by a wide margin — a property of the corpus, not evidence about alpha/beta/gamma. Making it interpretable needs seeded trust events and spread created_at values, with gold labels chosen so a low-trust node SHOULD rank below a high-trust one.
+---
+[node:c4b9143a-23c5-4fc7-90db-2079c61f891b]
+type: issue
+tier: short-term
+path: /artifact/measured-baseline-for-hashed-bag-of-word
+created_at: 2026-09-06T14:34:03.074794+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T14:34:03.074794+00:00
+-> DEPENDS_ON [node:e08e5065-ba2a-4c0b-8883-6f528dff948e] @ 2026-09-06T14:34:03.074794+00:00
+
+Measured baseline for hashed bag-of-words: stage-1 facet recall is 1.00 on exact-facet-match queries and 0.00 on paraphrase. The weakness was previously asserted by code inspection; it is now a number. The cost downstream is visible as the gap between stage-2 MRR (0.80) and end-to-end MRR (0.63) on the paraphrase category, and closing that gap is exactly what an embedder swap has to demonstrate.

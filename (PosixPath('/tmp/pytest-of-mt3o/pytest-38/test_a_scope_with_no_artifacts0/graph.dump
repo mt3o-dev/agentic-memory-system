@@ -1,0 +1,37 @@
+# agentic-memory-system dump
+# format_version: 1
+
+[node:055e8c6e-221a-495d-9e7e-07e5b48a727e]
+type: slice
+tier: short-term
+path: /change/opened-only
+created_at: 2026-09-06T14:34:06.980722+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:849bda8b-1ca0-4c72-982a-fd61a62d63f7] @ 2026-09-06T14:34:06.980722+00:00
+
+change scope: opened-only
+---
+[event:a0c6d196-c50c-4cc1-8d26-c03a683308af]
+node_id: 055e8c6e-221a-495d-9e7e-07e5b48a727e
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T14:34:06.981318+00:00
+
+create_change opened-only
+---
+[node:849bda8b-1ca0-4c72-982a-fd61a62d63f7]
+type: goal
+tier: short-term
+path: /goal/opened-only
+created_at: 2026-09-06T14:34:06.980722+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+do opened-only
