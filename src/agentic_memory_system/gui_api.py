@@ -20,16 +20,19 @@ import os
 import platform
 import re
 import sys
+from contextlib import asynccontextmanager
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import locking
+from . import locking, sync
 from .agent_surface import AgentSurface, AgentSurfaceError
 from .evaluator import LLMEvaluator
 from .resolver import RulesResolver
@@ -75,6 +78,54 @@ def _node_summary(node: Node) -> dict:
         "retrieval_weight": node.retrieval_weight,
         "created_at": node.created_at.isoformat() if node.created_at else None,
     }
+
+
+def _close_store_on_shutdown(store: MemoryStore):
+    """A lifespan that closes the store when the server stops, and only then."""
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        yield
+        store.close()
+
+    return lifespan
+
+
+class RefreshDumpAfterWrite(BaseHTTPMiddleware):
+    """Publish the tracked dump after any request that wrote something.
+
+    The GUI holds one store for the life of the server and never calls ``close()``, which
+    is where ``auto_dump`` normally refreshes ``context/memory-graph.dump``. So every
+    human ruling made here — a cleared flag, a tier promotion, a ratified entity — sat in
+    the gitignored database and NOT in the tracked file until some other command happened
+    to open and close the store. Those rulings are the one kind of knowledge in the graph
+    that cannot be re-derived from anything, so leaving them un-published until a
+    coincidence is the wrong default.
+
+    It hangs off middleware rather than the fifteen mutating endpoints because that is a
+    place a sixteenth cannot forget to call. The dirty check is the same
+    ``total_changes`` watermark ``close()`` uses: rows written on this connection,
+    ignoring reads, so a GET or a failed write publishes nothing.
+    """
+
+    def __init__(self, app, store: MemoryStore) -> None:
+        super().__init__(app)
+        self._store = store
+        self._written = store._conn.total_changes
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.method == "GET":
+            return response
+        total = self._store._conn.total_changes
+        if total > self._written and response.status_code < 400:
+            self._written = total
+            # A failed dump must never fail the request that succeeded: the write is
+            # already committed, and the next open re-publishes it either way.
+            note = sync.auto_dump(self._store, self._store._db_path, changed=True)
+            if note:
+                self._store.sync_notes.append(note)
+        return response
 
 
 def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Starlette:
@@ -667,7 +718,15 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
     ]
     if _DIST.exists():
         routes.append(Mount("/", app=StaticFiles(directory=_DIST), name="static"))
-    return Starlette(routes=routes)
+    return Starlette(
+        routes=routes,
+        middleware=[Middleware(RefreshDumpAfterWrite, store=store)],
+        # Ctrl-C on the server is the ordinary way this process ends, and it is
+        # the moment the shared file lock should be released and the dump made
+        # final. A SIGKILL still skips it, which is what `dump_is_stale` heals
+        # on the next open. (`lifespan`, not the removed `on_shutdown` kwarg.)
+        lifespan=_close_store_on_shutdown(store),
+    )
 
 
 def main() -> None:

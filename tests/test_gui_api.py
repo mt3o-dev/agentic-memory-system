@@ -493,3 +493,75 @@ def test_consolidate_endpoint_gates_lifetime_and_validates(seeded):
         client.post("/api/consolidate", json={"instance_ids": ids[:1], "content": "x"}).status_code
         == 400
     )
+
+
+# --- the dump is published as the human rules, not whenever something else happens ---
+
+
+def test_a_human_ruling_reaches_the_tracked_dump_without_a_close(tmp_path):
+    """The GUI never calls close(), which is where auto_dump normally runs.
+
+    Human rulings are the one kind of knowledge in the graph that cannot be re-derived
+    from anything else, so leaving them in the gitignored database until some unrelated
+    command happens to open and close the store is the wrong default.
+    """
+    from agentic_memory_system import sync
+    from agentic_memory_system.agent_surface import AgentSurface
+
+    db = tmp_path / "graph.db"
+    seed = MemoryStore(db)
+    goal = AgentSurface(seed).create_change("demo", "seed")["goal_node_id"]
+    node_id = AgentSurface(seed).capture_artifact("A decision.", "decision", goal)["node_id"]
+    seed.close()                       # a normal session: the dump exists and is current
+    dump = sync.dump_path_for(db)
+    before = dump.read_text(encoding="utf-8")
+
+    store = MemoryStore(db)            # the GUI's store, which will never be closed
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    response = client.post(f"/api/nodes/{node_id}/tier", json={"tier": "mid-term"})
+    assert response.status_code == 200, response.text
+
+    after = dump.read_text(encoding="utf-8")
+    assert after != before, "the ruling never reached the tracked file"
+    assert "mid-term" in after
+    store.close()
+
+
+def test_a_read_publishes_nothing(tmp_path):
+    from agentic_memory_system import sync
+
+    from agentic_memory_system.agent_surface import AgentSurface
+
+    db = tmp_path / "graph.db"
+    seed = MemoryStore(db)
+    AgentSurface(seed).create_change("demo", "seed")
+    seed.close()
+    dump = sync.dump_path_for(db)
+    stamp = dump.stat().st_mtime_ns
+
+    store = MemoryStore(db)
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    assert client.get("/api/nodes").status_code == 200
+    assert dump.stat().st_mtime_ns == stamp
+    store.close()
+
+
+def test_a_rejected_write_publishes_nothing(tmp_path):
+    """The lifetime gate refuses without `confirmed` — and must not publish either."""
+    from agentic_memory_system import sync
+    from agentic_memory_system.agent_surface import AgentSurface
+
+    db = tmp_path / "graph.db"
+    seed = MemoryStore(db)
+    goal = AgentSurface(seed).create_change("demo", "seed")["goal_node_id"]
+    node_id = AgentSurface(seed).capture_artifact("A decision.", "decision", goal)["node_id"]
+    seed.close()
+    dump = sync.dump_path_for(db)
+    stamp = dump.stat().st_mtime_ns
+
+    store = MemoryStore(db)
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    response = client.post(f"/api/nodes/{node_id}/tier", json={"tier": "lifetime"})
+    assert response.status_code >= 400
+    assert dump.stat().st_mtime_ns == stamp
+    store.close()

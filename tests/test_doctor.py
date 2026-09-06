@@ -231,3 +231,32 @@ def test_the_cli_repairs_and_then_reports_healthy(tmp_path, capsys):
     cli_main(["--db", str(db), "doctor", "--repair"])
     out = capsys.readouterr().out
     assert "rebuilt" in out and "healthy" in out
+
+
+# --- the growth `compact_events` does not bound ---
+
+
+def test_a_busy_journal_is_reported_before_it_hurts(tmp_path, monkeypatch):
+    db = tmp_path / "graph.db"
+    _seed(db)
+    monkeypatch.setattr(doctor, "_BUSY_JOURNAL", 3)
+    conn = sqlite3.connect(str(db))
+    node = conn.execute("SELECT id FROM nodes LIMIT 1").fetchone()[0]
+    for i in range(5):
+        conn.execute(
+            "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+            "VALUES (?,?,'used',0.0,1,'test','busy','2026-07-01T12:00:00+00:00')",
+            (f"e{i}", node),
+        )
+    conn.commit()
+    conn.close()
+    findings = {f.check: f for f in doctor.diagnose(db)}
+    assert findings["journal"].level == doctor.WARN
+    # The reason compaction is still a stub belongs in the warning, not in a ticket.
+    assert "LastNWindowFold" in findings["journal"].detail
+
+
+def test_a_quiet_journal_is_fine(tmp_path):
+    db = tmp_path / "graph.db"
+    _seed(db)
+    assert _levels(db)["journal"] == doctor.OK

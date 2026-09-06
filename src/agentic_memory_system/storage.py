@@ -150,6 +150,10 @@ class MemoryStore:
         # even with auto_sync off, because the process that would replace the file is
         # some *other* process, and its setting is not ours to read.
         self._lock = locking.acquire(self._db_path) if lock else None
+        if lock and str(db_path) not in ("", ":memory:"):
+            reason = locking.unavailable_reason()
+            if reason:
+                self.sync_notes.append(reason)
         # check_same_thread=False: the GUI server's event loop may touch the
         # connection from a different thread than the one that opened it. Access is
         # still effectively serialized (single event loop / single test portal);

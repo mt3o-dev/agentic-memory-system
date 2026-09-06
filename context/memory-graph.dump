@@ -2429,3 +2429,84 @@ archived: false
 -> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T14:23:58.204193+00:00
 
 Every rebuild goes through sync.restore_from_text, never a file copy — it holds the exclusive lock and clears the -wal/-shm sidecars as part of the swap. A repair tool that replaced the file directly would reintroduce the exact corruption it was written to recover from.
+---
+[node:dfcb9ec4-cfda-4955-af4d-f0720bdda082]
+type: slice
+tier: short-term
+path: /change/store-durability-edges
+created_at: 2026-09-06T14:27:33.960883+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:0f81b0ae-4914-423a-a55a-d300ca54f22e] @ 2026-09-06T14:27:33.967899+00:00
+-> SCOPED_TO [node:848f7a8f-d528-4fea-9d97-1eed37984a76] @ 2026-09-06T14:27:33.970214+00:00
+-> SCOPED_TO [node:dacabd6e-9a87-4b82-9705-59d8f2e2f33a] @ 2026-09-06T14:27:33.969134+00:00
+-> SCOPED_TO [node:e2cfbe3f-e7d0-4aa3-9ab3-af0fff45011a] @ 2026-09-06T14:27:33.960883+00:00
+
+change scope: store-durability-edges
+---
+[event:a620beb9-6d1a-4464-9ceb-78d41bc6ae72]
+node_id: dfcb9ec4-cfda-4955-af4d-f0720bdda082
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T14:27:33.966857+00:00
+
+create_change store-durability-edges
+---
+[node:e2cfbe3f-e7d0-4aa3-9ab3-af0fff45011a]
+type: goal
+tier: short-term
+path: /goal/store-durability-edges
+created_at: 2026-09-06T14:27:33.960883+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:0f81b0ae-4914-423a-a55a-d300ca54f22e] @ 2026-09-06T14:27:33.967899+00:00
+-> DEPENDS_ON [node:848f7a8f-d528-4fea-9d97-1eed37984a76] @ 2026-09-06T14:27:33.970214+00:00
+-> DEPENDS_ON [node:dacabd6e-9a87-4b82-9705-59d8f2e2f33a] @ 2026-09-06T14:27:33.969134+00:00
+
+Close three edges where the store degrades quietly: unpublished GUI rulings, an unenforceable lock, and an unbounded journal
+---
+[node:0f81b0ae-4914-423a-a55a-d300ca54f22e]
+type: decision
+tier: short-term
+path: /artifact/the-gui-publishes-the-tracked-dump-after
+created_at: 2026-09-06T14:27:33.967899+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T14:27:33.967899+00:00
+
+The GUI publishes the tracked dump after any request that wrote something, via middleware rather than from its fifteen mutating endpoints — middleware is a place a sixteenth endpoint cannot forget to call. The dirty check is the same total_changes watermark close() uses, so a GET or a failed write publishes nothing. It matters because the GUI holds one store for the life of the server and never calls close(), so every human ruling — a cleared flag, a promotion, a ratified entity — used to sit in the gitignored database until some unrelated command happened to open and close the store. Those rulings are the one kind of knowledge in the graph that cannot be re-derived.
+---
+[node:dacabd6e-9a87-4b82-9705-59d8f2e2f33a]
+type: constraint
+tier: short-term
+path: /artifact/a-store-running-without-the-file-lock-sa
+created_at: 2026-09-06T14:27:33.969134+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T14:27:33.969134+00:00
+
+A store running without the file lock says so on every session (locking.unavailable_reason, surfaced through sync_notes), whether the cause is a platform without fcntl or a deliberate MEMORY_LOCK=0. Degrading silently would be the worst of both worlds — the guarantee gone and nothing announcing it — which is precisely the failure mode the git clean/smudge filter design died of.
+---
+[node:848f7a8f-d528-4fea-9d97-1eed37984a76]
+type: constraint
+tier: short-term
+path: /artifact/journal-compaction-cannot-be-strategy-ag
+created_at: 2026-09-06T14:27:33.970214+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T14:27:33.970214+00:00
+-> DEPENDS_ON [node:ea7c464b-4ccc-4bb8-8a75-21070559dcb2] @ 2026-09-06T14:27:33.970214+00:00
+
+Journal compaction cannot be strategy-agnostic, which is why compact_events() is still a no-op rather than merely unwritten. SumAndClampFold needs only the SUM of a node's events, so collapsing them is lossless for it; LastNWindowFold reads the last N events INDIVIDUALLY, so the same collapse changes its answer. Any compaction is therefore correct for some fold strategies and wrong for others, and a compaction design has to name which strategies it is allowed to break — or the FoldStrategy port has to grow a compaction operation each strategy implements for itself. `doctor` reports the busiest node's journal so the growth is noticed while it is still cheap.

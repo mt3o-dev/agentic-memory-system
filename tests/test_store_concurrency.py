@@ -370,3 +370,34 @@ def test_opening_a_backup_neither_rebuilds_it_nor_publishes_a_dump(tmp_path):
     assert "the rescued rows" in [
         r[0] for r in sqlite3.connect(str(backup)).execute("SELECT body FROM nodes")
     ]
+
+
+# --- degrading silently is the failure mode the git-filter design died of ---
+
+
+def test_a_store_without_the_lock_says_so(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEMORY_LOCK", "0")
+    db = tmp_path / "graph.db"
+    store = MemoryStore(db)
+    try:
+        assert any("locking is switched off" in note for note in store.sync_notes)
+    finally:
+        store.close()
+
+
+def test_a_store_with_the_lock_says_nothing_about_it(tmp_path):
+    db = tmp_path / "graph.db"
+    store = MemoryStore(db)
+    try:
+        assert not any("locking" in note for note in store.sync_notes)
+    finally:
+        store.close()
+
+
+def test_in_memory_stores_are_not_warned_about_a_lock_they_never_wanted(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEMORY_LOCK", "0")
+    store = MemoryStore(":memory:")
+    try:
+        assert store.sync_notes == []
+    finally:
+        store.close()

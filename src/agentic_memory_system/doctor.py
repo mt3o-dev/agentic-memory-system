@@ -90,6 +90,44 @@ def _held_elsewhere(db: Path) -> bool:
     return False
 
 
+# Trust folds over a node's FULL event history on every recompute and `compact_events`
+# is a deliberate no-op, so the cost of a hot node grows without bound. The threshold is
+# a smoke alarm, not a limit: it exists so the growth is noticed while it is still cheap.
+_BUSY_JOURNAL = 200
+
+
+def _journal_findings(db: Path) -> list[Finding]:
+    """Report the busiest node's journal — the growth `compact_events` does not bound."""
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return []
+    try:
+        row = conn.execute(
+            "SELECT node_id, count(*) AS n FROM events GROUP BY node_id "
+            "ORDER BY n DESC LIMIT 1"
+        ).fetchone()
+        total = conn.execute("SELECT count(*) FROM events").fetchone()[0]
+    except sqlite3.DatabaseError:
+        return []
+    finally:
+        conn.close()
+    if row is None:
+        return [Finding(OK, "journal", "no events yet")]
+    node_id, busiest = row
+    if busiest < _BUSY_JOURNAL:
+        return [Finding(OK, "journal", f"{total} events, busiest node has {busiest}")]
+    return [Finding(
+        WARN, "journal",
+        f"{total} events; node {node_id} has {busiest}, and trust folds over all of them "
+        f"on every recompute. compact_events() is still a no-op stub — and cannot simply "
+        f"collapse events, because a fold that reads individual recent ones "
+        f"(LastNWindowFold) and a fold that only needs their sum (SumAndClampFold) do not "
+        f"agree on what a compacted event means",
+        repair="",
+    )]
+
+
 def diagnose(db_path: str | Path) -> list[Finding]:
     """Every check, in the order a person would want to read them. Writes nothing."""
     db = Path(db_path)
@@ -185,6 +223,9 @@ def diagnose(db_path: str | Path) -> list[Finding]:
             ))
     elif any(p.exists() for p in _sidecars(db)):
         findings.append(Finding(OK, "sidecars", "present but empty"))
+
+    if db.exists() and sync.is_database(db):
+        findings.extend(_journal_findings(db))
 
     orphans = _staging(db)
     if orphans:
