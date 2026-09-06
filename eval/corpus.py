@@ -24,8 +24,10 @@ import contextlib
 import random
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
 from agentic_memory_system.agent_surface import AgentSurface
+from agentic_memory_system.schema import Event, EventType
 from agentic_memory_system.storage import MemoryStore
 
 # Query categories, each measuring something different about the pipeline.
@@ -34,8 +36,11 @@ PARAPHRASE = "paraphrase"        # same meaning, different words: hashed-BoW's w
 MULTI_HOP = "multi-hop"          # answer sits N hops from the goal via DEPENDS_ON
 CROSS_GOAL = "cross-goal-noise"  # a facet term is shared with an unrelated goal
 CONTRADICTION = "contradiction"  # answer is flagged: should rank faintly, not vanish
+QUALITY = "quality-over-structure"  # three structurally identical answers; only trust and
+                                    # age separate them, so it is the one category the
+                                    # quality blend has to earn its weights on
 
-CATEGORIES = (EXACT, PARAPHRASE, MULTI_HOP, CROSS_GOAL, CONTRADICTION)
+CATEGORIES = (EXACT, PARAPHRASE, MULTI_HOP, CROSS_GOAL, CONTRADICTION, QUALITY)
 
 
 @dataclass
@@ -48,6 +53,7 @@ class Query:
     gold: str           # key of the node that should rank first
     gold_facet: str = ""  # the facet stage 1 must find, where the category has one
     noise: tuple[str, ...] = ()  # nodes whose presence in the top-k is measurable noise
+    expect: str = "first"  # "first", or "demoted" where ranking it first is the failure
 
 
 @dataclass
@@ -169,6 +175,31 @@ _CORE: list[dict] = [
     },
 ]
 
+_CORE.append({
+    # Three answers to one question, deliberately indistinguishable by structure: same
+    # facet, same type, each anchored to the goal by capture in the same way. Only the
+    # quality terms can separate them, which makes this the category that says whether
+    # beta and gamma earn their weights or merely dilute alpha.
+    "scope": "pricing",
+    "goal": "Apply the discount rules the finance team actually signed off",
+    "nodes": [
+        ("discount-current", "decision", ["volume-discount"],
+         "A volume discount applies from the eleventh unit and is calculated on the whole "
+         "order, not on the units past the tenth, which is what the signed-off pricing "
+         "sheet says and what finance reconciles against."),
+        ("discount-stale", "decision", ["volume-discount"],
+         "A volume discount applies from the eleventh unit and is calculated only on the "
+         "units past the tenth, which is how the old spreadsheet did it."),
+        ("discount-disputed", "decision", ["volume-discount"],
+         "A volume discount applies from the sixth unit, at the rate agreed verbally with "
+         "the enterprise team."),
+    ],
+    "edges": [],
+    # discount-stale is OLD but uncontested; discount-disputed is fresh but contradicted.
+    "age_days": {"discount-stale": 45},
+    "erode_trust": {"discount-disputed": 0.6},
+})
+
 _QUERIES = [
     Query("vat rounding", EXACT, "billing", "vat-rounding", "vat-rounding"),
     Query("credit note", EXACT, "billing", "credit-note", "credit-note"),
@@ -191,7 +222,16 @@ _QUERIES = [
     Query("retention policy", CROSS_GOAL, "analytics", "customer-retention", "retention-policy",
           noise=("log-retention", "cold-archive")),
 
-    Query("how long is a product page cached", CONTRADICTION, "caching", "cache-ttl", "cache-invalidation"),
+    # The gold node here is the FLAGGED one, and ranking it first is the bug, not the
+    # goal: TrustTermPenalty's documented job is to keep a disputed node reachable and
+    # demoted. Scored as "present but not first" — MRR would reward exactly the failure.
+    Query("how long is a product page cached", CONTRADICTION, "caching", "cache-ttl",
+          "cache-invalidation", expect="demoted"),
+
+    Query("discount policy", QUALITY, "pricing", "discount-current", "volume-discount",
+          noise=("discount-stale", "discount-disputed")),
+    Query("how is a volume discount worked out", QUALITY, "pricing", "discount-current",
+          "volume-discount", noise=("discount-stale", "discount-disputed")),
 ]
 
 _FILLER_FACETS = [
@@ -199,6 +239,43 @@ _FILLER_FACETS = [
     "audit-logging", "image-resizing", "webhook-delivery", "search-indexing",
 ]
 _FILLER_TYPES = ["decision", "constraint", "concept", "issue", "invariant"]
+
+
+def _age(store: MemoryStore, node_id: str, days: int) -> None:
+    """Back-date a node, so the recency term has something to measure.
+
+    A fixture concern, done with SQL rather than through the surface: nothing in the
+    agent vocabulary can change when a node was created, and nothing should be able to.
+    Without it every node in a generated corpus is the same age and gamma cannot possibly
+    discriminate — which is not evidence that recency is worthless, only that the corpus
+    never asked it a question.
+    """
+    when = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    with store._conn:
+        store._conn.execute("UPDATE nodes SET created_at = ? WHERE id = ?", (when, node_id))
+
+
+def _erode_trust(store: MemoryStore, node_id: str, amount: float) -> None:
+    """Lower a node's trust by journalling a contradiction and folding it.
+
+    Two things this makes visible. Trust is clamped to [0, 1] and starts at 1.0, so it can
+    only ever move DOWN — a CONFIRMED event on an uncontested node is a no-op. And the
+    fold is lazy: ``flag_contradicted`` journals without recomputing, so a corpus that
+    only used the agent surface would leave every node at exactly 1.0 and the beta term
+    a constant. The explicit recompute here is the same call the GUI's per-node button
+    makes; it is what the (unbuilt) evaluator batch would do in bulk.
+    """
+    store.append_event(Event(
+        id=str(uuid.uuid4()),
+        node_id=node_id,
+        type=EventType.contradiction_raised,
+        weight=amount,
+        polarity=-1,
+        source="corpus",
+        reason="corpus fixture: a node the project has argued with",
+        created_at=datetime.now(timezone.utc),
+    ))
+    store.recompute_trust(node_id)
 
 
 @contextlib.contextmanager
@@ -251,6 +328,12 @@ def _populate(surface, store, corpus, filler_scopes: int, seed: int) -> None:
         for source, target in block.get("contradicts", []):
             surface.link(corpus.nodes[source], corpus.nodes[target], "CONTRADICTS")
 
+    for block in _CORE:
+        for key, days in block.get("age_days", {}).items():
+            _age(store, corpus.nodes[key], days)
+        for key, amount in block.get("erode_trust", {}).items():
+            _erode_trust(store, corpus.nodes[key], amount)
+
     # Cross-scope dependencies. Without them every scope is an island, PPR reaches only
     # the handful of nodes under one goal, and recall@k is 1.00 by construction rather
     # than by merit — the harness's first run said exactly that about itself. Real graphs
@@ -286,6 +369,11 @@ def _populate(surface, store, corpus, filler_scopes: int, seed: int) -> None:
             )["node_id"]
             key = f"{scope}-{position}"
             corpus.nodes[key] = node_id
+            _age(store, node_id, rng.randint(0, 60))
+            # A third of the filler has been argued with at some point, so the trust term
+            # has a gradient across the corpus rather than a single outlier.
+            if rng.random() < 0.33:
+                _erode_trust(store, node_id, round(rng.uniform(0.2, 0.7), 2))
             if previous is not None and rng.random() < 0.6:
                 surface.link(node_id, previous, "DEPENDS_ON")
             previous = node_id

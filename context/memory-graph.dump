@@ -2611,13 +2611,23 @@ type: issue
 tier: short-term
 path: /artifact/the-ablation-matrix-is-not-yet-interpret
 created_at: 2026-09-06T14:34:03.074005+00:00
-needs_review: false
+needs_review: true
 retrieval_weight: 1.0
 trust_weight: 1.0
 archived: false
 -> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T14:34:03.074005+00:00
 
 The ablation matrix is not yet interpretable and must not be used to retune production weights. Every node in the corpus is created in one run with almost no journal events, so trust_weight and recency are nearly uniform; terms carrying no signal cannot help ranking and can only dilute the one term that does. That is why structure-only (alpha=1) currently beats the shipped blend by a wide margin — a property of the corpus, not evidence about alpha/beta/gamma. Making it interpretable needs seeded trust events and spread created_at values, with gold labels chosen so a low-trust node SHOULD rank below a high-trust one.
+---
+[event:beb044b7-2127-436b-8082-370bce2672d4]
+node_id: c93d1e00-1032-4b07-980b-2f74fb27e405
+type: contradiction_raised
+weight: 1.0
+polarity: -1
+source: agent-surface
+created_at: 2026-09-06T15:22:02.719500+00:00
+
+contradicted at capture of 0ad01f9d-098d-45d8-bae1-39841825bb96
 ---
 [node:c4b9143a-23c5-4fc7-90db-2079c61f891b]
 type: issue
@@ -2632,3 +2642,133 @@ archived: false
 -> DEPENDS_ON [node:e08e5065-ba2a-4c0b-8883-6f528dff948e] @ 2026-09-06T14:34:03.074794+00:00
 
 Measured baseline for hashed bag-of-words: stage-1 facet recall is 1.00 on exact-facet-match queries and 0.00 on paraphrase. The weakness was previously asserted by code inspection; it is now a number. The cost downstream is visible as the gap between stage-2 MRR (0.80) and end-to-end MRR (0.63) on the paraphrase category, and closing that gap is exactly what an embedder swap has to demonstrate.
+---
+[node:02c32a12-01be-4627-bc6a-48a30c751115]
+type: goal
+tier: short-term
+path: /goal/embedder-swap-measured
+created_at: 2026-09-06T15:22:02.709610+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:0ad01f9d-098d-45d8-bae1-39841825bb96] @ 2026-09-06T15:22:02.719500+00:00
+-> DEPENDS_ON [node:1c8a0dee-5a96-4d04-ae8f-543270339e16] @ 2026-09-06T15:22:02.718735+00:00
+-> DEPENDS_ON [node:263ef4a7-9561-4ab5-a75d-d54114faa996] @ 2026-09-06T15:22:02.716011+00:00
+-> DEPENDS_ON [node:4b42b552-831b-4add-9588-af381570eb19] @ 2026-09-06T15:22:02.717872+00:00
+-> DEPENDS_ON [node:69a3dad5-2933-4e33-81d8-5a8068ce3bf6] @ 2026-09-06T15:22:02.716983+00:00
+-> DEPENDS_ON [node:a70015dd-a95e-499c-96e5-f7a6395024df] @ 2026-09-06T15:22:02.720369+00:00
+
+Make the ablation interpretable, then measure the embedder swap instead of assuming it
+---
+[node:d80e0b39-8dc4-4059-bedb-453ee1142908]
+type: slice
+tier: short-term
+path: /change/embedder-swap-measured
+created_at: 2026-09-06T15:22:02.709610+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:02c32a12-01be-4627-bc6a-48a30c751115] @ 2026-09-06T15:22:02.709610+00:00
+-> SCOPED_TO [node:0ad01f9d-098d-45d8-bae1-39841825bb96] @ 2026-09-06T15:22:02.719500+00:00
+-> SCOPED_TO [node:1c8a0dee-5a96-4d04-ae8f-543270339e16] @ 2026-09-06T15:22:02.718735+00:00
+-> SCOPED_TO [node:263ef4a7-9561-4ab5-a75d-d54114faa996] @ 2026-09-06T15:22:02.716011+00:00
+-> SCOPED_TO [node:4b42b552-831b-4add-9588-af381570eb19] @ 2026-09-06T15:22:02.717872+00:00
+-> SCOPED_TO [node:69a3dad5-2933-4e33-81d8-5a8068ce3bf6] @ 2026-09-06T15:22:02.716983+00:00
+-> SCOPED_TO [node:a70015dd-a95e-499c-96e5-f7a6395024df] @ 2026-09-06T15:22:02.720369+00:00
+
+change scope: embedder-swap-measured
+---
+[event:566ecc76-460b-4ee1-a98c-332a3b822640]
+node_id: d80e0b39-8dc4-4059-bedb-453ee1142908
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T15:22:02.715200+00:00
+
+create_change embedder-swap-measured
+---
+[node:263ef4a7-9561-4ab5-a75d-d54114faa996]
+type: constraint
+tier: short-term
+path: /artifact/in-production-the-beta-term-is-only-the
+created_at: 2026-09-06T15:22:02.716011+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T15:22:02.716011+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T15:22:02.716011+00:00
+
+In production the beta term is ONLY the flag penalty, because trust_weight never varies. flag_contradicted journals a contradiction without folding it, recompute_trust is lazy, and its only production caller is a per-node button in the GUI — there is no batch. Every node in this repository's own graph sits at exactly 1.0, so beta*trust is a constant added to every candidate except flagged ones and cannot discriminate between two healthy nodes at any value of beta.
+---
+[node:69a3dad5-2933-4e33-81d8-5a8068ce3bf6]
+type: constraint
+tier: short-term
+path: /artifact/beta-is-also-the-ceiling-on-staleness-n
+created_at: 2026-09-06T15:22:02.716983+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T15:22:02.716983+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T15:22:02.716983+00:00
+
+beta is also the CEILING ON STALENESS, not just the trust weight. TrustTermPenalty computes hop*(alpha*retrieval + beta*trust*(1-p) + gamma*recency), so the review-flag penalty p reaches the score only through beta. Setting beta=0 does not merely ignore trust — it switches the staleness penalty off entirely, and a disputed node then ranks first. Anyone lowering beta to favour structure is quietly weakening staleness at the same time, and nothing in the code says so.
+---
+[node:4b42b552-831b-4add-9588-af381570eb19]
+type: decision
+tier: short-term
+path: /artifact/the-static-model-embedder-model2vec-be
+created_at: 2026-09-06T15:22:02.717872+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T15:22:02.717872+00:00
+-> DEPENDS_ON [node:e08e5065-ba2a-4c0b-8883-6f528dff948e] @ 2026-09-06T15:22:02.717872+00:00
+
+The static-model embedder (model2vec, behind the existing Embedder port) ships as an OPTIONAL extra and is never the default, opted into with MEMORY_EMBEDDER=static. A default that silently downloaded a model on first use would be exactly the out-of-band dependency docs/08_TRANSPORTS.md argues cannot be made transparent by documenting it better. Static embeddings were chosen over a sentence-transformer because they are a token lookup table: no torch, ~30MB, and deterministic by construction, so retrieval stays the pure function MT3-20 requires.
+---
+[node:1c8a0dee-5a96-4d04-ae8f-543270339e16]
+type: constraint
+tier: short-term
+path: /artifact/the-facet-collision-threshold-belongs-to
+created_at: 2026-09-06T15:22:02.718735+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T15:22:02.718735+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-06T15:22:02.718735+00:00
+
+The facet-collision threshold belongs to the EMBEDDER, not to the governance code (Embedder.suggest_threshold). It is a property of that embedder's similarity scale: hashed bag-of-words puts a genuine near-duplicate at 0.50 and an unrelated pair at 0.00, while the static model puts the same pairs at 0.41-0.75 and 0.00-0.19. Swapping the embedder while leaving the hardcoded 0.35 behind would silently switch facet-collision detection off and the controlled vocabulary would stop being controlled with nobody told. The static model's 0.30 was measured against those pairs, not guessed — an initial guess of 0.55 would have missed two of four real collisions.
+---
+[node:0ad01f9d-098d-45d8-bae1-39841825bb96]
+type: decision
+tier: short-term
+path: /artifact/measured-result-of-the-embedder-swap-st
+created_at: 2026-09-06T15:22:02.719500+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T15:22:02.719500+00:00
+-> CONTRADICTS [node:c93d1e00-1032-4b07-980b-2f74fb27e405] @ 2026-09-06T15:22:02.719500+00:00
+
+Measured result of the embedder swap: stage-1 facet recall on paraphrase queries goes 0.00 -> 0.80 and end-to-end top-1 success does not move at all (0.67 both ways). What improves is the shape of the rest of the ranking — focus 0.87 -> 0.97, noise 0.32 -> 0.25 — because better seeds redistribute PPR mass among nodes the goal already reaches rather than reaching different ones. The obvious explanation, that goal_weight=0.7 caps the supplementary seeds, was TESTED AND REFUTED: lowering it to 0.5 and 0.3 leaves paraphrase success flat. So the swap is worth having if a caller reads past rank 1, which an agent consuming a recall bundle does, and is not worth a required model download for top-1 accuracy.
+---
+[node:a70015dd-a95e-499c-96e5-f7a6395024df]
+type: constraint
+tier: short-term
+path: /artifact/mrr-is-the-wrong-metric-for-a-query-whos
+created_at: 2026-09-06T15:22:02.720369+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T15:22:02.720369+00:00
+
+MRR is the wrong metric for a query whose correct outcome is demotion. For the contradiction category the gold node is the FLAGGED one and TrustTermPenalty's documented job is to keep it reachable but not first — so MRR rewards precisely the failure, and a weighting that disables the penalty scores as an improvement. Benchmark queries carry an expected outcome (first / demoted) and are scored against it. The design had warned about this in words and the harness did it anyway on its first version.

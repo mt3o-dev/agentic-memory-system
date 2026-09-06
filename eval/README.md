@@ -18,7 +18,7 @@ made to either:
 
 | | what it does | what can move it |
 |---|---|---|
-| **Stage 1** — seed discovery | embeds the query, ranks live `facet_value` bodies by cosine, expands matches through `HAS_FACET` to member nodes | the embedder, the facet vocabulary |
+| **Stage 1** — seed discovery | embeds the query, ranks live `facet_value` bodies by cosine, expands matches through `HAS_FACET` to member nodes | the embedder (`MEMORY_EMBEDDER=hashed\|static`), the facet vocabulary |
 | **Stage 2** — composition | goal-dominant PPR over the content graph, then `mass × (α·retrieval + β·trust + γ·recency)` | edge policy, damping, goal weight, α/β/γ |
 
 Swapping the embedder can only move stage 1. Retuning the weights can only move stage 2.
@@ -82,23 +82,87 @@ measurement rather than in the system:
    `recall@k` discriminates is the obvious next iteration — which the design anticipated
    as the thing that cannot be decided on paper.
 
-## What this corpus cannot yet measure — read before acting on the ablation
+## The embedder swap, measured
 
-The ablation table reports end-to-end MRR under four quality blends, and on the current
-corpus **every variant beats the shipped defaults**, with structure-only (α=1, β=0, γ=0)
-well ahead.
+The reason the harness was built first. `MEMORY_EMBEDDER=static` swaps
+`HashedBagOfWordsEmbedder` for `StaticModelEmbedder` (model2vec, opt-in, `uv sync --extra
+embeddings`). Both baselines are in `eval/results/`.
 
-**Do not retune production weights on that.** Every node in this corpus is created in one
-run and almost none carry journal events, so `trust_weight` and `recency` are very nearly
-uniform across it. Terms that carry no signal cannot help ranking and can only dilute the
-one term that does. The result is therefore a property of the corpus, not evidence about
-α/β/γ.
+| | hashed bag-of-words | static model |
+|---|---|---|
+| stage-1 facet recall, **paraphrase** | **0.00** | **0.80** |
+| stage-1 facet recall, exact-match | 1.00 | 1.00 |
+| end-to-end `success`, all | 0.67 | 0.67 |
+| end-to-end MRR | 0.78 | 0.76 |
+| end-to-end **focus** | 0.87 | **0.97** |
+| end-to-end **noise** | 0.32 | **0.25** |
 
-Making the ablation interpretable means giving the corpus **trust and recency variance** —
-seeded confirmation and contradiction events, and spread `created_at` values — with gold
-labels chosen so a low-trust node *should* rank below a high-trust one. That is the next
-piece of work on this harness, and until it is done the ablation is a wiring test: it
-proves the matrix runs and the weights are reachable, nothing more.
+**Stage 1 improved enormously and the top answer did not change.** That is the finding,
+and it is the one a single blended number would have hidden in either direction — it would
+have reported "no improvement" and buried a 0.00 → 0.80, or reported the stage-1 gain and
+implied a ranking win that is not there.
+
+What did change is the *shape of the rest of the list*: focus 0.87 → 0.97 and noise 0.32 →
+0.25. Better seeds redistribute PPR mass among the nodes the goal already reaches, rather
+than reaching different nodes. On a corpus like this one the top-1 answer is usually
+already reachable from the goal alone.
+
+The obvious explanation — that `goal_weight=0.7` caps how much supplementary seeds can
+matter — was **tested and refuted**: lowering it to 0.5 and 0.3 leaves paraphrase success
+flat at 0.40 for the static embedder. Whatever bounds it is not the seed budget.
+
+So the honest recommendation, which is why the swap ships as an optional extra rather than
+as the default: it is worth having if a caller reads past rank 1 — which an agent
+consuming a recall bundle does — and it is not worth a required model download for top-1
+accuracy on corpora that look like this.
+
+## What the ablation says, and the two couplings behind it
+
+The ablation reports each weighting per category, plus MRR over the categories whose
+right answer is rank 1. Two things have to be understood before reading it, and both were
+found by running it.
+
+**β is not just "how much trust matters" — it is also the ceiling on staleness.**
+`TrustTermPenalty`, the locked default, computes `hop × (α·retrieval + β·trust·(1−p) +
+γ·recency)`. The review-flag penalty `p` only ever reaches the score *through β*. So
+`β = 0` does not merely ignore trust, it **switches the staleness penalty off entirely** —
+which is why the structure-only row scores 0.00 on the contradiction category: it ranks a
+disputed node first. Anyone lowering β to favour structure is quietly weakening staleness
+at the same time, and nothing in the code says so.
+
+**In production the β term is *only* the flag penalty**, because `trust_weight` never
+varies. `flag_contradicted` journals a contradiction without folding it, `recompute_trust`
+is lazy, and the only production caller of it is a per-node button in the GUI — there is
+no batch (the evaluator that would be one is [#13](../../../issues/13)). Every node in this
+repository's own graph sits at exactly 1.0. So `β·trust` is a constant added to every
+candidate except flagged ones, and the term cannot discriminate between two healthy nodes
+no matter what β is set to.
+
+The benchmark corpus therefore builds trust variance **explicitly** — journalling
+contradictions and folding them with `recompute_trust`, which is what the GUI button does
+per node and what a batch would do in bulk — and spreads `created_at` across 60 days.
+Without that, β and γ are constants and the ablation measures nothing, which is exactly
+what its first run reported.
+
+**Still do not retune production weights from one small synthetic corpus.** The ablation
+now asks a real question and gets a specific answer; treat that as a hypothesis worth a
+larger corpus, not a mandate.
+
+## Two things the first runs said about the harness itself
+
+Both were bugs in the measurement rather than in the system:
+
+1. **Every scope was an island.** With no cross-scope edges, PPR reached only the handful
+   of nodes under one goal and `recall@k` was 1.00 by construction. The corpus now has
+   cross-scope `DEPENDS_ON` edges, as real graphs do. `recall@k` is *still* saturated at
+   k=5 and is reported only for completeness — **`success`, MRR and focus are the signals**
+   at this size.
+2. **MRR scored the staleness penalty as a miss.** For the contradiction category the gold
+   node is the *flagged* one and the correct behaviour is present-but-demoted, so ranking
+   it first is the bug — and MRR rewarded exactly that. The design had warned about this
+   in words ("not a 'bug' the harness should report as a miss") and the harness did it
+   anyway. Queries now carry an `expect` of `first` or `demoted`, and `success` is scored
+   against it.
 
 ## Results
 

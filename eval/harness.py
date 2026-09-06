@@ -142,10 +142,19 @@ def _score_queries(corpus, isolate_stage_two: bool) -> dict[str, dict[str, float
 
         rank = _rank_of(results, gold_id)
         bucket = per_category.setdefault(
-            query.category, {"recall": [], "mrr": [], "focus": [], "noise": []}
+            query.category, {"recall": [], "mrr": [], "focus": [], "noise": [], "success": []}
         )
         bucket["recall"].append(1.0 if rank is not None and rank <= K else 0.0)
-        bucket["mrr"].append(1.0 / rank if rank else 0.0)
+        # `success` is the correctness column, and it is not always "rank 1". For the
+        # contradiction category the right answer is present-but-demoted, so MRR scores
+        # the failure as perfect — a weighting that disables the staleness penalty would
+        # look like an improvement. That is the mistake the design warned about by name:
+        # the penalty doing its job "is not a bug the harness should report as a miss".
+        if query.expect == "demoted":
+            bucket["success"].append(1.0 if rank is not None and rank > 1 else 0.0)
+        else:
+            bucket["success"].append(1.0 if rank == 1 else 0.0)
+            bucket["mrr"].append(1.0 / rank if rank else 0.0)
         # focus: how little of the ranked list a caller reads past before the answer.
         # 1.0 when it is first, falling toward 0 as it sinks. Defined here rather than
         # borrowed: there is no token budget in a graph read, so Engram's version of the
@@ -161,8 +170,9 @@ def _score_queries(corpus, isolate_stage_two: bool) -> dict[str, dict[str, float
             )
     return {
         category: {
+            "success": _mean(values["success"]),
             "recall@k": _mean(values["recall"]),
-            "MRR": _mean(values["mrr"]),
+            "MRR": _mean(values["mrr"]) if values["mrr"] else float("nan"),
             "focus": _mean(values["focus"]),
             "noise": _mean(values["noise"]) if values["noise"] else float("nan"),
             "n": len(values["recall"]),
@@ -197,10 +207,10 @@ def report(corpus) -> str:
         _table("Stage 1 — seed discovery, isolated", stage_one(corpus), ["facet_recall"]),
         _table("Stage 2 — composition, with seed discovery held correct",
                _score_queries(corpus, isolate_stage_two=True),
-               ["recall@k", "MRR", "focus", "noise"]),
+               ["success", "recall@k", "MRR", "focus", "noise"]),
         _table("End to end — both stages as shipped (the headline)",
                _score_queries(corpus, isolate_stage_two=False),
-               ["recall@k", "MRR", "focus", "noise"]),
+               ["success", "recall@k", "MRR", "focus", "noise"]),
     ]
     ablations = [
         ("shipped defaults (a=0.5, b=0.3, c=0.2)", 0.5, 0.3, 0.2),
@@ -208,12 +218,20 @@ def report(corpus) -> str:
         ("trust only (a=0, b=1, c=0)", 0.0, 1.0, 0.0),
         ("recency only (a=0, b=0, c=1)", 0.0, 0.0, 1.0),
     ]
-    lines = ["### Ablation — end-to-end MRR under each quality blend", "",
-             "| weighting | overall MRR |", "|---|---|"]
+    lines = ["### Ablation — end-to-end, per category", "",
+             "`success` is the correctness column; MRR aggregates only the categories "
+             "whose right answer is rank 1. **β is not just the trust weight** — "
+             "`TrustTermPenalty` computes `β·trust·(1−p)`, so β=0 disables the staleness "
+             "penalty outright, which is why the structure-only column can 'win' the "
+             "contradiction category by failing to demote a disputed node.", "",
+             "| weighting | " + " | ".join(corpus_module.CATEGORIES) + " | MRR (rank-1 categories) |",
+             "|---|" + "---|" * (len(corpus_module.CATEGORIES) + 1)]
     for label, alpha, beta, gamma in ablations:
         with _weights(alpha, beta, gamma):
             rows = _score_queries(corpus, isolate_stage_two=False)
-        lines.append(f"| {label} | {_mean([r['MRR'] for r in rows.values()]):.3f} |")
+        cells = [f"{rows[c]['success']:.2f}" if c in rows else "—" for c in corpus_module.CATEGORIES]
+        mrr = _mean([r["MRR"] for r in rows.values() if r["MRR"] == r["MRR"]])
+        lines.append(f"| {label} | " + " | ".join(cells) + f" | {mrr:.3f} |")
     parts.append("\n".join(lines) + "\n")
     return "\n".join(parts)
 

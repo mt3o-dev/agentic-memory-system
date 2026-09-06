@@ -35,12 +35,26 @@ def built(tmp_path):
 
 def test_the_corpus_builds_through_the_real_write_path(built):
     """Not raw store writes: goal-first anchoring and facet governance are exercised."""
-    assert len(built.goals) == 10          # six labelled scopes + four filler
+    assert len(built.goals) == 11          # seven labelled scopes + four filler
     assert built.nodes and built.facets
     flagged = built.store._conn.execute(
         "SELECT count(*) FROM nodes WHERE needs_review = 1"
     ).fetchone()[0]
     assert flagged == 1, "the contradiction category needs exactly one flagged node"
+
+
+def test_the_corpus_has_trust_and_recency_to_measure(built):
+    """Without variance in these, beta and gamma cannot discriminate and the ablation
+    measures nothing — which is what the harness's first run actually reported."""
+    trusts = {
+        row[0] for row in built.store._conn.execute("SELECT DISTINCT trust_weight FROM nodes")
+    }
+    assert len(trusts) > 1, "every node at trust 1.0 makes the beta term a constant"
+    assert min(trusts) < 1.0
+    days = built.store._conn.execute(
+        "SELECT count(DISTINCT substr(created_at, 1, 10)) FROM nodes"
+    ).fetchone()[0]
+    assert days > 1, "every node the same age makes the gamma term a constant"
 
 
 def test_every_gold_label_resolves(built):

@@ -14,7 +14,7 @@ from .penalty import (
     ScoreComponents,
     compute_penalty,
 )
-from .embedding import Embedder, HashedBagOfWordsEmbedder, cosine
+from .embedding import Embedder, HashedBagOfWordsEmbedder, cosine, default_embedder
 from .retrieval import (
     DEFAULT_DAMPING,
     DEFAULT_EDGE_POLICY,
@@ -195,7 +195,7 @@ class MemoryStore:
         self._conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
         self._fold_strategy = fold_strategy or SumAndClampFold()
         self._penalty_strategy = penalty_strategy or TrustTermPenalty()
-        self._embedder = embedder or HashedBagOfWordsEmbedder()
+        self._embedder = embedder or default_embedder()
         self._edge_policy = edge_policy or DEFAULT_EDGE_POLICY
         with self._conn:
             self._conn.execute(_CREATE_NODES)
