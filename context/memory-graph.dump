@@ -2009,7 +2009,7 @@ type: issue
 tier: short-term
 path: /artifact/the-bootstrap-record-specifies-github-ac
 created_at: 2026-09-06T11:52:38.454656+00:00
-needs_review: false
+needs_review: true
 retrieval_weight: 1.0
 trust_weight: 1.0
 archived: false
@@ -2026,6 +2026,16 @@ source: agent-surface
 created_at: 2026-09-06T11:52:38.482864+00:00
 
 backfilled from the change's own design record
+---
+[event:22165d2d-4aa2-46a2-b920-2c48be48403a]
+node_id: 53a0fee4-bab0-4bb4-8f2c-760a10ba6599
+type: contradiction_raised
+weight: 1.0
+polarity: -1
+source: agent-surface
+created_at: 2026-09-06T12:15:40.861134+00:00
+
+contradicted at capture of f20fb97a-7f76-40d8-913b-fb41e4240bd3
 ---
 [node:26ef9168-17f1-4b89-bc9a-2d177a5a4acb]
 type: goal
@@ -2188,3 +2198,139 @@ source: agent-surface
 created_at: 2026-09-06T11:56:03.442995+00:00
 
 decided during the backfill
+---
+[node:29b6c0dc-7cab-4ab9-a2d5-50e6904181eb]
+type: goal
+tier: short-term
+path: /goal/ci-test-workflow
+created_at: 2026-09-06T12:15:40.854266+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:1fd42cfc-2d7e-4ce3-95ea-37999624cdc6] @ 2026-09-06T12:15:40.862454+00:00
+-> DEPENDS_ON [node:63d74e1e-19a2-423b-aa33-a23900f5451b] @ 2026-09-06T12:15:40.863462+00:00
+-> DEPENDS_ON [node:910fbeef-ff8b-41d1-bd7e-b7ac4ea07a65] @ 2026-09-06T12:15:40.864447+00:00
+-> DEPENDS_ON [node:f20fb97a-7f76-40d8-913b-fb41e4240bd3] @ 2026-09-06T12:15:40.861134+00:00
+
+Make a green PR mean the tests actually passed, by running the suite in CI on every push and pull request
+---
+[node:ffb8f9e6-890a-45c7-acf8-d77a114edd94]
+type: slice
+tier: short-term
+path: /change/ci-test-workflow
+created_at: 2026-09-06T12:15:40.854266+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:1fd42cfc-2d7e-4ce3-95ea-37999624cdc6] @ 2026-09-06T12:15:40.862454+00:00
+-> SCOPED_TO [node:29b6c0dc-7cab-4ab9-a2d5-50e6904181eb] @ 2026-09-06T12:15:40.854266+00:00
+-> SCOPED_TO [node:63d74e1e-19a2-423b-aa33-a23900f5451b] @ 2026-09-06T12:15:40.863462+00:00
+-> SCOPED_TO [node:910fbeef-ff8b-41d1-bd7e-b7ac4ea07a65] @ 2026-09-06T12:15:40.864447+00:00
+-> SCOPED_TO [node:f20fb97a-7f76-40d8-913b-fb41e4240bd3] @ 2026-09-06T12:15:40.861134+00:00
+
+change scope: ci-test-workflow
+---
+[event:ac6b30c6-ff7b-43f3-8131-03a6fd12843a]
+node_id: ffb8f9e6-890a-45c7-acf8-d77a114edd94
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T12:15:40.860301+00:00
+
+create_change ci-test-workflow
+---
+[node:f20fb97a-7f76-40d8-913b-fb41e4240bd3]
+type: decision
+tier: short-term
+path: /artifact/the-test-suite-runs-in-ci-on-github-host
+created_at: 2026-09-06T12:15:40.861134+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> CONTRADICTS [node:53a0fee4-bab0-4bb4-8f2c-760a10ba6599] @ 2026-09-06T12:15:40.861134+00:00
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T12:15:40.861134+00:00
+
+The test suite runs in CI on GitHub-hosted ARM64 (`ubuntu-24.04-arm`), NOT on the org's Ampere self-hosted runner, which was the first choice. GitHub refuses to dispatch jobs from a PUBLIC repository to a self-hosted runner whose group has allows_public_repositories=false — verified empirically: the job queued indefinitely with the runner online, idle, and labelled correctly. Relaxing that policy would expose the maintainer's own hardware to arbitrary code from fork pull requests, which is not a trade worth making for a test suite. GitHub's ARM64 image keeps the architecture, is free for public repos, and runs the suite in about ten seconds.
+---
+[event:bac95712-4188-472a-8cbe-c8afcb850ff2]
+node_id: f20fb97a-7f76-40d8-913b-fb41e4240bd3
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T12:15:40.865378+00:00
+
+decided while adding the CI workflow
+---
+[node:1fd42cfc-2d7e-4ce3-95ea-37999624cdc6]
+type: constraint
+tier: short-term
+path: /artifact/astral-sh-setup-uv-publishes-moving-majo
+created_at: 2026-09-06T12:15:40.862454+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T12:15:40.862454+00:00
+
+astral-sh/setup-uv publishes moving major tags only up to v7 while its releases have reached v10.x, so `astral-sh/setup-uv@v10` does not resolve and the job dies in 'Set up job' before checking anything out. Pin that action to an exact version. Do not assume an action publishes a floating major just because actions/checkout does — checkout@v7 resolves, setup-uv@v10 does not.
+---
+[event:d921856d-c859-452c-b2c1-c0b69a71681b]
+node_id: 1fd42cfc-2d7e-4ce3-95ea-37999624cdc6
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T12:15:40.866025+00:00
+
+decided while adding the CI workflow
+---
+[node:63d74e1e-19a2-423b-aa33-a23900f5451b]
+type: issue
+tier: short-term
+path: /artifact/release-yml-still-pins-the-node-20-era-a
+created_at: 2026-09-06T12:15:40.863462+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T12:15:40.863462+00:00
+
+release.yml still pins the Node 20-era actions (checkout@v4, setup-uv@v5, setup-node@v4, action-gh-release@v2) and will break when Node 20 is removed from the runners. The tests workflow was moved off them; the release pipeline was deliberately left alone as out of scope, so it is a known, dated liability rather than an unknown one.
+---
+[event:2c832445-4364-492e-a233-28ae3e92c24a]
+node_id: 63d74e1e-19a2-423b-aa33-a23900f5451b
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T12:15:40.866757+00:00
+
+decided while adding the CI workflow
+---
+[node:910fbeef-ff8b-41d1-bd7e-b7ac4ea07a65]
+type: decision
+tier: short-term
+path: /artifact/fork-pull-requests-are-tested-because-t
+created_at: 2026-09-06T12:15:40.864447+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T12:15:40.864447+00:00
+
+Fork pull requests ARE tested, because the runner is GitHub-hosted and therefore ephemeral and isolated. The fork-skip guard written for the self-hosted attempt was removed with it — on self-hosted hardware skipping forks is mandatory, on GitHub-hosted it would only deny contributors a signal for no safety gain.
+---
+[event:e77f3ef3-8478-4360-a9d5-b4f0b73f4137]
+node_id: 910fbeef-ff8b-41d1-bd7e-b7ac4ea07a65
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T12:15:40.867565+00:00
+
+decided while adding the CI workflow
