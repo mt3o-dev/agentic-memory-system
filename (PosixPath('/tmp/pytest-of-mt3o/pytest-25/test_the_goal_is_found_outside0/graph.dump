@@ -1,0 +1,51 @@
+# agentic-memory-system dump
+# format_version: 1
+
+[node:73ed35a9-2c1a-4c2a-b1f1-ebd6846dda4c]
+type: goal
+tier: short-term
+path: /goal/odd-one
+created_at: 2026-09-06T14:17:38.896755+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:1a87d1ec-c83f-4de0-95d6-db45ec78579d] @ 2026-09-06T14:17:38.898226+00:00
+
+do odd-one
+---
+[node:f5e4be8c-f0f9-4a7d-a16d-2db43427327e]
+type: slice
+tier: short-term
+path: /change/odd-one
+created_at: 2026-09-06T14:17:38.896755+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:1a87d1ec-c83f-4de0-95d6-db45ec78579d] @ 2026-09-06T14:17:38.898226+00:00
+-> SCOPED_TO [node:73ed35a9-2c1a-4c2a-b1f1-ebd6846dda4c] @ 2026-09-06T14:17:38.896755+00:00
+
+change scope: odd-one
+---
+[event:2e519604-e8ee-4c35-9d16-957daea40b57]
+node_id: f5e4be8c-f0f9-4a7d-a16d-2db43427327e
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T14:17:38.897495+00:00
+
+create_change odd-one
+---
+[node:1a87d1ec-c83f-4de0-95d6-db45ec78579d]
+type: decision
+tier: short-term
+path: /artifact/a-decision-number-0
+created_at: 2026-09-06T14:17:38.898226+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+A decision number 0.

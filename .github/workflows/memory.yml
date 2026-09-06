@@ -1,0 +1,53 @@
+name: memory
+
+# The gate on the failure this project actually suffered: ten changes were implemented,
+# reviewed and merged while its own memory graph held two nodes, and nothing anywhere
+# said so. Two checks, because there are two ways to lose the knowledge:
+#
+#   backlogs --strict   a session KNEW the store was unreachable, queued its operations
+#                       to memory-backlog.md, and nobody ever replayed them
+#   coverage            nobody noticed at all — a change marked done whose memory_goal is
+#                       missing, dangling, or points at a scope with nothing in it
+#
+# The second is the commoner one and the one no alarm existed for. Both read the graph
+# rebuilt from the tracked dump, so this is a check on what the PR actually contains.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: memory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to an exact version, not a floating major: setup-uv publishes moving
+      # major tags only up to v7, so `@v10` does not resolve at all.
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Unreplayed degraded-mode backlogs
+        run: uv run --frozen python scripts/memory_lifecycle.py backlogs --strict
+
+      # Opens the store, which rebuilds context/memory-graph.db from the tracked dump
+      # first — so a PR that adds a change without capturing anything fails here even
+      # though the database itself is never committed.
+      - name: Every finished change has captured something
+        run: uv run --frozen python scripts/memory_lifecycle.py coverage

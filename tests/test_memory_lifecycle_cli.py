@@ -120,3 +120,100 @@ def test_it_never_opens_the_store(tmp_path, capsys):
 def test_a_missing_changes_dir_is_not_an_error(tmp_path, capsys):
     memory_lifecycle.main(["backlogs", "--changes-dir", str(tmp_path / "nope")])
     assert capsys.readouterr().out == ""
+
+
+# --- coverage: the failure `backlogs` cannot see, because nobody knew it happened ---
+
+
+def _change_folder(root, change_id, status, goal=None, filename="change.md"):
+    folder = root / change_id
+    folder.mkdir(parents=True, exist_ok=True)
+    lines = ["---", f"change_id: {change_id}", f"status: {status}"]
+    if goal:
+        lines.append(f"memory_goal: {goal}")
+    lines += ["---", "", "## Notes", "", "Something happened."]
+    (folder / filename).write_text("\n".join(lines), encoding="utf-8")
+    return folder
+
+
+def _scope(db_path, change_id, artifacts=1):
+    """Open a real change scope and capture into it, returning the goal id."""
+    store = MemoryStore(db_path)
+    surface = AgentSurface(store)
+    try:
+        goal = surface.create_change(change_id, f"do {change_id}")["goal_node_id"]
+        for i in range(artifacts):
+            surface.capture_artifact(f"A decision number {i}.", "decision", goal)
+        return goal
+    finally:
+        store.close()
+
+
+def test_a_finished_change_with_no_memory_goal_is_a_gap(db, tmp_path, capsys):
+    root = tmp_path / "changes"
+    _change_folder(root, "forgot", "implemented")
+    with pytest.raises(SystemExit) as exit_info:
+        memory_lifecycle.main(["coverage", "--db", str(db), "--changes-dir", str(root)])
+    assert exit_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "GAP" in out and "NO memory_goal" in out
+
+
+def test_a_goal_that_is_not_in_the_store_is_a_gap(db, tmp_path, capsys):
+    root = tmp_path / "changes"
+    _change_folder(root, "dangling", "implemented", goal="00000000-0000-0000-0000-000000000000")
+    with pytest.raises(SystemExit):
+        memory_lifecycle.main(["coverage", "--db", str(db), "--changes-dir", str(root)])
+    assert "goal not in the store" in capsys.readouterr().out
+
+
+def test_a_scope_with_no_artifacts_is_a_gap(db, tmp_path, capsys):
+    """An opened scope is not captured knowledge — create_change alone must not pass."""
+    goal = _scope(db, "opened-only", artifacts=0)
+    root = tmp_path / "changes"
+    _change_folder(root, "opened-only", "implemented", goal=goal)
+    with pytest.raises(SystemExit):
+        memory_lifecycle.main(["coverage", "--db", str(db), "--changes-dir", str(root)])
+    assert "0 artifact(s)" in capsys.readouterr().out
+
+
+def test_a_captured_change_passes(db, tmp_path, capsys):
+    goal = _scope(db, "captured", artifacts=2)
+    root = tmp_path / "changes"
+    _change_folder(root, "captured", "implemented", goal=goal)
+    memory_lifecycle.main(["coverage", "--db", str(db), "--changes-dir", str(root)])
+    out = capsys.readouterr().out
+    assert "2 artifact(s)" in out and "GAP" not in out
+
+
+def test_a_change_still_in_flight_is_not_a_gap(db, tmp_path, capsys):
+    """Capturing nothing yet is normal before a change is finished — only 'done' is gated."""
+    root = tmp_path / "changes"
+    _change_folder(root, "in-progress", "researched")
+    memory_lifecycle.main(["coverage", "--db", str(db), "--changes-dir", str(root)])
+    assert "GAP" not in capsys.readouterr().out
+
+
+def test_the_goal_is_found_outside_change_md(db, tmp_path, capsys):
+    """bootstrap-verification has no change.md and records its goal in prose instead."""
+    goal = _scope(db, "odd-one", artifacts=1)
+    folder = tmp_path / "changes" / "odd-one"
+    folder.mkdir(parents=True)
+    (folder / "verification.md").write_text(
+        f"## Memory scope\n\n`memory_goal: {goal}`\n", encoding="utf-8"
+    )
+    memory_lifecycle.main(["coverage", "--db", str(db), "--changes-dir", str(tmp_path / "changes")])
+    assert "1 artifact(s)" in capsys.readouterr().out
+
+
+def test_strict_backlogs_exits_non_zero_for_ci(tmp_path, capsys):
+    root = _changes(tmp_path, stuck="queued\n")
+    with pytest.raises(SystemExit) as exit_info:
+        memory_lifecycle.main(["backlogs", "--changes-dir", str(root), "--strict"])
+    assert exit_info.value.code == 1
+
+
+def test_strict_backlogs_is_quiet_when_there_is_nothing(tmp_path, capsys):
+    root = _changes(tmp_path, done="> **REPLAYED 2026-09-06**\n")
+    memory_lifecycle.main(["backlogs", "--changes-dir", str(root), "--strict"])
+    assert capsys.readouterr().out == ""
