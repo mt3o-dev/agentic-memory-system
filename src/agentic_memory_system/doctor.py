@@ -143,27 +143,10 @@ def diagnose(db_path: str | Path) -> list[Finding]:
     else:
         findings.append(Finding(OK, "lock", f"{locking.lock_path_for(db).name} enforced"))
 
-    # --- the database ---
-    if not db.exists():
-        findings.append(Finding(
-            FAIL, "database", f"{db.name} is missing",
-            repair=f"rebuild from {dump.name}" if dump.is_file() else "",
-        ))
-    elif not sync.is_database(db):
-        findings.append(Finding(
-            FAIL, "database",
-            f"{db.name} is not a SQLite database — it holds text, which is what an "
-            "unfiltered clone of the pre-2026-08 layout produced",
-            repair=f"rebuild from {dump.name}" if dump.is_file() else "",
-        ))
-    else:
-        level, detail = _integrity(db)
-        findings.append(Finding(
-            level, "integrity", detail,
-            repair=f"rebuild from {dump.name}" if level == FAIL and dump.is_file() else "",
-        ))
-
-    # --- the dump ---
+    # --- the dump, first: it is the source of truth, and what the database is judged
+    # against. A verdict on the database that does not know whether the dump is usable
+    # cannot say whether a problem is recoverable.
+    pairs = None
     if not dump.is_file():
         findings.append(Finding(
             FAIL, "dump",
@@ -175,35 +158,64 @@ def diagnose(db_path: str | Path) -> list[Finding]:
             pairs = parse_dump(dump.read_text(encoding="utf-8"))
             findings.append(Finding(OK, "dump", f"parses, {len(pairs)} nodes"))
         except Exception as exc:  # noqa: BLE001 - any parse failure is the same verdict
-            pairs = None
             findings.append(Finding(FAIL, "dump", f"{dump.name} does not parse: {exc}"))
+    recoverable = pairs is not None
+    rebuild = f"rebuild from {dump.name}" if recoverable else ""
 
-        # --- do the two agree? ---
-        if pairs is not None and db.exists() and sync.is_database(db):
-            try:
-                conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-                in_db = {r[0] for r in conn.execute("SELECT id FROM nodes")}
-                conn.close()
-            except sqlite3.DatabaseError:
-                in_db = None
-            if in_db is not None:
-                in_dump = {node.id for node, _, _ in pairs}
-                if in_db == in_dump:
-                    findings.append(Finding(OK, "agreement", "database and dump match"))
-                else:
-                    only_db, only_dump = len(in_db - in_dump), len(in_dump - in_db)
-                    newer = "database" if sync.dump_is_stale(db) else "dump"
-                    findings.append(Finding(
-                        WARN, "agreement",
-                        f"{only_db} node(s) only in the database, {only_dump} only in the "
-                        f"dump; the {newer} is newer",
-                        repair=(
-                            f"refresh {dump.name} from the database (agentic-memory sync dump)"
-                            if newer == "database"
-                            else f"rebuild the database from {dump.name}"
-                        ),
-                        forced=newer == "database",
-                    ))
+    # --- the database, judged against it ---
+    if not db.exists():
+        findings.append(Finding(
+            # Not a failure when the dump is good: the database is a gitignored build
+            # artifact and its absence is the documented state of a fresh clone, which
+            # the next open heals without being asked. Only unrecoverable if there is
+            # nothing to build it from.
+            WARN if recoverable else FAIL, "database",
+            f"{db.name} is not built yet — the next open builds it from {dump.name}"
+            if recoverable else f"{db.name} is missing and there is no usable dump",
+            repair=rebuild,
+        ))
+    elif not sync.is_database(db):
+        findings.append(Finding(
+            FAIL, "database",
+            f"{db.name} is not a SQLite database — it holds text, which is what an "
+            "unfiltered clone of the pre-2026-08 layout produced",
+            repair=rebuild,
+        ))
+    else:
+        level, detail = _integrity(db)
+        findings.append(Finding(
+            level, "integrity", detail, repair=rebuild if level == FAIL else "",
+        ))
+
+    # --- do the two agree? ---
+    if recoverable and db.exists() and sync.is_database(db):
+        try:
+            conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            in_db = {r[0] for r in conn.execute("SELECT id FROM nodes")}
+            conn.close()
+        except sqlite3.DatabaseError:
+            in_db = None
+        if in_db is not None:
+            in_dump = {node.id for node, _, _ in pairs}
+            if in_db == in_dump:
+                findings.append(Finding(OK, "agreement", "database and dump match"))
+            else:
+                only_db, only_dump = len(in_db - in_dump), len(in_dump - in_db)
+                newer = "database" if sync.dump_is_stale(db) else "dump"
+                findings.append(Finding(
+                    WARN, "agreement",
+                    f"{only_db} node(s) only in the database, {only_dump} only in the "
+                    f"dump; the {newer} is newer",
+                    repair=(
+                        f"refresh {dump.name} from the database (agentic-memory sync dump)"
+                        if newer == "database"
+                        else f"rebuild the database from {dump.name}"
+                    ),
+                    forced=newer == "database",
+                ))
+
+    if db.exists() and sync.is_database(db):
+        findings.extend(_journal_findings(db))
 
     # --- leftovers ---
     live = _held_elsewhere(db)
@@ -223,9 +235,6 @@ def diagnose(db_path: str | Path) -> list[Finding]:
             ))
     elif any(p.exists() for p in _sidecars(db)):
         findings.append(Finding(OK, "sidecars", "present but empty"))
-
-    if db.exists() and sync.is_database(db):
-        findings.extend(_journal_findings(db))
 
     orphans = _staging(db)
     if orphans:
@@ -309,7 +318,7 @@ def render(findings: list[Finding]) -> str:
     lines.append("")
     lines.append({
         OK: "healthy",
-        WARN: "usable, with things worth fixing — rerun with --repair",
+        WARN: "usable, with things worth doing — rerun with --repair",
         FAIL: "damaged — rerun with --repair to rebuild from the tracked dump",
     }[worst])
     return "\n".join(lines)

@@ -67,13 +67,30 @@ def test_diagnosis_never_writes(tmp_path):
 # --- what it finds ---
 
 
-def test_a_missing_database_is_a_failure_with_a_repair(tmp_path):
+def test_a_fresh_clone_is_not_a_failure(tmp_path):
+    """The database is a gitignored build artifact — its absence is the normal state.
+
+    Calling that "damaged" would make `doctor` useless in CI and would tell every new
+    contributor their checkout is broken on the day they cloned it.
+    """
     db = tmp_path / "graph.db"
     _seed(db)
     db.unlink()
     findings = {f.check: f for f in doctor.diagnose(db)}
+    assert findings["database"].level == doctor.WARN
+    assert "not built yet" in findings["database"].detail
+    assert doctor.exit_code(list(findings.values())) == 0
+
+
+def test_a_missing_database_with_no_dump_is_a_failure(tmp_path):
+    """Nothing to rebuild from is the case that genuinely cannot be recovered."""
+    db = tmp_path / "graph.db"
+    _seed(db)
+    db.unlink()
+    sync.dump_path_for(db).unlink()
+    findings = {f.check: f for f in doctor.diagnose(db)}
     assert findings["database"].level == doctor.FAIL
-    assert "rebuild" in findings["database"].repair
+    assert doctor.exit_code(list(findings.values())) == 1
 
 
 def test_dump_text_at_the_db_path_is_recognised(tmp_path):
