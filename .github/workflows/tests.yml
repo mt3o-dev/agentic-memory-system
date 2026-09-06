@@ -40,7 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      # Pinned to an exact version, not a floating major: setup-uv publishes moving
+      # major tags only up to v7, so `@v10` does not resolve at all.
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: "3.12"
           enable-cache: true
