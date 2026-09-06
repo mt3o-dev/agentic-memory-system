@@ -1,5 +1,5 @@
 <script>
-  import { get } from './api.js'
+  import { get, post } from './api.js'
   import Browse from './components/Browse.svelte'
   import ReviewQueue from './components/ReviewQueue.svelte'
   import Changes from './components/Changes.svelte'
@@ -11,12 +11,32 @@
   let health = $state(null)
   let info = $state(null)
   let infoOpen = $state(false)
+  let recomputing = $state(false)
+  let recomputed = $state(null)
 
   async function refreshHealth() {
     try {
       health = await get('/api/health')
     } catch {
       health = null
+    }
+  }
+
+  // Trust is folded from the journal lazily: appending a contradiction does not
+  // recompute it, so trust_weight drifts behind the log it is derived from until
+  // somebody asks. Per-node recompute only helps if you already know which nodes are
+  // behind, and the whole problem is that you do not. This is the cleanup pass.
+  async function recomputeAllTrust() {
+    recomputing = true
+    recomputed = null
+    try {
+      const result = await post('/api/trust/recompute-all')
+      recomputed = result.changed
+      await refreshHealth()
+    } catch (err) {
+      recomputed = err.message
+    } finally {
+      recomputing = false
     }
   }
 
@@ -83,6 +103,25 @@
       {/if}
     </small>
   {/if}
+  <button
+    type="button"
+    class="btn btn-sm btn-outline-secondary ms-3"
+    title="Fold every node's journal and catch trust_weight up with it. Safe to run any time: it writes no events, because trust is derived from the journal rather than stored alongside it."
+    disabled={recomputing}
+    onclick={recomputeAllTrust}
+  >
+    {#if recomputing}
+      Recomputing trust…
+    {:else if recomputed === 0}
+      Trust up to date
+    {:else if typeof recomputed === 'number'}
+      {recomputed} node{recomputed === 1 ? '' : 's'} updated
+    {:else if recomputed}
+      {recomputed}
+    {:else}
+      Recompute trust
+    {/if}
+  </button>
   <div class="position-relative ms-3">
     <button
       type="button"

@@ -565,3 +565,72 @@ def test_a_rejected_write_publishes_nothing(tmp_path):
     assert response.status_code >= 400
     assert dump.stat().st_mtime_ns == stamp
     store.close()
+
+
+# --- bulk trust recompute: the fold is lazy, so somebody has to ask ---
+
+
+def test_recompute_all_catches_up_every_node_behind_its_journal(tmp_path):
+    from agentic_memory_system.schema import Event
+    from datetime import datetime, timezone
+    import uuid
+
+    db = tmp_path / "graph.db"
+    store = MemoryStore(db)
+    surface = AgentSurface(store)
+    goal = surface.create_change("demo", "seed")["goal_node_id"]
+    ids = [surface.capture_artifact(f"Decision {i}.", "decision", goal)["node_id"] for i in range(3)]
+    for node_id in ids[:2]:
+        store.append_event(Event(
+            id=str(uuid.uuid4()), node_id=node_id, type=EventType.contradiction_raised,
+            weight=0.5, polarity=-1, source="test", reason="disputed",
+            created_at=datetime.now(timezone.utc),
+        ))
+    # Journalled but never folded — which is the normal state, not a contrived one.
+    assert all(
+        store.read_node(n).trust_weight == 1.0 for n in ids
+    ), "precondition: appending an event does not recompute"
+
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    response = client.post("/api/trust/recompute-all")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["changed"] == 2
+    assert {n["id"] for n in body["nodes"]} == set(ids[:2])
+    assert store.read_node(ids[0]).trust_weight == 0.5
+    assert store.read_node(ids[2]).trust_weight == 1.0
+    store.close()
+
+
+def test_recompute_all_is_a_no_op_when_nothing_is_behind(tmp_path):
+    db = tmp_path / "graph.db"
+    store = MemoryStore(db)
+    AgentSurface(store).create_change("demo", "seed")
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    assert client.post("/api/trust/recompute-all").json()["changed"] == 0
+    store.close()
+
+
+def test_recompute_all_journals_nothing(tmp_path):
+    """Trust is DERIVED from the log; recording the derivation would make it self-describing."""
+    from agentic_memory_system.schema import Event
+    from datetime import datetime, timezone
+    import uuid
+
+    db = tmp_path / "graph.db"
+    store = MemoryStore(db)
+    surface = AgentSurface(store)
+    goal = surface.create_change("demo", "seed")["goal_node_id"]
+    node_id = surface.capture_artifact("A decision.", "decision", goal)["node_id"]
+    store.append_event(Event(
+        id=str(uuid.uuid4()), node_id=node_id, type=EventType.contradiction_raised,
+        weight=0.4, polarity=-1, source="test", reason="disputed",
+        created_at=datetime.now(timezone.utc),
+    ))
+    before = store._conn.execute("SELECT count(*) FROM events").fetchone()[0]
+
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    client.post("/api/trust/recompute-all")
+
+    assert store._conn.execute("SELECT count(*) FROM events").fetchone()[0] == before
+    store.close()

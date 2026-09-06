@@ -13,6 +13,7 @@ Every operation is journaled by the store primitives it calls.
     uv run python scripts/memory_lifecycle.py candidates
     uv run python scripts/memory_lifecycle.py backlogs [--strict]
     uv run python scripts/memory_lifecycle.py coverage
+    uv run python scripts/memory_lifecycle.py recompute-trust [--dry-run]
 
 ``backlogs`` is a READ that touches no store at all: it lists degraded-mode backlogs
 that were queued and never replayed. The workflow's rule is that when the store is
@@ -24,6 +25,13 @@ backlog counts as discharged once its text carries a ``REPLAYED`` marker at the 
 a line (``> **REPLAYED <date> — do not replay again.**`` is the form used here), which is
 also what stops a second replay from minting duplicates, since capture is append-only and
 has no idempotency key.
+
+``recompute-trust`` folds every node's journal and catches the materialized
+``trust_weight`` column up with it. The fold is lazy by design — journalling a
+contradiction does not recompute — so trust drifts behind its own journal until somebody
+asks, and until this existed the only way to ask was one node at a time in the GUI. Run it
+at cleanup time; it journals nothing, because trust is *derived* from the log and
+recording a derivation would make the log describe itself.
 
 ``coverage`` is the other half of that alarm, and the half that catches the commoner
 failure. ``backlogs`` only finds sessions that KNEW the store was unreachable and said so;
@@ -174,6 +182,33 @@ def _coverage(store: MemoryStore, changes_dir: str) -> int:
     return len(gaps)
 
 
+def _recompute_trust(store: MemoryStore, dry_run: bool) -> int:
+    """Fold every journal; report what was behind. Returns the number of stale nodes."""
+    if dry_run:
+        # Fold without writing, by folding against a copy of the current values.
+        fold = store._fold_strategy.fold
+        behind = []
+        for node_id, stored in store._conn.execute("SELECT id, trust_weight FROM nodes ORDER BY id"):
+            folded = fold(store.read_events(node_id))
+            if folded != stored:
+                behind.append((node_id, stored, folded))
+        for node_id, stored, folded in behind:
+            node = store.read_node(node_id)
+            print(f"would set {stored:.2f} -> {folded:.2f}  {node_id}  {node.path}")
+        print(f"{len(behind)} node(s) behind their journal (dry run, nothing written)")
+        return len(behind)
+
+    changed = store.recompute_all_trust()
+    for node_id, trust in sorted(changed.items(), key=lambda kv: kv[1]):
+        node = store.read_node(node_id)
+        print(f"trust {trust:.2f}  {node_id}  {node.path}")
+    print(
+        f"{len(changed)} node(s) caught up with their journal"
+        if changed else "all trust values already match their journals"
+    )
+    return len(changed)
+
+
 def _find_change(store: MemoryStore, change_id: str) -> str:
     row = store._conn.execute(
         "SELECT id FROM nodes WHERE type = 'slice' AND path = ?",
@@ -200,13 +235,18 @@ def main(argv: list[str] | None = None) -> None:
         "command",
         choices=[
             "status", "activate", "deactivate", "sweep", "entities", "candidates",
-            "backlogs", "coverage",
+            "backlogs", "coverage", "recompute-trust",
         ],
     )
     parser.add_argument("change_id", nargs="?", help="the 10x <change-id>")
     parser.add_argument("--sweep", action="store_true", help="run a sweep after the toggle")
     parser.add_argument(
         "--db", default=os.environ.get("MEMORY_DB_PATH", "context/memory-graph.db")
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="for `recompute-trust`: report what would change without writing",
     )
     parser.add_argument(
         "--strict",
@@ -237,6 +277,9 @@ def main(argv: list[str] | None = None) -> None:
             ).fetchall()
             for slice_id, path in rows:
                 print(f"{'ACTIVE ' if slice_id in active else 'dormant'}  {path}  {slice_id}")
+            return
+        if args.command == "recompute-trust":
+            _recompute_trust(store, args.dry_run)
             return
         if args.command == "coverage":
             if _coverage(store, args.changes_dir):
