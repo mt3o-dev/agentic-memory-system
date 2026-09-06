@@ -29,6 +29,7 @@ from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from . import locking
 from .agent_surface import AgentSurface, AgentSurfaceError
 from .evaluator import LLMEvaluator
 from .resolver import RulesResolver
@@ -673,7 +674,15 @@ def main() -> None:
     import uvicorn
 
     db_path = os.environ.get("MEMORY_DB_PATH", "context/memory-graph.db")
-    app = create_app(MemoryStore(db_path))
+    try:
+        store = MemoryStore(db_path)
+    except locking.StoreBusy as exc:
+        raise SystemExit(f"error: {exc} — retry once it finishes")
+    # The server holds the store open for its whole life, which is the shared half of
+    # the file lock (locking.py): while the GUI runs, no process may rebuild the
+    # database from the dump underneath it. A `git pull` that moves the dump ahead is
+    # therefore picked up after the GUI is stopped, and every open in between says so.
+    app = create_app(store)
     uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("MEMORY_GUI_PORT", "8765")))
 
 

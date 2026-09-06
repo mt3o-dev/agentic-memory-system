@@ -44,7 +44,7 @@ def main() -> None:
     finally:
         if store is not None:
             store.close()
-        for suffix in ("", "-wal", "-shm"):
+        for suffix in ("", "-wal", "-shm", ".lock"):
             try:
                 os.unlink(tmp_path + suffix)
             except OSError:

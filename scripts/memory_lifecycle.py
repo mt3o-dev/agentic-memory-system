@@ -21,6 +21,13 @@ only as the human's scribe, per-item, after the human rules. Adding them here wo
 the gate a formality any unattended run could walk through.
 
 Store selected with MEMORY_DB_PATH (default context/memory-graph.db).
+
+This script opens its own ``MemoryStore``, which is a second *connection* and not a
+second write path: SQLite serializes concurrent writers itself, and the constructor takes
+the shared file lock that stops anything from replacing the database underneath it
+(``locking.py``, ``docs/10_CONCURRENCY.md``). The corruption in issue #5 happened here,
+while a GUI server held the same store open, and the swap — not the second connection —
+is what did it.
 """
 
 import argparse

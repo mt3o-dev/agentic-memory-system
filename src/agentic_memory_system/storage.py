@@ -5,7 +5,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import sync
+from . import locking, sync
 from .schema import Node, NodeType, Tier, Edge, EdgeType, Event, EventType
 from .fold import FoldStrategy, SumAndClampFold
 from .penalty import (
@@ -78,6 +78,9 @@ _CONSOLIDATE_MIN_INSTANCES = 3
 _CONSOLIDATE_MIN_SCOPES = 2
 _CONSOLIDATE_SIMILARITY = 0.45
 
+# How long a writer waits for another process's write transaction before giving up.
+_BUSY_TIMEOUT_MS = 5000
+
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
@@ -119,6 +122,7 @@ class MemoryStore:
         embedder: Embedder | None = None,
         edge_policy: dict[tuple[EdgeType, Direction], float] | None = None,
         auto_sync: bool | None = None,
+        lock: bool = True,
     ) -> None:
         # Git sync is the store's job, not a git filter's (see sync.py). Rebuild from
         # the tracked dump when it is authoritative — a fresh clone, a fresh machine, or
@@ -129,6 +133,7 @@ class MemoryStore:
         self._auto_sync = sync.auto_sync_enabled() if auto_sync is None else auto_sync
         self.sync_notes: list[str] = []
         self._dump_stale = False
+        self._closed = False
         if self._auto_sync:
             note = sync.auto_restore(self._db_path)
             if note:
@@ -137,13 +142,42 @@ class MemoryStore:
             # closing. Remember it, so this session refreshes the dump on the way out
             # even if it only reads.
             self._dump_stale = sync.dump_is_stale(self._db_path)
+        # The shared half of the file lock (locking.py), held for as long as this
+        # connection exists — deliberately *after* auto_restore, which needs the
+        # exclusive half and would otherwise be blocked by us. It does not serialize
+        # writers (SQLite's job, below); it exists so that nobody can replace the file
+        # under this connection, which is the one thing SQLite cannot survive. Taken
+        # even with auto_sync off, because the process that would replace the file is
+        # some *other* process, and its setting is not ours to read.
+        self._lock = locking.acquire(self._db_path) if lock else None
         # check_same_thread=False: the GUI server's event loop may touch the
         # connection from a different thread than the one that opened it. Access is
         # still effectively serialized (single event loop / single test portal);
         # this is not a concurrent-writer guarantee.
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        try:
+            self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        except BaseException:
+            locking.release(self._lock)
+            raise
+        try:
+            self._configure(fold_strategy, penalty_strategy, embedder, edge_policy)
+        except BaseException:
+            # A store that failed to open owns nothing: no caller has an object to call
+            # close() on, so the lock would otherwise be held until the process exits.
+            self._conn.close()
+            locking.release(self._lock)
+            raise
+
+    def _configure(self, fold_strategy, penalty_strategy, embedder, edge_policy) -> None:
+        """Pragmas, schema, migrations — everything between a connection and a usable store."""
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        # WAL lets readers and one writer proceed together, but a second writer's commit
+        # still has to wait — and with the default timeout of 0 it does not wait, it
+        # fails on the spot with "database is locked". Multiple processes on one store is
+        # the normal shape here (a GUI, an MCP server, a CLI, all at once), so a wait is
+        # the right answer and an immediate error is not.
+        self._conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
         self._fold_strategy = fold_strategy or SumAndClampFold()
         self._penalty_strategy = penalty_strategy or TrustTermPenalty()
         self._embedder = embedder or HashedBagOfWordsEmbedder()
@@ -1518,7 +1552,7 @@ class MemoryStore:
         return result
 
     def close(self) -> None:
-        """Checkpoint, refresh the tracked dump if anything changed, and disconnect.
+        """Checkpoint, refresh the tracked dump if anything changed, disconnect, unlock.
 
         ``total_changes`` counts rows written on this connection and ignores reads, so
         it is a dirty flag that no call site has to maintain — and therefore one that a
@@ -1526,10 +1560,19 @@ class MemoryStore:
         ``git add -A`` honest: by the time a commit is staged, the legible dump beside
         the database already reflects it.
         """
-        changed = self._conn.total_changes > 0 or self._dump_stale
-        self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        if self._auto_sync and changed:
-            note = sync.auto_dump(self, self._db_path, changed)
-            if note:
-                self.sync_notes.append(note)
-        self._conn.close()
+        if self._closed:
+            return  # idempotent: `sync restore` closes early, and every caller closes in a finally
+        self._closed = True
+        try:
+            changed = self._conn.total_changes > 0 or self._dump_stale
+            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            if self._auto_sync and changed:
+                note = sync.auto_dump(self, self._db_path, changed)
+                if note:
+                    self.sync_notes.append(note)
+            self._conn.close()
+        finally:
+            # Last: until this returns, no other process may replace the file, and that
+            # is exactly the guarantee the dump above was written under.
+            locking.release(self._lock)
+            self._lock = None

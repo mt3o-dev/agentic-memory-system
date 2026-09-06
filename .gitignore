@@ -6,6 +6,11 @@ context/memory-graph.db
 *.db-wal
 *.db-shm
 *.db.bak
+# The cross-process lock sidecar (locking.py) and the process-private staging files a
+# restore or a dump builds into. All local, all transient, none of them ever tracked.
+*.db.lock
+*.db.restoring.*
+*.dump.writing.*
 
 # Build output (uv build + scripts/build-assets.py)
 /dist/

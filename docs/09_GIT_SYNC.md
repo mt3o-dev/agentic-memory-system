@@ -78,8 +78,16 @@ Auto-restore is never destructive:
   overwritten — it is re-dumped on close instead, which heals the divergence on the very
   next command, even a read-only one.
 
-Restores and dumps stage to a temporary file and `replace()` into position, so an
-interrupted sync cannot leave a half-built store where a working one used to be.
+Restores and dumps stage to a *process-private* temporary file and `replace()` into
+position, so an interrupted sync cannot leave a half-built store where a working one used
+to be, and two syncs racing cannot publish the interleaving of both.
+
+And it will not replace a database that anything has open. The replace holds the exclusive
+store lock, deletes the target's `-wal`/`-shm` as part of the swap, and skips the rebuild
+with a note when the lock is unavailable. That is not a detail: sidecars are named after
+the path rather than the inode, so a swap that leaves them behind hands the new file the
+old database's WAL — which silently undoes the restore, or corrupts the B-tree outright.
+[`10_CONCURRENCY.md`](10_CONCURRENCY.md) has the mechanism and the reproduction.
 
 ## 5. Why the mtimes are aligned after a dump
 
@@ -99,6 +107,9 @@ triggers a restore. This is the one non-obvious line in the module, and it is lo
 | Refresh the dump from a long-running process (the GUI never calls `close()`) | `uv run agentic-memory sync dump` |
 | Discard local writes in favour of the tracked dump | `uv run agentic-memory sync restore` |
 | Turn both halves off (hot loops, benchmarks) | `MEMORY_AUTO_SYNC=0` |
+| See whether the file lock is enforceable here | `uv run agentic-memory sync status` (the `lock:` line) |
+| Wait longer for another process's rebuild | `MEMORY_LOCK_TIMEOUT=30` |
+| Turn the file lock off (last resort, see `10_CONCURRENCY.md` §7) | `MEMORY_LOCK=0` |
 
 `scripts/dump_db.py` and `scripts/restore_db.py` still work as stdin→stdout filters, for
 anyone who wants the old plumbing for their own purposes.
@@ -125,6 +136,11 @@ missing config to poison shared history.
 The worst this design can produce is a **stale dump**: visible in `git status`, harmless
 to the database, and repaired by the next close or an explicit `sync`. Nothing silent,
 nothing shared, nothing that needs a person to have known something in advance.
+
+The same asymmetry decides what happens when the store is busy: a rebuild that is *skipped
+and reported* leaves a database that is merely out of date, and the next open fixes it. A
+rebuild performed anyway leaves a corrupt one. So the lock always gives up in the first
+direction.
 
 That trade — replacing a quiet correctness hazard with a loud, local, self-healing one —
 is the reason to prefer it, more than the convenience.

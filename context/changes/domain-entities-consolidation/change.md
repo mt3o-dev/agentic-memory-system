@@ -33,6 +33,13 @@ episodes; the surface rejects `CONSOLIDATES` from one).
 
 ## Memory scope
 
-`memory_goal:` not recorded — the `agentic-memory` MCP server was not reachable in the
+`memory_goal: 585f39c8-3810-40fb-8bb5-378819d2dc88`
+
+Not recorded at the time — the `agentic-memory` MCP server was not reachable in the
 session that implemented this change. Per the workflow's degraded-mode rule the memory
-operations were queued rather than skipped: see `memory-backlog.md` for the replay list.
+operations were queued rather than skipped (`memory-backlog.md`), and **replayed in full
+on 2026-09-06**: 6 domain entities, 5 decisions, 4 constraints, 1 invariant, 1 concept,
+their ABOUT wiring, and the journal batch. The scope is left ACTIVE on purpose — the
+promotion candidates in `memory-backlog.md` §7 and the six `proposed` entities are a
+human gate (GUI Domain / Review tabs), and a sweep now would make them dormant before
+anyone had ruled on them.

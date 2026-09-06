@@ -40,6 +40,7 @@ import os
 import sys
 from typing import Any
 
+from . import locking
 from .agent_surface import AgentSurface, AgentSurfaceError
 from .storage import MemoryStore
 
@@ -248,17 +249,36 @@ def _sync_command(store, db_path: str, direction: str) -> str:
     if db_exists and dump.is_file():
         import os
 
-        newer = "database" if os.path.getmtime(db_path) > os.path.getmtime(dump) else "dump"
-        lines.append(f"newer:    {newer}")
+        # Equal mtimes are the *normal* state: auto_dump stamps the database to match
+        # the dump it just wrote, so "in sync" and "the dump moved ahead" are different
+        # answers and only the second one calls for a restore.
+        db_mtime, dump_mtime = os.path.getmtime(db_path), os.path.getmtime(dump)
+        if db_mtime == dump_mtime:
+            lines.append("newer:    neither — in sync")
+        else:
+            lines.append(f"newer:    {'database' if db_mtime > dump_mtime else 'dump'}")
     lines.append(
         f"auto-sync: {'on' if sync.auto_sync_enabled() else 'off (MEMORY_AUTO_SYNC=0)'}"
     )
+    if locking.locking_available():
+        lines.append(f"lock:     {locking.lock_path_for(db_path)} (rebuilds wait for it)")
+    else:
+        lines.append(
+            "lock:     UNAVAILABLE — nothing stops a rebuild from replacing the database "
+            "under a live connection; close other processes before `sync restore`"
+        )
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
-    store = MemoryStore(args.db)
+    try:
+        store = MemoryStore(args.db)
+    except locking.StoreBusy as exc:
+        # Not a crash: another process is mid-rebuild of the store file. Waiting it out
+        # is the safe move, and so is telling the caller to try again.
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(3)
     for note in store.sync_notes:
         # stderr, not stdout: stdout is the command's result and may be piped.
         print(f"sync: {note}", file=sys.stderr)
@@ -267,6 +287,9 @@ def main(argv: list[str] | None = None) -> None:
             result = _sync_command(store, args.db, args.direction)
         else:
             result = _dispatch(AgentSurface(store), args)
+    except locking.StoreBusy as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(3)
     except AgentSurfaceError as exc:
         # Exit 2, message on stderr: the same agent-actionable text the MCP tool would
         # surface as its error result. A rejected call is not a crash.
