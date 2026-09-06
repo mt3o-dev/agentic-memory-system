@@ -76,3 +76,8 @@ that project's store and copy `.claude/skills/memory-*` across.
   (`sync.py`, `docs/09_GIT_SYNC.md`). Never track the `.db` — a clean/smudge filter
   cannot be auto-registered by git, which is what made the old design silently break
   every fresh clone.
+- Never replace the `.db` file outside `sync.restore_from_text`, and never hold a
+  connection open without the shared lock `MemoryStore` takes for you (`locking.py`,
+  `docs/10_CONCURRENCY.md`). SQLite survives concurrent connections and does not survive
+  a file swap under one: the `-wal` sidecar is named after the path, not the inode, so a
+  swap that leaves it behind silently undoes the restore or corrupts the B-tree.

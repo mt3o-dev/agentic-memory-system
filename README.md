@@ -21,6 +21,7 @@ agent's write vocabulary.
 | Staleness | `penalty.py`, `resolver.py`, `evaluator.py` | Query-time penalties for flagged nodes; rules → evaluator → human resolution ladder; LLM evaluator for guided review |
 | Retrieval | `retrieval.py`, `embedding.py` | Goal-dominant multi-seed Personalized PageRank; edge policy as data; deterministic hashed-BoW embeddings behind a swappable port |
 | Sync | `sync.py`, `serialization.py` | Git sync with no clean/smudge filter: the tracked `.dump` is the source, the `.db` is a gitignored build artifact the store rebuilds on open and refreshes on close |
+| Concurrency | `locking.py` | Shared/exclusive file lock: every live connection holds the shared half, replacing the database needs the exclusive half. SQLite handles concurrent *connections*; nothing but this handles a whole-file swap |
 | Agent surface | `agent_surface.py` | The one place agent operations and their rules live — 5 writes + 5 reads, safe by construction |
 | Transports | `cli.py`, `mcp_server.py` | Two doors onto that surface: the CLI (default, always works) and MCP (optimization). Both pure delegation |
 | Human surface | `gui_api.py`, `gui/` | Minimal web GUI (Svelte + Bootstrap) for inspection and the human-in-the-loop checkpoints |

@@ -25,3 +25,167 @@ trust_weight: 1.0
 archived: false
 
 Two-table property graph: nodes + edges, traversal via recursive CTE.
+---
+[node:9eb99a3b-27f6-46b4-aa8e-7e53e13b47cc]
+type: slice
+tier: short-term
+path: /change/store-concurrency-safety
+created_at: 2026-09-06T10:56:50.347054+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:2875ba91-ac6b-47d4-a382-d2aac85eac1d] @ 2026-09-06T11:13:42.139932+00:00
+-> SCOPED_TO [node:4a311aa7-5d33-43b6-be20-e3ab1fe53271] @ 2026-09-06T11:13:42.347956+00:00
+-> SCOPED_TO [node:775c666b-0637-412a-9bce-4c4744e5bd50] @ 2026-09-06T11:13:42.552429+00:00
+-> SCOPED_TO [node:accd44a8-dbbc-42b1-9619-d523f963d636] @ 2026-09-06T11:13:42.752986+00:00
+-> SCOPED_TO [node:e2775a94-dd97-4003-8716-fac494f76669] @ 2026-09-06T10:56:50.347054+00:00
+
+change scope: store-concurrency-safety
+---
+[event:6b9b63e7-8959-4492-86b5-1180c8e3683f]
+node_id: 9eb99a3b-27f6-46b4-aa8e-7e53e13b47cc
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T10:56:50.353082+00:00
+
+create_change store-concurrency-safety
+---
+[node:e2775a94-dd97-4003-8716-fac494f76669]
+type: goal
+tier: short-term
+path: /goal/store-concurrency-safety
+created_at: 2026-09-06T10:56:50.347054+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:2875ba91-ac6b-47d4-a382-d2aac85eac1d] @ 2026-09-06T11:13:42.139932+00:00
+-> DEPENDS_ON [node:4a311aa7-5d33-43b6-be20-e3ab1fe53271] @ 2026-09-06T11:13:42.347956+00:00
+-> DEPENDS_ON [node:775c666b-0637-412a-9bce-4c4744e5bd50] @ 2026-09-06T11:13:42.552429+00:00
+-> DEPENDS_ON [node:accd44a8-dbbc-42b1-9619-d523f963d636] @ 2026-09-06T11:13:42.752986+00:00
+
+Make the store safe for concurrent processes: no file swap under an open connection, no stale WAL sidecars, no interleaved staging files.
+---
+[node:271612ad-3d8e-4c9d-9464-33386852bac1]
+type: facet_value
+tier: lifetime
+path: /facet/concurrency
+created_at: 2026-09-06T11:13:42.139932+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+concurrency
+---
+[node:2875ba91-ac6b-47d4-a382-d2aac85eac1d]
+type: constraint
+tier: short-term
+path: /artifact/sqlite-s-wal-and-shm-sidecars-are-addr
+created_at: 2026-09-06T11:13:42.139932+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T11:13:42.139932+00:00
+-> HAS_FACET [node:a668b813-95a4-41e3-96cd-33fca521451e] @ 2026-09-06T11:13:42.139932+00:00
+
+SQLite's -wal and -shm sidecars are addressed by FILENAME, not by inode. So replacing the database file leaves the new file holding the previous database's WAL, and SQLite replays those frames over pages that were never in it: the mild outcome is a restore that silently does not happen (the old rows come back through the stale WAL), the reported one is a malformed B-tree. Any whole-file swap must delete the target's -wal/-shm as part of the swap. Reproduced with no concurrency at all — a WAL left by a session that died before closing is enough.
+---
+[event:3fcb268e-00cc-455f-8444-1b06cc9af0a9]
+node_id: 2875ba91-ac6b-47d4-a382-d2aac85eac1d
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:13:58.195523+00:00
+
+the mechanism the fix is built on; verified by reproduction
+---
+[node:a668b813-95a4-41e3-96cd-33fca521451e]
+type: facet_value
+tier: lifetime
+path: /facet/sqlite
+created_at: 2026-09-06T11:13:42.139932+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+sqlite
+---
+[node:4a311aa7-5d33-43b6-be20-e3ab1fe53271]
+type: decision
+tier: short-term
+path: /artifact/the-store-s-concurrency-rule-every-live
+created_at: 2026-09-06T11:13:42.347956+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T11:13:42.347956+00:00
+-> DEPENDS_ON [node:2875ba91-ac6b-47d4-a382-d2aac85eac1d] @ 2026-09-06T11:13:42.347956+00:00
+
+The store's concurrency rule: every live connection holds a SHARED file lock, and replacing the database file requires an EXCLUSIVE one (locking.py). Concurrency inside the file stays SQLite's job — shared locks do not serialize writers, and busy_timeout makes a contended commit wait. The lock is taken in MemoryStore.__init__, so it is opt-out rather than opt-in: every writer inherits it, including a script a future contributor writes without reading the docs. Chosen over routing all mutation through one server process, which would make a live server a precondition for writing and break the CLI's promise to work in a freshly cloned repo with nothing running.
+---
+[event:273e7691-134b-4e60-b94b-f525f2530a9c]
+node_id: 4a311aa7-5d33-43b6-be20-e3ab1fe53271
+type: used
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:13:58.200923+00:00
+
+implemented as locking.py plus the shared lock in MemoryStore.__init__
+---
+[node:775c666b-0637-412a-9bce-4c4744e5bd50]
+type: constraint
+tier: short-term
+path: /artifact/when-the-exclusive-lock-cannot-be-taken
+created_at: 2026-09-06T11:13:42.552429+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T11:13:42.552429+00:00
+-> DEPENDS_ON [node:4a311aa7-5d33-43b6-be20-e3ab1fe53271] @ 2026-09-06T11:13:42.552429+00:00
+
+When the exclusive lock cannot be taken, the rebuild is skipped and reported, never performed anyway. The asymmetry decides it: a database that is merely out of date is visible in `agentic-memory sync status` and repaired by the next open, while a database swapped under a live connection is corrupt. The accepted consequence is that while the GUI server runs it holds the store open, so a `git pull` that moves the dump ahead is picked up only after the GUI stops.
+---
+[event:94faed34-2dae-42ad-aeac-a002e2ff832a]
+node_id: 775c666b-0637-412a-9bce-4c4744e5bd50
+type: confirmation_added
+weight: 1.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T11:13:58.201543+00:00
+
+observed end to end: a held store skips the rebuild, the next open performs it
+---
+[node:accd44a8-dbbc-42b1-9619-d523f963d636]
+type: constraint
+tier: short-term
+path: /artifact/a-bak-copy-takes-part-in-no-git-sync
+created_at: 2026-09-06T11:13:42.752986+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:b631c2f3-9c9e-4575-b9de-3a8d62cf7e10] @ 2026-09-06T11:13:42.752986+00:00
+
+A `.bak` copy takes part in no git sync, in either direction (sync.is_backup). Path.with_suffix maps memory-graph.db.bak to memory-graph.db.dump — one character from the tracked memory-graph.dump — so writing to a backup used to publish a phantom dump beside the real one (the unexplained file in issue #5), and a newer such dump would have rebuilt the backup from it, destroying the copy someone opened to rescue data.
+---
+[node:b631c2f3-9c9e-4575-b9de-3a8d62cf7e10]
+type: facet_value
+tier: lifetime
+path: /facet/git-sync
+created_at: 2026-09-06T11:13:42.752986+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+
+git-sync

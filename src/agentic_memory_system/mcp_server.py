@@ -20,6 +20,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from . import locking
 from .agent_surface import AgentSurface, AgentSurfaceError
 from .storage import MemoryStore
 
@@ -32,7 +33,12 @@ def _get_surface() -> AgentSurface:
     global _surface
     if _surface is None:
         db_path = os.environ.get("MEMORY_DB_PATH", "context/memory-graph.db")
-        _surface = AgentSurface(MemoryStore(db_path))
+        try:
+            _surface = AgentSurface(MemoryStore(db_path))
+        except locking.StoreBusy as exc:
+            # Another process is rebuilding the store file from its dump. Transient by
+            # nature, so say "retry" rather than failing the session.
+            raise ValueError(f"{exc} — retry in a moment") from exc
     return _surface
 
 

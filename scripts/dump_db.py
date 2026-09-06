@@ -25,10 +25,11 @@ def main() -> None:
         print(f"dump_db error: {exc}", file=sys.stderr)
         sys.exit(1)
     finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+        for suffix in ("", "-wal", "-shm", ".lock"):
+            try:
+                os.unlink(tmp_path + suffix)
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

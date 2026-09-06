@@ -22,6 +22,7 @@ One-paragraph architecture: typed **nodes + typed edges** stored in **SQLite-as-
 | `07_CONSOLIDATION.md` | The consolidation operation — trigger, direction, owner |
 | `08_TRANSPORTS.md` | Why the CLI is the default door and MCP the optimization; what the safety invariant is and is not |
 | `09_GIT_SYNC.md` | Why the clean/smudge filter is gone and the store heals itself instead |
+| `10_CONCURRENCY.md` | Many connections are fine, one file swap is not: the shared/exclusive store lock |
 
 Read `00`–`05` in order: `01` gives you the mental model, `02` tells you where the detail lives, `03` tells you what to do, `04` tells you how to keep doing it well, `05` is the concrete integration + API surface to build against. `06` and `07` are the design records for the two questions `03` listed as "real design work, not yet started" — read them when you touch entities, retrieval policy, or the review gate.
 
