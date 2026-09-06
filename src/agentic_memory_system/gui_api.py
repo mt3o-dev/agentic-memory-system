@@ -566,6 +566,29 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
         trust = store.recompute_trust(node.id)
         return JSONResponse({"ok": True, "trust_weight": trust})
 
+    async def recompute_all_trust(request: Request) -> JSONResponse:
+        """Fold every node's journal at once — the cleanup form of the per-node button.
+
+        The fold is lazy: journalling a contradiction does not recompute, so
+        ``trust_weight`` drifts behind the log it is derived from until somebody asks.
+        Doing that one node at a time is only workable if you already know which nodes
+        are behind, and the whole problem is that you do not.
+
+        Privileged and human-invoked, like every other operation on this surface — it is
+        not on the agent surface and nothing schedules it, because "recompute everything"
+        is a maintenance decision rather than a consequence of some other action.
+        """
+        changed = store.recompute_all_trust()
+        nodes = []
+        for node_id, trust in sorted(changed.items(), key=lambda kv: kv[1]):
+            node = store.read_node(node_id)
+            nodes.append({
+                "id": node_id,
+                "path": node.path if node else "",
+                "trust_weight": trust,
+            })
+        return JSONResponse({"ok": True, "changed": len(changed), "nodes": nodes})
+
     async def set_change_active(request: Request) -> JSONResponse:
         node = _get_node_or_404(request.path_params["node_id"])
         if isinstance(node, JSONResponse):
@@ -689,6 +712,7 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
 
     routes = [
         Route("/api/health", health),
+        Route("/api/trust/recompute-all", recompute_all_trust, methods=["POST"]),
         Route("/api/info", info),
         Route("/api/nodes", list_nodes, methods=["GET"]),
         Route("/api/nodes", create_artifact, methods=["POST"]),

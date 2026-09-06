@@ -25,7 +25,7 @@ agent's write vocabulary.
 | Concurrency | `locking.py` | Shared/exclusive file lock: every live connection holds the shared half, replacing the database needs the exclusive half. SQLite handles concurrent *connections*; nothing but this handles a whole-file swap |
 | Agent surface | `agent_surface.py` | The one place agent operations and their rules live — 5 writes + 5 reads, safe by construction |
 | Transports | `cli.py`, `mcp_server.py` | Two doors onto that surface: the CLI (default, always works) and MCP (optimization). Both pure delegation |
-| Human surface | `gui_api.py`, `gui/` | Minimal web GUI (Svelte + Bootstrap) for inspection and the human-in-the-loop checkpoints |
+| Human surface | `gui_api.py`, `gui/` | Minimal web GUI (Svelte + Bootstrap) for inspection, the human-in-the-loop checkpoints, and privileged maintenance (bulk trust recompute) |
 
 Scoring: `effective_score = structure × (α·retrieval + β·trust + γ·recency)`, where
 `structure` is hop decay (single-seed) or normalized PPR mass (multi-seed) — see

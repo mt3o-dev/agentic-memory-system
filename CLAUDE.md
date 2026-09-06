@@ -60,6 +60,9 @@ that project's store and copy `.claude/skills/memory-*` across.
 - `uv run agentic-memory-gui` — human GUI on 127.0.0.1:8765
 - `cd gui && npm run build` — rebuild `gui/dist` after touching `gui/src` (dist is committed)
 - `uv run python scripts/memory_lifecycle.py status` — change liveness at a glance
+- `uv run python scripts/memory_lifecycle.py recompute-trust [--dry-run]` — fold every
+  journal at cleanup time; the fold is lazy, so `trust_weight` drifts behind it (GUI: the
+  *Recompute trust* button does the same thing)
 
 ## Conventions
 

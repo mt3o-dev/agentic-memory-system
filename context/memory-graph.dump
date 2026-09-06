@@ -1925,7 +1925,7 @@ path: /artifact/the-benchmark-harness-is-researched-and
 created_at: 2026-09-06T11:52:38.452102+00:00
 needs_review: true
 retrieval_weight: 1.0
-trust_weight: 1.0
+trust_weight: 0.0
 archived: false
 -> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T11:52:38.452102+00:00
 -> DEPENDS_ON [node:f54ca2f8-fd25-4b80-b04c-4190406f1ba5] @ 2026-09-06T11:52:38.461365+00:00
@@ -2021,7 +2021,7 @@ path: /artifact/the-bootstrap-record-specifies-github-ac
 created_at: 2026-09-06T11:52:38.454656+00:00
 needs_review: true
 retrieval_weight: 1.0
-trust_weight: 1.0
+trust_weight: 0.0
 archived: false
 -> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-06T11:52:38.454656+00:00
 
@@ -2613,7 +2613,7 @@ path: /artifact/the-ablation-matrix-is-not-yet-interpret
 created_at: 2026-09-06T14:34:03.074005+00:00
 needs_review: true
 retrieval_weight: 1.0
-trust_weight: 1.0
+trust_weight: 0.0
 archived: false
 -> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T14:34:03.074005+00:00
 
@@ -2772,3 +2772,85 @@ archived: false
 -> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T15:22:02.720369+00:00
 
 MRR is the wrong metric for a query whose correct outcome is demotion. For the contradiction category the gold node is the FLAGGED one and TrustTermPenalty's documented job is to keep it reachable but not first — so MRR rewards precisely the failure, and a weighting that disables the penalty scores as an improvement. Benchmark queries carry an expected outcome (first / demoted) and are scored against it. The design had warned about this in words and the harness did it anyway on its first version.
+---
+[node:8850b8d1-ed77-4840-915c-62db5d9d7e0b]
+type: goal
+tier: short-term
+path: /goal/bulk-trust-recompute
+created_at: 2026-09-06T19:56:19.345573+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:188fcd3c-4968-4866-9500-67ea2e767f1c] @ 2026-09-06T19:56:19.354620+00:00
+-> DEPENDS_ON [node:ac6ce0fb-a6da-4c9c-92f3-1d31835a0237] @ 2026-09-06T19:56:19.352467+00:00
+-> DEPENDS_ON [node:b15a9a89-562f-4dd1-bd46-14ab92eb0169] @ 2026-09-06T19:56:19.353732+00:00
+
+Give trust one way to catch up with its journal across the whole graph, by hand and on purpose
+---
+[node:8b2c0175-0d18-4d99-a2b5-4b83f2845295]
+type: slice
+tier: short-term
+path: /change/bulk-trust-recompute
+created_at: 2026-09-06T19:56:19.345573+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:188fcd3c-4968-4866-9500-67ea2e767f1c] @ 2026-09-06T19:56:19.354620+00:00
+-> SCOPED_TO [node:8850b8d1-ed77-4840-915c-62db5d9d7e0b] @ 2026-09-06T19:56:19.345573+00:00
+-> SCOPED_TO [node:ac6ce0fb-a6da-4c9c-92f3-1d31835a0237] @ 2026-09-06T19:56:19.352467+00:00
+-> SCOPED_TO [node:b15a9a89-562f-4dd1-bd46-14ab92eb0169] @ 2026-09-06T19:56:19.353732+00:00
+
+change scope: bulk-trust-recompute
+---
+[event:c28a3ebe-1eaa-49e0-9f58-d5d9774f9f44]
+node_id: 8b2c0175-0d18-4d99-a2b5-4b83f2845295
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T19:56:19.351594+00:00
+
+create_change bulk-trust-recompute
+---
+[node:ac6ce0fb-a6da-4c9c-92f3-1d31835a0237]
+type: decision
+tier: short-term
+path: /artifact/bulk-trust-recompute-exists-as-a-gui-but
+created_at: 2026-09-06T19:56:19.352467+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:263ef4a7-9561-4ab5-a75d-d54114faa996] @ 2026-09-06T19:56:19.352467+00:00
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T19:56:19.352467+00:00
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T19:56:19.352467+00:00
+
+Bulk trust recompute exists as a GUI button and a `memory_lifecycle.py recompute-trust` command, both human-invoked, neither scheduled. The fold is lazy by design so the write path stays cheap, which means trust_weight drifts behind the journal it is derived from until somebody asks — and asking per-node only helps if you already know which nodes are behind, which is exactly what you do not know. Running it on this project's own graph immediately found three nodes still at 1.0 whose journals folded to 0.0.
+---
+[node:b15a9a89-562f-4dd1-bd46-14ab92eb0169]
+type: constraint
+tier: short-term
+path: /artifact/recomputing-trust-journals-nothing-and
+created_at: 2026-09-06T19:56:19.353732+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T19:56:19.353732+00:00
+
+Recomputing trust journals NOTHING, and that is not an exception to the 'state changes must be journaled' rule but a consequence of it: trust is derived from the event log, so recording the derivation as a new event would make the log describe itself. The journal is already the whole story; recompute only catches the materialized column up with it.
+---
+[node:188fcd3c-4968-4866-9500-67ea2e767f1c]
+type: decision
+tier: short-term
+path: /artifact/recompute-all-trust-folds-every-node-in
+created_at: 2026-09-06T19:56:19.354620+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T19:56:19.354620+00:00
+
+recompute_all_trust folds EVERY node, including those with no events, so a node whose journal was emptied returns to the baseline instead of keeping a stale value. Nodes already holding the right value are left untouched and left out of the result, which makes the return value a report of what was actually behind rather than a list of everything that exists.

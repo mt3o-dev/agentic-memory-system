@@ -716,6 +716,62 @@ class MemoryStore:
                 raise ValueError(f"recompute_trust: no node with id {node_id!r}")
         return trust_weight
 
+    def recompute_all_trust(self, strategy: FoldStrategy | None = None) -> dict[str, float]:
+        """Fold every node's journal at once. Returns ``{node_id: trust}`` for what moved.
+
+        The bulk form of ``recompute_trust``, and the reason it is needed: the fold is
+        **lazy by design** — ``append_event`` and ``flag_contradicted`` journal without
+        recomputing, so the write path stays cheap and predictable (MT3-28). Nothing then
+        recomputes on its own, so ``trust_weight`` drifts behind the journal it is derived
+        from until somebody asks. Before this existed the only way to ask was one node at
+        a time through the GUI, and every node in this project's own graph sat at exactly
+        1.0 while contradictions accumulated underneath — which quietly made the ``β·trust``
+        term a constant in every score.
+
+        Like the single-node form, this **journals nothing**: trust is *derived* from the
+        event log, and recording a derivation as a new event would make the log describe
+        itself. That is why it is exempt from the "state changes must be journaled" rule
+        rather than an exception to it — the journal is already the whole story, and this
+        only catches the materialized column up with it.
+
+        Every node is folded, including those with no events, so a node whose journal was
+        emptied returns to the baseline instead of keeping a stale value. Nodes already
+        holding the right value are left untouched and left out of the result, so the
+        return value is a report of what was actually behind.
+        """
+        fold = (strategy or self._fold_strategy).fold
+        events_by_node: dict[str, list[Event]] = {}
+        for row in self._conn.execute(
+            "SELECT id, node_id, type, weight, polarity, source, reason, created_at "
+            "FROM events ORDER BY node_id ASC, created_at ASC, id ASC"
+        ):
+            events_by_node.setdefault(row[1], []).append(
+                Event(
+                    id=row[0],
+                    node_id=row[1],
+                    type=EventType(row[2]),
+                    weight=row[3],
+                    polarity=row[4],
+                    source=row[5],
+                    reason=row[6],
+                    created_at=datetime.fromisoformat(row[7]),
+                )
+            )
+
+        changed: dict[str, float] = {}
+        current = self._conn.execute("SELECT id, trust_weight FROM nodes ORDER BY id").fetchall()
+        for node_id, stored in current:
+            folded = fold(events_by_node.get(node_id, []))
+            if folded != stored:
+                changed[node_id] = folded
+        if changed:
+            with self._conn:
+                self._conn.executemany(
+                    "UPDATE nodes SET trust_weight = ? WHERE id = ?",
+                    [(trust, node_id) for node_id, trust in changed.items()],
+                )
+        return changed
+
     def set_tier(self, node_id: str, tier: Tier, *, source: str, reason: str) -> None:
         """Privileged tier change (promotion/demotion) — human checkpoint, journaled.
 
