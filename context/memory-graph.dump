@@ -2751,7 +2751,7 @@ type: decision
 tier: short-term
 path: /artifact/measured-result-of-the-embedder-swap-st
 created_at: 2026-09-06T15:22:02.719500+00:00
-needs_review: false
+needs_review: true
 retrieval_weight: 1.0
 trust_weight: 1.0
 archived: false
@@ -2759,6 +2759,16 @@ archived: false
 -> CONTRADICTS [node:c93d1e00-1032-4b07-980b-2f74fb27e405] @ 2026-09-06T15:22:02.719500+00:00
 
 Measured result of the embedder swap: stage-1 facet recall on paraphrase queries goes 0.00 -> 0.80 and end-to-end top-1 success does not move at all (0.67 both ways). What improves is the shape of the rest of the ranking — focus 0.87 -> 0.97, noise 0.32 -> 0.25 — because better seeds redistribute PPR mass among nodes the goal already reaches rather than reaching different ones. The obvious explanation, that goal_weight=0.7 caps the supplementary seeds, was TESTED AND REFUTED: lowering it to 0.5 and 0.3 leaves paraphrase success flat. So the swap is worth having if a caller reads past rank 1, which an agent consuming a recall bundle does, and is not worth a required model download for top-1 accuracy.
+---
+[event:3cc05aff-8d57-49bb-9603-6a368520bb2c]
+node_id: 0ad01f9d-098d-45d8-bae1-39841825bb96
+type: contradiction_raised
+weight: 1.0
+polarity: -1
+source: agent-surface
+created_at: 2026-09-06T20:05:25.907296+00:00
+
+contradicted at capture of 81f62845-0ead-469f-89e3-1039c7ab0821
 ---
 [node:a70015dd-a95e-499c-96e5-f7a6395024df]
 type: constraint
@@ -2854,3 +2864,101 @@ archived: false
 -> HAS_FACET [node:7be44b5d-a570-4dd8-9963-64a56554321f] @ 2026-09-06T19:56:19.354620+00:00
 
 recompute_all_trust folds EVERY node, including those with no events, so a node whose journal was emptied returns to the baseline instead of keeping a stale value. Nodes already holding the right value are left untouched and left out of the result, which makes the return value a report of what was actually behind rather than a list of everything that exists.
+---
+[node:78e148d2-2593-4cb9-b902-3d1e18a02178]
+type: goal
+tier: short-term
+path: /goal/real-graph-reference
+created_at: 2026-09-06T20:05:25.904607+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:81f62845-0ead-469f-89e3-1039c7ab0821] @ 2026-09-06T20:05:25.907296+00:00
+-> DEPENDS_ON [node:87f357db-15db-47d4-acd2-f611f7544102] @ 2026-09-06T20:05:25.910026+00:00
+-> DEPENDS_ON [node:b46d8db0-f7a8-4a33-bba6-c5681a4a9478] @ 2026-09-06T20:05:25.909200+00:00
+-> DEPENDS_ON [node:f417c584-f189-4f4c-b780-6cf8305ebc65] @ 2026-09-06T20:05:25.908314+00:00
+
+Check the benchmark's conclusions against real graphs from other projects, where there are no gold labels
+---
+[node:b7200b07-e381-403c-b408-58299c84d751]
+type: slice
+tier: short-term
+path: /change/real-graph-reference
+created_at: 2026-09-06T20:05:25.904607+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:78e148d2-2593-4cb9-b902-3d1e18a02178] @ 2026-09-06T20:05:25.904607+00:00
+-> SCOPED_TO [node:81f62845-0ead-469f-89e3-1039c7ab0821] @ 2026-09-06T20:05:25.907296+00:00
+-> SCOPED_TO [node:87f357db-15db-47d4-acd2-f611f7544102] @ 2026-09-06T20:05:25.910026+00:00
+-> SCOPED_TO [node:b46d8db0-f7a8-4a33-bba6-c5681a4a9478] @ 2026-09-06T20:05:25.909200+00:00
+-> SCOPED_TO [node:f417c584-f189-4f4c-b780-6cf8305ebc65] @ 2026-09-06T20:05:25.908314+00:00
+
+change scope: real-graph-reference
+---
+[event:51808df4-9173-4f12-8b3e-719d19a6d98a]
+node_id: b7200b07-e381-403c-b408-58299c84d751
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T20:05:25.906590+00:00
+
+create_change real-graph-reference
+---
+[node:81f62845-0ead-469f-89e3-1039c7ab0821]
+type: decision
+tier: short-term
+path: /artifact/measured-on-two-real-graphs-the-hashed
+created_at: 2026-09-06T20:05:25.907296+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> CONTRADICTS [node:0ad01f9d-098d-45d8-bae1-39841825bb96] @ 2026-09-06T20:05:25.907296+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T20:05:25.907296+00:00
+
+Measured on two real graphs: the hashed and static embedders pick DIFFERENT SEED SETS for 100% of queries (28/28) and a different top-1 node for about 22% of them — 25% on scopes with >=10 artifacts, 20% below that. So the earlier reading of the synthetic benchmark, that the swap leaves the top answer unchanged, was wrong. End-to-end success 0.67 -> 0.67 says the same NUMBER of queries succeeded, not the same ones; an aggregate over 17 queries cannot distinguish 'nothing moved' from 'several moved and cancelled out'. What real graphs still cannot say is which embedder is right on those 22%, because they carry no gold labels.
+---
+[node:f417c584-f189-4f4c-b780-6cf8305ebc65]
+type: constraint
+tier: short-term
+path: /artifact/scope-size-does-not-predict-how-much-see
+created_at: 2026-09-06T20:05:25.908314+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T20:05:25.908314+00:00
+
+Scope size does not predict how much seed discovery matters. Tested because it was the obvious explanation for the swap leaving top-1 unmoved: a 48-artifact scope has its top-1 changed by supplementary seeds LESS often (32%) than several 3-5 artifact scopes (67-89%). The hypothesis that small scopes are already fully reachable from the goal, leaving seeds nothing to win, is refuted.
+---
+[node:b46d8db0-f7a8-4a33-bba6-c5681a4a9478]
+type: constraint
+tier: short-term
+path: /artifact/never-point-memorystore-at-another-proje
+created_at: 2026-09-06T20:05:25.909200+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T20:05:25.909200+00:00
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T20:05:25.909200+00:00
+
+Never point MemoryStore at another project's live store to run an experiment. Opening it takes that store's lock, may rebuild it from its dump, and refreshes the dump on close — an analysis that mutates the thing it is analysing, and somebody else's data at that. Copy the database file first and open the copy with auto_sync=False.
+---
+[node:87f357db-15db-47d4-acd2-f611f7544102]
+type: concept
+tier: short-term
+path: /artifact/a-real-graph-with-no-gold-labels-can-sti
+created_at: 2026-09-06T20:05:25.910026+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-06T20:05:25.910026+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T20:05:25.910026+00:00
+
+A real graph with no gold labels can still falsify a claim, as long as the claim predicts a DIFFERENCE rather than a correct answer. Both 'seeds matter more on dense scopes' and 'the swap does not change the top answer' are difference claims, so measuring disagreement between two configurations tests them without anyone deciding what the right answer was. Correctness questions still need the labelled synthetic corpus — which is the division of labour the harness design proposed, arrived at from the other direction.

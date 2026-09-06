@@ -97,6 +97,14 @@ embeddings`). Both baselines are in `eval/results/`.
 | end-to-end **focus** | 0.87 | **0.97** |
 | end-to-end **noise** | 0.32 | **0.25** |
 
+> **Corrected by a later check on real graphs** — see
+> `results/2026-09-06-real-graph-reference.md`. On two real stores the two embedders pick
+> different seeds for **100%** of queries and a different top-1 node for about **22%** of
+> them. The 0.67 → 0.67 below says the same *number* of queries succeeded, not the same
+> ones; an aggregate over 17 queries cannot tell "nothing moved" from "things moved and
+> cancelled out". The paragraph below is left as written because the reasoning it models —
+> reading a per-stage table — is right even where its conclusion was too strong.
+
 **Stage 1 improved enormously and the top answer did not change.** That is the finding,
 and it is the one a single blended number would have hidden in either direction — it would
 have reported "no improvement" and buried a 0.00 → 0.80, or reported the stage-1 gain and
@@ -110,6 +118,11 @@ already reachable from the goal alone.
 The obvious explanation — that `goal_weight=0.7` caps how much supplementary seeds can
 matter — was **tested and refuted**: lowering it to 0.5 and 0.3 leaves paraphrase success
 flat at 0.40 for the static embedder. Whatever bounds it is not the seed budget.
+
+A second explanation, that small scopes are already fully reachable from the goal so seeds
+have nothing left to win, was **also tested and refuted** on real graphs: a 48-artifact
+scope has its top-1 changed by seeds *less* often (32%) than several 3–5 artifact scopes
+(67–89%). Scope size does not predict it.
 
 So the honest recommendation, which is why the swap ships as an optional extra rather than
 as the default: it is worth having if a caller reads past rank 1 — which an agent
