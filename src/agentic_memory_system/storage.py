@@ -129,6 +129,17 @@ class MemoryStore:
         # a `git pull` that moved the dump forward — so the caller never has to know the
         # database is a build artifact. Notes are collected rather than printed: a
         # library must not write to stdout, which on the CLI transport is the result.
+        if not isinstance(db_path, (str, Path)):
+            # str(db_path) accepts literally anything, so a caller that passed the wrong
+            # variable — a tuple from a fixture, a dict, a Namespace — silently created a
+            # database named after its repr, in the current directory. Files like
+            # "(PosixPath('/tmp/.../graph.db'), {'goal_node_id': ...})" appeared in the
+            # repo root and were committed before anyone noticed. Fail on the call
+            # instead: the mistake is now impossible to make quietly.
+            raise TypeError(
+                f"db_path must be a str or Path, not {type(db_path).__name__} — "
+                f"stringifying it would create a database named after its repr"
+            )
         self._db_path = str(db_path)
         self._auto_sync = sync.auto_sync_enabled() if auto_sync is None else auto_sync
         self.sync_notes: list[str] = []

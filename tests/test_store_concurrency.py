@@ -401,3 +401,15 @@ def test_in_memory_stores_are_not_warned_about_a_lock_they_never_wanted(tmp_path
         assert store.sync_notes == []
     finally:
         store.close()
+
+
+def test_a_db_path_that_is_not_a_path_is_refused(tmp_path):
+    """`str()` accepts anything, so the wrong variable used to become a filename.
+
+    A test passing a `(path, change)` fixture tuple straight in created databases named
+    after the tuple's repr, in the working directory, and they were committed before
+    anyone noticed. The stringification is the bug; refusing it is the fix.
+    """
+    with pytest.raises(TypeError, match="must be a str or Path"):
+        MemoryStore((tmp_path / "graph.db", {"goal_node_id": "abc"}))
+    assert not list(tmp_path.iterdir()), "nothing should have been created"
