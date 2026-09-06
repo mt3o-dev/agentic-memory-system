@@ -1,0 +1,58 @@
+name: tests
+
+# Runs the suite on the org's Ampere (Oracle ARM64) self-hosted runner, deliberately not
+# on a GitHub-hosted one. Until this existed the 337 tests ran on contributors' machines
+# and nowhere else — `release.yml` triggers on version tags and never calls pytest — so a
+# green PR meant only that whoever opened it remembered to run them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One self-hosted runner serves the whole org, so a queue is a shared resource. Superseded
+# runs on the same ref are cancelled rather than left to hold it.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    # `ampere` is the custom label on the Oracle ARM64 runner; `self-hosted` is kept
+    # alongside it so this can never fall through to a GitHub-hosted image that happens
+    # to carry a matching label.
+    runs-on: [self-hosted, Linux, ARM64, ampere]
+    timeout-minutes: 15
+
+    # A self-hosted runner runs on the maintainer's own hardware, and this repository is
+    # public — so a pull request from a fork must not be able to execute code on it. Fork
+    # PRs are skipped rather than run somewhere else, because "not the GitHub runner" is
+    # the point of this workflow; a fork contributor's tests are run by a maintainer
+    # locally, or by re-opening the branch in this repo.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # --frozen: install exactly what uv.lock pins and fail if it is stale, rather than
+      # quietly resolving something else. A lockfile CI does not enforce is decoration.
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # The store is a gitignored build artifact and `actions/checkout` cleans ignored
+      # files, so every run rebuilds context/memory-graph.db from the tracked dump before
+      # the first test touches it. That makes the fresh-clone path (sync.auto_restore) a
+      # thing CI exercises on every run rather than a thing we assert about in tests only.
+      - name: Run the suite
+        run: uv run --frozen pytest -q
