@@ -1,0 +1,60 @@
+name: tests
+
+# Runs the suite on every push to main and every pull request. Until this existed
+# `.github/workflows/` held only `release.yml`, which triggers on version tags and never
+# calls pytest — so the tests ran on contributors' machines and nowhere else, and a green
+# PR meant only that whoever opened it remembered to run them.
+#
+# WHY NOT THE ORG'S OWN AMPERE RUNNER, which was the first choice: GitHub refuses to
+# dispatch jobs from a PUBLIC repository to a self-hosted runner whose group has
+# `allows_public_repositories: false` — the default, and a deliberate one, since a fork's
+# pull request would otherwise execute arbitrary code on the maintainer's own hardware.
+# The job simply queues forever with the runner sitting online and idle. Relaxing that
+# policy was judged not worth it for a test suite, so this uses a GitHub-hosted runner.
+#
+# It is still ARM64 (`ubuntu-24.04-arm`), which keeps the architecture the self-hosted
+# Ampere box would have given, is free for public repositories, and means the suite is
+# exercised on something other than the x86 laptops it is written on. Swap to
+# `ubuntu-latest` if an aarch64 wheel ever goes missing for a dependency.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same ref makes the previous run's answer irrelevant, so cancel it
+# rather than paying for both.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to an exact version, not a floating major: setup-uv publishes moving
+      # major tags only up to v7, so `@v10` does not resolve at all.
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # --frozen: install exactly what uv.lock pins and fail if it is stale, rather than
+      # quietly resolving something else. A lockfile CI does not enforce is decoration.
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # The store is a gitignored build artifact, so a fresh checkout has no
+      # context/memory-graph.db and the first test run rebuilds it from the tracked dump.
+      # That makes the fresh-clone path (sync.auto_restore) something CI exercises for
+      # real on every run, not only something the tests assert about.
+      - name: Run the suite
+        run: uv run --frozen pytest -q

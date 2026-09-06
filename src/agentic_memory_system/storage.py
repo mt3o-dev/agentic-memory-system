@@ -14,7 +14,7 @@ from .penalty import (
     ScoreComponents,
     compute_penalty,
 )
-from .embedding import Embedder, HashedBagOfWordsEmbedder, cosine
+from .embedding import Embedder, HashedBagOfWordsEmbedder, cosine, default_embedder
 from .retrieval import (
     DEFAULT_DAMPING,
     DEFAULT_EDGE_POLICY,
@@ -129,6 +129,17 @@ class MemoryStore:
         # a `git pull` that moved the dump forward — so the caller never has to know the
         # database is a build artifact. Notes are collected rather than printed: a
         # library must not write to stdout, which on the CLI transport is the result.
+        if not isinstance(db_path, (str, Path)):
+            # str(db_path) accepts literally anything, so a caller that passed the wrong
+            # variable — a tuple from a fixture, a dict, a Namespace — silently created a
+            # database named after its repr, in the current directory. Files like
+            # "(PosixPath('/tmp/.../graph.db'), {'goal_node_id': ...})" appeared in the
+            # repo root and were committed before anyone noticed. Fail on the call
+            # instead: the mistake is now impossible to make quietly.
+            raise TypeError(
+                f"db_path must be a str or Path, not {type(db_path).__name__} — "
+                f"stringifying it would create a database named after its repr"
+            )
         self._db_path = str(db_path)
         self._auto_sync = sync.auto_sync_enabled() if auto_sync is None else auto_sync
         self.sync_notes: list[str] = []
@@ -150,6 +161,10 @@ class MemoryStore:
         # even with auto_sync off, because the process that would replace the file is
         # some *other* process, and its setting is not ours to read.
         self._lock = locking.acquire(self._db_path) if lock else None
+        if lock and str(db_path) not in ("", ":memory:"):
+            reason = locking.unavailable_reason()
+            if reason:
+                self.sync_notes.append(reason)
         # check_same_thread=False: the GUI server's event loop may touch the
         # connection from a different thread than the one that opened it. Access is
         # still effectively serialized (single event loop / single test portal);
@@ -180,7 +195,7 @@ class MemoryStore:
         self._conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
         self._fold_strategy = fold_strategy or SumAndClampFold()
         self._penalty_strategy = penalty_strategy or TrustTermPenalty()
-        self._embedder = embedder or HashedBagOfWordsEmbedder()
+        self._embedder = embedder or default_embedder()
         self._edge_policy = edge_policy or DEFAULT_EDGE_POLICY
         with self._conn:
             self._conn.execute(_CREATE_NODES)

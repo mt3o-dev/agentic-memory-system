@@ -5,6 +5,7 @@ status: researched
 created: 2026-07-30
 updated: 2026-07-30
 archived_at: null
+memory_goal: 0f395fd9-b601-4f85-b813-c4b7386fc4ea
 ---
 
 ## Notes

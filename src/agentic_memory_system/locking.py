@@ -85,6 +85,27 @@ def locking_available() -> bool:
     )
 
 
+def unavailable_reason() -> str | None:
+    """Why the protocol is not being enforced here, or ``None`` when it is.
+
+    Degrading silently would be the worst of both worlds: the guarantee is gone and
+    nothing says so, which is exactly the failure mode the git-filter design died of.
+    ``MemoryStore`` turns this into a note on every session, so a store running without
+    the protection announces it rather than waiting to be asked.
+    """
+    if fcntl is None:
+        return (
+            "file locking is unavailable on this platform (no fcntl), so nothing "
+            "prevents a rebuild from replacing the database under a live connection"
+        )
+    if os.environ.get("MEMORY_LOCK", "1").strip().lower() in ("0", "false", "no"):
+        return (
+            "file locking is switched off (MEMORY_LOCK=0), so nothing prevents a "
+            "rebuild from replacing the database under a live connection"
+        )
+    return None
+
+
 def wait_timeout() -> float:
     """Shared-lock patience, overridable with ``MEMORY_LOCK_TIMEOUT`` (seconds)."""
     raw = os.environ.get("MEMORY_LOCK_TIMEOUT")

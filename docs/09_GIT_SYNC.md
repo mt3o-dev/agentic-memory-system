@@ -103,13 +103,15 @@ triggers a restore. This is the one non-obvious line in the module, and it is lo
 
 | Need | How |
 |---|---|
+| Check the store for damage or leftovers | `uv run agentic-memory doctor` |
+| Fix what is safe to fix (rebuild, checkpoint, clean up) | `uv run agentic-memory doctor --repair` |
 | See which side is ahead | `uv run agentic-memory sync status` |
 | Refresh the dump from a long-running process (the GUI never calls `close()`) | `uv run agentic-memory sync dump` |
 | Discard local writes in favour of the tracked dump | `uv run agentic-memory sync restore` |
 | Turn both halves off (hot loops, benchmarks) | `MEMORY_AUTO_SYNC=0` |
 | See whether the file lock is enforceable here | `uv run agentic-memory sync status` (the `lock:` line) |
 | Wait longer for another process's rebuild | `MEMORY_LOCK_TIMEOUT=30` |
-| Turn the file lock off (last resort, see `10_CONCURRENCY.md` §7) | `MEMORY_LOCK=0` |
+| Turn the file lock off (last resort, see `10_CONCURRENCY.md` §8) | `MEMORY_LOCK=0` |
 
 `scripts/dump_db.py` and `scripts/restore_db.py` still work as stdin→stdout filters, for
 anyone who wants the old plumbing for their own purposes.

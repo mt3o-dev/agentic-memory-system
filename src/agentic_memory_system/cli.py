@@ -174,6 +174,16 @@ def build_parser() -> argparse.ArgumentParser:
                    choices=["status", "dump", "restore"],
                    help="status (default) reports; dump writes the .dump; restore rebuilds the .db")
 
+    p = sub.add_parser(
+        "doctor",
+        help="check the store for damage and leftovers; --repair fixes what is safe",
+    )
+    p.add_argument("--repair", action="store_true",
+                   help="apply the repairs the diagnosis offers")
+    p.add_argument("--force", action="store_true",
+                   help="with --repair, also rebuild when the database holds un-dumped work "
+                        "(discards it)")
+
     return parser
 
 
@@ -219,6 +229,28 @@ def _dispatch(surface: AgentSurface, args: argparse.Namespace) -> Any:
     if command == "candidates":
         return surface.consolidation_candidates()
     raise SystemExit(f"error: unknown command {command!r}")
+
+
+def _doctor_command(db_path: str, do_repair: bool, force: bool) -> str:
+    """Diagnose the store, and optionally apply the repairs the diagnosis offers.
+
+    Deliberately not routed through ``AgentSurface``: this is a question about the
+    *file*, asked when the file may be the thing that is wrong, so it must not require a
+    healthy store to answer. That is also why the store is never opened read-write here.
+    """
+    from . import doctor
+
+    lines = []
+    if do_repair:
+        actions = doctor.repair(db_path, force=force)
+        lines.extend(actions or ["nothing to repair"])
+        lines.append("")
+    findings = doctor.diagnose(db_path)
+    lines.append(doctor.render(findings))
+    if doctor.exit_code(findings) and not do_repair:
+        print("\n".join(lines))
+        raise SystemExit(1)
+    return "\n".join(lines)
 
 
 def _sync_command(store, db_path: str, direction: str) -> str:
@@ -272,6 +304,13 @@ def _sync_command(store, db_path: str, direction: str) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    if args.command == "doctor":
+        # Handled before the store is opened, and that ordering is the point: opening it
+        # would run auto_restore and auto_dump, which repair some of the very conditions
+        # doctor exists to report — and would simply fail on a database too damaged to
+        # connect to, which is when the command is most needed.
+        _emit(_doctor_command(args.db, args.repair, args.force), args.json)
+        return
     try:
         store = MemoryStore(args.db)
     except locking.StoreBusy as exc:

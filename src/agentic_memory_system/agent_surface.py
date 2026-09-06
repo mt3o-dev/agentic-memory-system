@@ -77,6 +77,12 @@ _EVENT_MAP: dict[str, tuple[EventType, float, int]] = {
 
 # Facet-vocabulary governance thresholds (MT3-19: embeddings are a collision
 # detector feeding the governance gate, never a silent merger).
+# Fallback only. The live value comes from the embedder (``Embedder.suggest_threshold``),
+# because it is a property of that embedder's similarity scale: hashed bag-of-words puts a
+# genuine near-duplicate around 0.4-0.6, a static sentence model puts the same pair near
+# 0.2. Leaving this hardcoded while swapping the embedder would silently switch facet
+# collision detection off, and the "controlled vocabulary" would stop being controlled
+# without anyone being told.
 _FACET_SUGGEST_THRESHOLD = 0.35
 
 class AgentSurfaceError(ValueError):
@@ -394,7 +400,10 @@ class AgentSurface:
                 sim = cosine(label_vec, embedder.embed(facet.body))
                 if sim > best_sim:
                     best, best_sim = facet, sim
-            if best is not None and best_sim >= _FACET_SUGGEST_THRESHOLD:
+            threshold = getattr(
+                self._store._embedder, "suggest_threshold", _FACET_SUGGEST_THRESHOLD
+            )
+            if best is not None and best_sim >= threshold:
                 warnings.append(
                     f"facet {label!r} not added: did you mean existing "
                     f"{best.body!r} ({best.id})? Re-call with that value or a distinct label."

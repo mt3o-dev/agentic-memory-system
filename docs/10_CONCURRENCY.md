@@ -117,7 +117,30 @@ connecting to a file mid-swap.
 | `.bak` is checkpointed first | A backup copied while a leftover WAL sits beside the database is missing every committed transaction still in that WAL — a backup you would not want to need |
 | `close()` is idempotent | `agentic-memory sync restore` closes the store, restores, then closes again in its `finally` — which used to raise `ProgrammingError: Cannot operate on a closed database` at the very end of a successful restore |
 
-## 7. Limits, stated rather than implied
+## 7. Recovering, when it has already gone wrong
+
+`uv run agentic-memory doctor` is the hand-written recovery from the report, turned into
+a command: integrity and foreign-key checks, database-versus-dump agreement, leftover
+`-wal` sidecars, abandoned staging files, and whether the lock is enforceable here.
+
+Two properties it is built around:
+
+- **Diagnosis never writes.** The reason to run it is that you suspect the store, so
+  looking must not be able to make things worse. It also runs *before* the store is
+  opened — opening would trigger `auto_restore`/`auto_dump` and quietly repair some of
+  the conditions being reported, and would simply fail on a database too damaged to
+  connect to, which is when the command matters most.
+- **`--repair` is ordered by what it can cost you.** Deleting an abandoned staging file
+  is free; checkpointing a leftover WAL only folds in already-committed transactions;
+  rebuilding from the dump discards whatever the database holds that the dump does not.
+  So a database that is merely *newer* than its dump is treated as un-dumped work rather
+  than damage and is left alone, with `agentic-memory sync dump` named as the way to
+  publish it and `--force` as the way to throw it away.
+
+Rebuilds go through `sync.restore_from_text`, never a file copy — the exclusive lock and
+the sidecar cleanup are the point of this document.
+
+## 8. Limits, stated rather than implied
 
 - **A process that does not take the lock is not stopped by it.** A raw `sqlite3` CLI, a
   copy of an older version, or an unrelated tool pointed at the same file can still swap

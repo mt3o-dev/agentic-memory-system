@@ -25,6 +25,11 @@ agentic-memory = "agentic_memory_system.cli:main"
 agentic-memory-mcp = "agentic_memory_system.mcp_server:main"
 agentic-memory-gui = "agentic_memory_system.gui_api:main"
 
+[project.optional-dependencies]
+embeddings = [
+    "model2vec>=0.3",
+]
+
 [build-system]
 requires = ["uv_build>=0.11.19,<0.12.0"]
 build-backend = "uv_build"
