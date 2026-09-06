@@ -62,6 +62,10 @@ def test_cli_commands_match_the_surface_operations():
         # `sync` is transport plumbing, not a surface operation — it moves bytes
         # between the database and its tracked dump and reaches no agent verb.
         "sync",
+        # `doctor` likewise: it inspects and repairs the store *file* — integrity,
+        # sidecars, db-versus-dump — and touches no trust, flag, tier or archival state,
+        # so it adds nothing to what an agent can say about the graph's content.
+        "doctor",
     }
 
 

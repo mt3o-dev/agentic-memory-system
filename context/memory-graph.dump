@@ -2334,3 +2334,98 @@ source: agent-surface
 created_at: 2026-09-06T12:15:40.867565+00:00
 
 decided while adding the CI workflow
+---
+[node:030ecc94-b479-491f-840a-fb3065a1a1a9]
+type: goal
+tier: short-term
+path: /goal/store-doctor
+created_at: 2026-09-06T14:23:58.193949+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:60ca3e4a-f805-4792-8d10-cdd3a61fb15b] @ 2026-09-06T14:23:58.202304+00:00
+-> DEPENDS_ON [node:91c909fa-8cc0-489d-ada8-2947db2b88d7] @ 2026-09-06T14:23:58.203252+00:00
+-> DEPENDS_ON [node:a730cc45-1949-4f69-90d1-0edfd6e6ca5c] @ 2026-09-06T14:23:58.201285+00:00
+-> DEPENDS_ON [node:bc268919-7099-4ba8-bf77-59862377f54f] @ 2026-09-06T14:23:58.204193+00:00
+
+Turn the hand-written recovery from issue #5 into a command that cannot make a suspect store worse
+---
+[node:32bd669a-481f-4f62-808b-e4ce56b4d4d4]
+type: slice
+tier: short-term
+path: /change/store-doctor
+created_at: 2026-09-06T14:23:58.193949+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:030ecc94-b479-491f-840a-fb3065a1a1a9] @ 2026-09-06T14:23:58.193949+00:00
+-> SCOPED_TO [node:60ca3e4a-f805-4792-8d10-cdd3a61fb15b] @ 2026-09-06T14:23:58.202304+00:00
+-> SCOPED_TO [node:91c909fa-8cc0-489d-ada8-2947db2b88d7] @ 2026-09-06T14:23:58.203252+00:00
+-> SCOPED_TO [node:a730cc45-1949-4f69-90d1-0edfd6e6ca5c] @ 2026-09-06T14:23:58.201285+00:00
+-> SCOPED_TO [node:bc268919-7099-4ba8-bf77-59862377f54f] @ 2026-09-06T14:23:58.204193+00:00
+
+change scope: store-doctor
+---
+[event:5c641245-6907-4e95-9008-8c75801b4980]
+node_id: 32bd669a-481f-4f62-808b-e4ce56b4d4d4
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-06T14:23:58.200537+00:00
+
+create_change store-doctor
+---
+[node:a730cc45-1949-4f69-90d1-0edfd6e6ca5c]
+type: decision
+tier: short-term
+path: /artifact/doctor-runs-before-the-store-is-opened
+created_at: 2026-09-06T14:23:58.201285+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T14:23:58.201285+00:00
+
+`doctor` runs BEFORE the store is opened, and that ordering is the feature. Opening a MemoryStore triggers auto_restore and auto_dump, which silently repair several of the conditions doctor exists to report — and a database too damaged to connect to would make the command fail exactly when it is most needed. Diagnosis therefore uses read-only sqlite3 connections and the filesystem only, and never writes.
+---
+[node:60ca3e4a-f805-4792-8d10-cdd3a61fb15b]
+type: invariant
+tier: short-term
+path: /artifact/diagnosis-never-writes-the-reason-to-ru
+created_at: 2026-09-06T14:23:58.202304+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T14:23:58.202304+00:00
+
+Diagnosis never writes. The reason to run doctor is that you already suspect the store, so looking at it must not be able to make things worse. Every repair is behind --repair, and each finding carries the exact repair it would apply, so nothing is fixed that was not first named.
+---
+[node:91c909fa-8cc0-489d-ada8-2947db2b88d7]
+type: decision
+tier: short-term
+path: /artifact/doctor-s-repairs-are-ordered-by-what-the
+created_at: 2026-09-06T14:23:58.203252+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T14:23:58.203252+00:00
+
+doctor's repairs are ordered by what they can cost you: deleting an abandoned staging file is free, checkpointing a leftover WAL only folds in already-committed transactions, and rebuilding from the dump discards whatever the database holds that the dump does not. So a database merely NEWER than its dump is treated as un-dumped work rather than damage and is left alone — `sync dump` publishes it, --force discards it. The asymmetry is the same one the whole git-sync design rests on.
+---
+[node:bc268919-7099-4ba8-bf77-59862377f54f]
+type: constraint
+tier: short-term
+path: /artifact/every-rebuild-goes-through-sync-restore
+created_at: 2026-09-06T14:23:58.204193+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:271612ad-3d8e-4c9d-9464-33386852bac1] @ 2026-09-06T14:23:58.204193+00:00
+
+Every rebuild goes through sync.restore_from_text, never a file copy — it holds the exclusive lock and clears the -wal/-shm sidecars as part of the swap. A repair tool that replaced the file directly would reintroduce the exact corruption it was written to recover from.
