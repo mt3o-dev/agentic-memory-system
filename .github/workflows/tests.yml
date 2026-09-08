@@ -69,7 +69,10 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          # jsdom 30 declares `^22.22.2 || ^24.15.0 || >=26`. On Node 20 it fails deep
+          # inside undici with `webidl.util.markAsUncloneable is not a function`, which
+          # says nothing about the real cause — hence the engines field in package.json.
+          node-version: "24"
           cache: npm
           cache-dependency-path: gui/package-lock.json
 
