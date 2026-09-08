@@ -58,3 +58,34 @@ jobs:
       # real on every run, not only something the tests assert about.
       - name: Run the suite
         run: uv run --frozen pytest -q
+
+  gui:
+    # The GUI had no test harness at all until the 3D view arrived and made the gap
+    # obvious: the view can mutate the graph, and none of that path was covered.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: gui
+
+      # jsdom has no WebGL, so these do not cover the rendering — that stays verified by
+      # looking at the page. They cover the half that can corrupt data: which endpoint
+      # each control calls, with what payload, and whether the safety gates hold.
+      - name: Run the GUI tests
+        run: npm test
+        working-directory: gui
+
+      # A build failure is a broken GUI for everyone on the next release, and the release
+      # workflow is the only other place this is compiled.
+      - name: Build
+        run: npm run build
+        working-directory: gui

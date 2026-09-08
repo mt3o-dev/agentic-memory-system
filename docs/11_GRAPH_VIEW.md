@@ -114,11 +114,31 @@ tab, and without the fallback the view is left on the library's default camera.
 Framing stops as soon as the viewer takes over — pointer, wheel, or a node click — because
 re-aiming the camera under someone who is navigating is worse than a bad first frame.
 
-## 5. What is not verified
+## 5. What is tested, and what cannot be
 
-The Python side is covered by tests (graph payload, archived filtering, edge removal and
-its journaling, the 404 and 400 paths). The view itself was checked by rendering it
-headlessly and looking at it — which is how the contrast failure on the control labels,
-and both framing bugs, were found. There is no JS test harness in this project, so the
-Svelte component has no automated coverage; interactions were exercised against the live
-API instead.
+Three layers, and the split is deliberate.
+
+**Python** (`pytest`): the graph payload and the fields the encoding reads, archived
+filtering and the removal of edges dangling into hidden nodes, edge deletion and its
+journaling, the 404 and 400 paths, and the CHECK migration against an old-schema database.
+
+**JavaScript** (`vitest`, added with this change — the GUI had no harness before it):
+
+- `graph-encoding.test.js` — the encoding's correctness properties. Every node type has a
+  class and its *own* shape (a shape collision makes two types indistinguishable, and
+  colour cannot rescue it because colour is class); size increases with tier and degree
+  never lets a busy short-term note outrank a promoted foundation; parallel edges curve
+  apart, including `a->b` against `b->a`, which occupy the same line on screen. The
+  palette hexes are **pinned to the validated values**, so anyone tidying them re-opens a
+  check that was already run.
+- `Graph3D.test.js` — the half that can corrupt data, with `three` and `3d-force-graph`
+  mocked by a chainable recorder that also captures the handlers the component registers,
+  so a node click can be fired through the real code path. It covers which endpoint each
+  control calls and with what payload, that archived nodes are excluded unless asked, that
+  a refused `confirm()` is reported honestly rather than promoted anyway, and that a
+  server error is surfaced rather than swallowed.
+
+**Neither covers the rendering.** jsdom has no WebGL, so the geometry, the camera and the
+bloom pass are out of reach of any of it. That layer is verified by rendering the page in
+a real browser and looking at it — which is how the near-invisible control labels and both
+framing bugs were found, and none of those would have failed a test.
