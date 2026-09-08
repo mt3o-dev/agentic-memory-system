@@ -8,9 +8,12 @@
  * is the half worth automating, because it is the half that can corrupt data rather than
  * just look wrong.
  *
- * `3d-force-graph` and `three` are mocked with a chainable recorder, which also captures
- * the event handlers the component registers — so a node click can be simulated by
- * invoking the handler the component actually gave the library.
+ * `force-graph`, `3d-force-graph` and `three` are mocked with a chainable recorder, which
+ * also captures the event handlers the component registers — so a node click can be
+ * simulated by invoking the handler the component actually gave the library.
+ *
+ * The 2D drawing itself is not mocked away: `graph-draw.test.js` runs it against a
+ * recording canvas context, which is the coverage the WebGL path could never have.
  */
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,6 +58,8 @@ function makeGraph() {
 
 // A regular function, not an arrow: the component calls it with `new`, and an arrow
 // function is not constructible. Returning an object from a constructor overrides `this`.
+// Both renderers are mocked — the view defaults to 2D and can switch to 3D.
+vi.mock('force-graph', () => ({ default: function ForceGraph() { return makeGraph() } }))
 vi.mock('3d-force-graph', () => ({ default: function ForceGraph3D() { return makeGraph() } }))
 vi.mock('three/examples/jsm/postprocessing/UnrealBloomPass.js', () => ({
   UnrealBloomPass: class { constructor() { this.strength = 0 } },
@@ -73,7 +78,7 @@ vi.mock('three', () => {
   }
 })
 
-import Graph3D from './Graph3D.svelte'
+import GraphView from './GraphView.svelte'
 
 const NODES = [
   {
@@ -117,7 +122,7 @@ const clickNode = async (node) => {
 
 describe('loading', () => {
   it('asks for the graph and hands it to the layout', async () => {
-    render(Graph3D)
+    render(GraphView)
     await waitFor(() => expect(graphData).not.toBeNull())
     expect(calls[0].url).toBe('/api/graph')
     expect(graphData.nodes).toHaveLength(2)
@@ -125,7 +130,7 @@ describe('loading', () => {
   })
 
   it('excludes archived nodes unless asked', async () => {
-    render(Graph3D)
+    render(GraphView)
     await waitFor(() => expect(calls.length).toBeGreaterThan(0))
     // Archived nodes are the dormant remains of merged changes; the first thing a person
     // sees should not be mostly history.
@@ -138,7 +143,7 @@ describe('loading', () => {
 
 describe('the edit panel', () => {
   it('opens on a node click and shows that node', async () => {
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     // Scoped: the path also appears in the add-edge datalist, so a bare text query
     // matches twice and says nothing about the panel.
@@ -147,7 +152,7 @@ describe('the edit panel', () => {
   })
 
   it('saves the body to the node it is showing', async () => {
-    const user = render(Graph3D)
+    const user = render(GraphView)
     await clickNode(NODES[0])
     const box = await screen.findByLabelText('Body')
     box.value = 'Rewritten.'
@@ -162,7 +167,7 @@ describe('the edit panel', () => {
   })
 
   it('will not offer to save an unedited body', async () => {
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     expect((await screen.findByText('Save body')).disabled).toBe(true)
   })
@@ -171,7 +176,7 @@ describe('the edit panel', () => {
 describe('the safety gates hold in this view too', () => {
   it('asks for confirmation before a lifetime promotion, and says so to the server', async () => {
     const confirmed = vi.spyOn(globalThis, 'confirm').mockReturnValue(true)
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     ;(await screen.findByText('lifetime')).click()
 
@@ -185,7 +190,7 @@ describe('the safety gates hold in this view too', () => {
 
   it('reports a refused confirmation honestly rather than promoting anyway', async () => {
     vi.spyOn(globalThis, 'confirm').mockReturnValue(false)
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     ;(await screen.findByText('lifetime')).click()
 
@@ -196,7 +201,7 @@ describe('the safety gates hold in this view too', () => {
 
   it('does not ask for confirmation for the other tiers', async () => {
     const confirmed = vi.spyOn(globalThis, 'confirm').mockReturnValue(true)
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     ;(await screen.findByText('mid-term')).click()
     await waitFor(() => expect(calls.some((c) => c.url === '/api/nodes/n1/tier')).toBe(true))
@@ -206,7 +211,7 @@ describe('the safety gates hold in this view too', () => {
 
 describe('edges', () => {
   it('lists the selected node’s edges in both directions', async () => {
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[1])
     // n1 -> n2, so from n2's side it is an incoming edge and must still be listed.
     expect(await screen.findByText('Edges (1)')).toBeTruthy()
@@ -215,7 +220,7 @@ describe('edges', () => {
   })
 
   it('removes an edge through the journaled endpoint', async () => {
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     ;(await screen.findByTitle('Remove this edge (journaled)')).click()
 
@@ -226,7 +231,7 @@ describe('edges', () => {
   })
 
   it('creates an edge from the selected node', async () => {
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     const target = await screen.findByPlaceholderText('target node id')
     target.value = 'n2'
@@ -241,7 +246,7 @@ describe('edges', () => {
   })
 
   it('will not link to nothing', async () => {
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     expect((await screen.findByText('Link')).disabled).toBe(true)
   })
@@ -256,7 +261,7 @@ describe('failures are surfaced, not swallowed', () => {
       return { ok: false, status: 400, statusText: 'Bad Request',
                json: async () => ({ error: 'no such edge' }) }
     })
-    render(Graph3D)
+    render(GraphView)
     await clickNode(NODES[0])
     ;(await screen.findByTitle('Remove this edge (journaled)')).click()
     expect(await screen.findByText('no such edge')).toBeTruthy()

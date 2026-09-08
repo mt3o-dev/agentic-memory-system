@@ -23,6 +23,7 @@
     "3d-force-graph": "^1.80.0",
     "bootstrap": "^5.3.3",
     "dompurify": "^3.2.0",
+    "force-graph": "^1.51.4",
     "marked": "^15.0.0",
     "three": "^0.185.1"
   },

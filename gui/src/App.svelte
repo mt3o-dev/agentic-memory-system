@@ -77,13 +77,13 @@
     refreshHealth()
   })
 
-  // The 3D view is code-split: three.js plus the force-graph runtime is several times
-  // the size of the rest of this app, and someone who never opens the tab should not pay
-  // for it in the initial load.
-  let Graph3D = $state(null)
+  // The graph view is code-split: the force-graph runtime is a large fraction of this
+  // app's weight, and the 3D renderer several times more again, so someone who never
+  // opens the tab should not pay for either in the initial load.
+  let GraphView = $state(null)
   $effect(() => {
-    if (tab === 'graph' && !Graph3D) {
-      import('./components/Graph3D.svelte').then((m) => (Graph3D = m.default))
+    if (tab === 'graph' && !GraphView) {
+      import('./components/GraphView.svelte').then((m) => (GraphView = m.default))
     }
   })
 
@@ -229,10 +229,10 @@
   {:else if tab === 'recall'}
     <Recall {openNode} />
   {:else if tab === 'graph'}
-    {#if Graph3D}
-      <Graph3D onSelect={(id) => (selectedId = id ?? selectedId)} />
+    {#if GraphView}
+      <GraphView onSelect={(id) => (selectedId = id ?? selectedId)} />
     {:else}
-      <div class="text-secondary small py-5 text-center">loading the 3D view…</div>
+      <div class="text-secondary small py-5 text-center">loading the graph view…</div>
     {/if}
   {/if}
 </main>

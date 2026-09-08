@@ -1,6 +1,6 @@
 ---
 change_id: graph-3d-view
-title: A 3D force-directed view of the graph, with node and edge editing
+title: A force-directed view of the graph (2D by default), with node and edge editing
 status: implemented
 created: 2026-09-08
 updated: 2026-09-08
@@ -15,6 +15,18 @@ walking. Nothing fancy; force-directed view is v2."* three.js + `3d-force-graph`
 lazy-loaded as a **Graph** tab in the existing GUI, with editing in a side panel.
 
 Design, the encoding, and the feature-by-feature argument: `docs/11_GRAPH_VIEW.md`.
+
+## 2D by default, after building 3D first
+
+3D was built, rendered, looked at — and demoted. **Perspective destroys the size channel**:
+size carries tier, and apparent size under perspective is size x distance, so a `lifetime`
+node at the back is indistinguishable from a `short-term` node at the front. Occlusion
+hides content outright, and labels cannot be shown at rest without z-fighting. 3D buys room
+to untangle a dense graph, at a scale this one is nowhere near. It stays one click away and
+its ~2 MB of renderer is fetched only if asked for; the 2D renderer is 90 kB.
+
+The 2D path is also the only one that can be tested — a canvas context is a plain object,
+so `graph-draw.test.js` asserts what was drawn.
 
 ## The part that decided the design
 

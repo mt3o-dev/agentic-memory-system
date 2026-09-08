@@ -1,11 +1,39 @@
-# The 3D graph view — what it encodes, and which features earn their place
+# The graph view — what it encodes, and which features earn their place
 
 *The v2 the original GUI design deferred: "Graph viz: none in v1 — click-through edge
 walking. Nothing fancy; force-directed view is v2."*
 
-`three.js` + [`3d-force-graph`](https://github.com/vasturiano/3d-force-graph), lazy-loaded
-into the existing Svelte GUI as a **Graph** tab, with node and edge editing in a side
-panel. `gui/src/graph-encoding.js` holds the encoding, `Graph3D.svelte` the view.
+A force-directed view of the whole graph, lazy-loaded into the existing Svelte GUI as a
+**Graph** tab, with node and edge editing in a side panel. **2D by default**
+([`force-graph`](https://github.com/vasturiano/force-graph)), with 3D
+([`3d-force-graph`](https://github.com/vasturiano/3d-force-graph) + three.js) one click
+away. `graph-encoding.js` holds the encoding, `graph-draw.js` the 2D rendering,
+`GraphView.svelte` the view.
+
+## 0. Why 2D is the default
+
+3D was built first, looked at, and demoted — because **perspective destroys one of the
+encodings this view depends on**. Size carries tier, and under a perspective projection
+apparent size is size x distance, so a `lifetime` node at the back of the scene is
+indistinguishable from a `short-term` node at the front. The channel is not weakened, it
+is *gone*.
+
+Three more things follow from the same projection:
+
+- **occlusion** — nodes are simply hidden behind other nodes, and a curation surface that
+  hides some of its content is not doing its job;
+- **labels** cannot be shown at rest without z-fighting and constant re-layout, so the 3D
+  view is unlabelled and every node has to be hovered to be identified;
+- **clicking** a specific node is harder, because depth makes two nodes that look adjacent
+  be nowhere near each other.
+
+Against that, 3D buys room to untangle a dense graph — which matters at a scale this one
+is nowhere near. It stays available, because "let me look at it from another angle" is a
+real thing to want, and its ~2 MB of renderer is fetched only if asked for. The 2D
+renderer is 90 kB.
+
+The 2D path is also the only one that can be **tested**: a canvas context is a plain
+object, so `graph-draw.test.js` asserts what was drawn. WebGL offers nothing to assert.
 
 ---
 
@@ -40,7 +68,8 @@ a referent**, or is **structure**. Three slots, and they pass in both modes:
 |---|---|---|
 | **colour** | class: asserts / names / structure | 3 validated hues, the all-pairs limit |
 | **shape** | node type (9 geometries) | nominal data with more levels than hue can hold; the conventional channel for node-link diagrams |
-| **size** | tier, short → lifetime | ordinal magnitude, and tier *is* the human curation axis. Degree nudges it slightly so hubs read as hubs, but never enough for a well-connected note to outrank a promoted foundation |
+| **size** | tier, short → lifetime | ordinal magnitude, and tier *is* the human curation axis. Degree nudges it slightly so hubs read as hubs, but never enough for a well-connected note to outrank a promoted foundation. **Only meaningful in 2D** — see §0 |
+| **label** | path's last segment | 2D only. Always on for long-term and lifetime nodes (the promoted few); on for the rest only above a high zoom, because a fitted whole-graph view is already zoomed enough to label everything at once and turn the centre into mush |
 | **ring + red** | `needs_review` | reserved status colour, and a **ring** so status is never carried by colour alone |
 | **opacity** | archived | dormant nodes recede rather than vanish |
 
@@ -64,7 +93,7 @@ where you find a node and edit it, not a demo.
 | **Orbit controls** | **Needed, as the default** | Predictable, mouse-only, no mode switching |
 | **Fly controls** | **Available, not default** | Genuinely useful for getting *inside* a dense cluster, and genuinely awkward for clicking a specific node — which is what you are here to do. Offered as a toggle alongside trackball |
 | **Auto-orbit** | **Off by default** | A moving target is harder to click and constant motion is tiring. It is a presentation feature, so it ships as one: a toggle, and only orbit controls implement it (trackball and fly have no such property, so the switch disables itself rather than pretending) |
-| **Bloom** | **Off by default, and selective when on** | As a global glow it is actively harmful here: bloom pushes every hue toward white, destroying the one channel the colour encoding depends on. It earns its place only as a *highlighter* — "glow disputed" makes flagged nodes emit, so the effect marks the review queue instead of washing out the graph |
+| **Bloom** | **3D only, off by default, selective when on** | As a global glow it is actively harmful: bloom pushes every hue toward white, destroying the one channel the colour encoding depends on. It earns its place only as a *highlighter* — "glow disputed" makes flagged nodes emit, so the effect marks the review queue instead of washing out the graph. In 2D the ring already does that job, sharply, so there is nothing for bloom to add |
 
 Added because the data needed them: **filter by type**, **show/hide archived** (dormant
 nodes are excluded by default — the first thing you see should not be mostly history), and
@@ -101,15 +130,19 @@ fail to migrate and reject the new value at insert time.
 rest of the app. The tab is code-split, so the main bundle went from 157.4 kB to
 **159.8 kB** — someone who never opens the tab pays 2.4 kB.
 
-**Framing is computed, and does not trust one signal.** `zoomToFit` mis-framed this graph
-repeatedly and inconsistently: the same code put the camera *inside* the cluster in one
-render and left the graph a speck in an empty canvas in the next, because the force layout
-expands and then contracts and the heuristic is sensitive to when it runs. The view now
-computes the centroid and bounding radius itself and places the camera at the distance the
-vertical field of view requires — deterministic, same positions in, same frame out. It is
-triggered by `onEngineStop` (the signal that means the layout settled) **with a timer
-fallback**, because that event is not guaranteed to arrive in a throttled or automated
-tab, and without the fallback the view is left on the library's default camera.
+**Framing does not trust one signal, in either dimension.** The force layout expands and
+then contracts over a second or more, so a single fit at a fixed moment frames it
+mid-flight — too early and the camera ends up inside the cluster, a moment later and the
+graph is a speck in an empty canvas. Both were observed, in both renderers. So the fit is
+**staggered** across a few delays, one of which lands after the layout settles, and
+re-fitting an already-framed graph is a no-op. `onEngineStop` is still the signal that
+matters when it arrives and cancels the rest; it just cannot be relied on, because a
+throttled tab or an automation harness may never deliver it.
+
+In 3D the library's `zoomToFit` was additionally unreliable, so that path computes the
+centroid and bounding radius itself and places the camera at the distance the vertical
+field of view requires. The 2D fit is a plain bounding-box calculation with no camera to
+get wrong, and it behaves.
 
 Framing stops as soon as the viewer takes over — pointer, wheel, or a node click — because
 re-aiming the camera under someone who is navigating is worse than a bad first frame.

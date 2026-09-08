@@ -2973,15 +2973,19 @@ retrieval_weight: 1.0
 trust_weight: 1.0
 archived: false
 -> SCOPED_TO [node:0ded3d03-48b7-45ba-81a1-35ce0d0c2b51] @ 2026-09-08T08:53:58.375571+00:00
+-> SCOPED_TO [node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759] @ 2026-09-08T09:28:33.234856+00:00
 -> SCOPED_TO [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
 -> SCOPED_TO [node:2bb6276b-cc08-49dc-bd9c-ed0d2890371b] @ 2026-09-08T08:53:58.368738+00:00
+-> SCOPED_TO [node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38] @ 2026-09-08T09:28:33.235771+00:00
 -> SCOPED_TO [node:405884b0-882b-4ed1-938a-0c7ab37ceadc] @ 2026-09-08T08:53:58.374658+00:00
 -> SCOPED_TO [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
 -> SCOPED_TO [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
 -> SCOPED_TO [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> SCOPED_TO [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
 -> SCOPED_TO [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
 -> SCOPED_TO [node:b13dfc27-aa63-4b91-a32d-b697f5dabf67] @ 2026-09-08T08:13:39.103069+00:00
 -> SCOPED_TO [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+-> SCOPED_TO [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
 
 change scope: graph-3d-view
 ---
@@ -3005,14 +3009,18 @@ retrieval_weight: 1.0
 trust_weight: 1.0
 archived: false
 -> DEPENDS_ON [node:0ded3d03-48b7-45ba-81a1-35ce0d0c2b51] @ 2026-09-08T08:53:58.375571+00:00
+-> DEPENDS_ON [node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759] @ 2026-09-08T09:28:33.234856+00:00
 -> DEPENDS_ON [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
 -> DEPENDS_ON [node:2bb6276b-cc08-49dc-bd9c-ed0d2890371b] @ 2026-09-08T08:53:58.368738+00:00
+-> DEPENDS_ON [node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38] @ 2026-09-08T09:28:33.235771+00:00
 -> DEPENDS_ON [node:405884b0-882b-4ed1-938a-0c7ab37ceadc] @ 2026-09-08T08:53:58.374658+00:00
 -> DEPENDS_ON [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
 -> DEPENDS_ON [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
 -> DEPENDS_ON [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> DEPENDS_ON [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
 -> DEPENDS_ON [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
 -> DEPENDS_ON [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+-> DEPENDS_ON [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
 
 Add a 3D force-directed view of the graph to the GUI, with node and edge editing
 ---
@@ -3134,3 +3142,55 @@ archived: false
 -> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:53:58.375571+00:00
 
 A chainable builder mock must return the PROXY, not the underlying target object. Returning the target breaks the chain at the second call — the plain object has none of the methods — and in an async onMount the resulting TypeError is swallowed as an unhandled rejection, so every test fails with 'nothing happened' and no error. The same trap catches arrow functions used as constructors: `new` on an arrow throws, and the component calls the library with `new`.
+---
+[node:d413b50e-6ce6-46fa-ad83-f4d590284a2e]
+type: decision
+tier: short-term
+path: /artifact/the-graph-view-is-2d-by-default-and-3d-o
+created_at: 2026-09-08T09:28:33.232008+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.232008+00:00
+
+The graph view is 2D by default and 3D only on request, because PERSPECTIVE DESTROYS THE SIZE CHANNEL: size carries tier, and under a perspective projection apparent size is size x distance, so a lifetime node at the back is indistinguishable from a short-term node at the front. The channel is not weakened, it is gone. Occlusion hides content outright, and labels cannot be shown at rest without z-fighting, so the 3D view is unlabelled and every node must be hovered to be identified. 3D buys room to untangle a dense graph, which matters at a scale this graph is nowhere near. The 2D renderer is 90 kB against ~1.5 MB for 3D plus three.js.
+---
+[node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759]
+type: constraint
+tier: short-term
+path: /artifact/a-label-visibility-threshold-based-on-zo
+created_at: 2026-09-08T09:28:33.234856+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.234856+00:00
+
+A label-visibility threshold based on zoom must mean 'zoomed into a neighbourhood', not merely 'zoomed in'. A whole-graph view that has just been fitted already sits well above a modest threshold, so 1.6 labelled all 124 nodes at once and turned the centre into unreadable mush. The bar is whether nodes are far enough apart on screen that a hundred labels will not collide, which is several times higher. Promoted nodes (long-term, lifetime) are always labelled — there are few of them and they are the ones worth reading at a glance.
+---
+[node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38]
+type: constraint
+tier: short-term
+path: /artifact/force-layout-framing-must-be-staggered-a
+created_at: 2026-09-08T09:28:33.235771+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.235771+00:00
+
+Force-layout framing must be staggered across several delays, not fired once. The layout expands and then contracts over a second or more, so a single fit frames it mid-flight: too early puts the camera inside the cluster, a moment later leaves the graph a speck in an empty canvas. Both were observed, in both the 2D and 3D renderers. onEngineStop is the signal that means 'settled' and cancels the rest when it arrives, but it cannot be relied on — a throttled tab or an automation harness may never deliver it.
+---
+[node:962decf7-5f5c-4f53-bf0a-8109e6742bb5]
+type: constraint
+tier: short-term
+path: /artifact/a-callback-s-argument-order-belongs-to-t
+created_at: 2026-09-08T09:28:33.236628+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.236628+00:00
+
+A callback's argument order belongs to the library, and getting it wrong can fail silently. force-graph calls nodePointerAreaPaint with (node, colour, ctx); passing (ctx, node, colour) hands a node where a context belongs and throws 'beginPath is not a function' on the first frame — inside an async onMount that is swallowed as an unhandled rejection, leaving an empty canvas with no error anywhere on screen. Diagnosed over the DevTools protocol, which is the only thing that surfaced it.

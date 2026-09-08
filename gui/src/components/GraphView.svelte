@@ -5,6 +5,7 @@
     CLASS_COLORS, CLASS_LABEL, CLASS_OF, EDGE_STYLE, SHAPE_OF, STATUS, TIER_SIZE,
     assignCurvature, colorFor, endpointId, sizeFor,
   } from '../graph-encoding.js'
+  import { drawNode, paintPointerArea } from '../graph-draw.js'
 
   let { onSelect = () => {} } = $props()
 
@@ -20,7 +21,15 @@
   let error = $state(null)
   let saving = $state(null)
 
-  // View settings. Defaults are the argued ones — see the block comment below.
+  // View settings. Defaults are the argued ones — see the block comments below.
+  //
+  // 2D is the default because 3D corrupts an encoding this view depends on: under a
+  // perspective projection apparent size is size x distance, so a `lifetime` node at the
+  // back is indistinguishable from a `short-term` node at the front — and size is how
+  // tier is carried. Add occlusion and labels that cannot be shown without z-fighting,
+  // and the third dimension costs more than it pays at this graph's size. 3D stays one
+  // click away, and its 2 MB of runtime is only fetched if you ask for it.
+  let dimensions = $state('2d')
   let controlType = $state('orbit')
   let autoOrbit = $state(false)
   let showArchived = $state(false)
@@ -123,7 +132,7 @@
 
   function refreshVisuals() {
     if (!graph) return
-    graph.nodeThreeObject(meshFor).nodeColor((n) => colorFor(n, mode()))
+    if (dimensions === '3d') graph.nodeThreeObject(meshFor).nodeColor((n) => colorFor(n, mode()))
     if (bloomPass) bloomPass.strength = highlightReview ? 1.7 : 0
   }
 
@@ -133,15 +142,20 @@
     newEdge = { target: '', type: 'DEPENDS_ON' }
     onSelect(selected?.id ?? null)
     if (node && graph) {
-      // Click to focus: fly to a point offset along the vector from origin, so the node
-      // lands centred at a readable distance instead of filling the frame.
-      const distance = 120
-      const ratio = 1 + distance / Math.hypot(node.x || 1, node.y || 1, node.z || 1)
-      graph.cameraPosition(
-        { x: (node.x || 0) * ratio, y: (node.y || 0) * ratio, z: (node.z || 0) * ratio },
-        node,
-        900,
-      )
+      if (dimensions === '3d') {
+        // Fly to a point offset along the vector from origin, so the node lands centred
+        // at a readable distance instead of filling the frame.
+        const distance = 120
+        const ratio = 1 + distance / Math.hypot(node.x || 1, node.y || 1, node.z || 1)
+        graph.cameraPosition(
+          { x: (node.x || 0) * ratio, y: (node.y || 0) * ratio, z: (node.z || 0) * ratio },
+          node,
+          900,
+        )
+      } else {
+        graph.centerAt(node.x, node.y, 700)
+        graph.zoom(2.4, 700)
+      }
     }
   }
 
@@ -173,7 +187,7 @@
             'Promote to lifetime? Lifetime nodes are roots of the live set and survive ' +
               'every sweep. This is the one promotion with no automatic way back.',
           ),
-        reason: 'promoted in the 3D view',
+        reason: 'promoted in the graph view',
       }),
     )
 
@@ -182,7 +196,7 @@
 
   const clearFlag = () =>
     act('flag', () =>
-      post(`/api/nodes/${selected.id}/clear-flag`, { reason: 'reviewed in the 3D view' }),
+      post(`/api/nodes/${selected.id}/clear-flag`, { reason: 'reviewed in the graph view' }),
     )
 
   const addEdge = () =>
@@ -191,7 +205,7 @@
         source: selected.id,
         target: newEdge.target,
         type: newEdge.type,
-        reason: 'linked in the 3D view',
+        reason: 'linked in the graph view',
       }),
     )
 
@@ -201,23 +215,31 @@
         source: edge.source,
         target: edge.target,
         type: edge.type,
-        reason: 'removed in the 3D view',
+        reason: 'removed in the graph view',
       }),
     )
 
   const pathOf = (id) => data.nodes.find((n) => n.id === id)?.path ?? id
 
+  async function loadRenderer() {
+    if (dimensions === '3d') {
+      // three.js plus the 3D runtime is ~2 MB; fetched only when someone asks for 3D.
+      const [{ default: ForceGraph3D }, three, { UnrealBloomPass }] = await Promise.all([
+        import('3d-force-graph'),
+        import('three'),
+        import('three/examples/jsm/postprocessing/UnrealBloomPass.js'),
+      ])
+      THREE = three
+      Bloom = UnrealBloomPass
+      ForceGraph = ForceGraph3D
+    } else {
+      const { default: ForceGraph2D } = await import('force-graph')
+      ForceGraph = ForceGraph2D
+    }
+  }
+
   onMount(async () => {
-    // Loaded on demand: three.js plus the force-graph runtime is several times the size
-    // of the rest of this app, and someone who never opens this tab should not pay for it.
-    const [{ default: ForceGraph3D }, three, { UnrealBloomPass }] = await Promise.all([
-      import('3d-force-graph'),
-      import('three'),
-      import('three/examples/jsm/postprocessing/UnrealBloomPass.js'),
-    ])
-    THREE = three
-    Bloom = UnrealBloomPass
-    ForceGraph = ForceGraph3D
+    await loadRenderer()
     await load()
     build()
     // Sizing is re-measured rather than trusted once. A single measurement taken while
@@ -244,6 +266,12 @@
   // Set once the viewer has aimed the camera themselves; auto-framing defers after that.
   let userMoved = false
 
+  async function swapRenderer() {
+    await loadRenderer()
+    userMoved = false
+    rebuild()
+  }
+
   function rebuild() {
     const camera = graph?.cameraPosition?.()
     graph?._destructor?.()
@@ -253,18 +281,17 @@
   }
 
   function build() {
-    graph = new ForceGraph(container, { controlType })
+    // Everything both renderers understand. The 2D and 3D libraries are the same author's
+    // and share this vocabulary, which is what makes offering both cheap.
+    graph = new ForceGraph(container, dimensions === '3d' ? { controlType } : undefined)
       .backgroundColor(mode() === 'light' ? '#fcfcfb' : '#111110')
-      .showNavInfo(false)
       .nodeLabel((n) => `${n.path}\n${n.type} · ${n.tier}${n.needs_review ? ' · disputed' : ''}`)
-      .nodeThreeObject(meshFor)
       .linkCurvature('curvature')
       .linkColor((l) => (EDGE_STYLE[l.type] || EDGE_STYLE.DEPENDS_ON).color)
       .linkWidth((l) => (EDGE_STYLE[l.type] || EDGE_STYLE.DEPENDS_ON).width)
-      .linkOpacity(0.5)
       // Every edge type is DIRECTED and the direction carries meaning — A CONTRADICTS B
       // flags B, not A. An undirected picture would misstate the data.
-      .linkDirectionalArrowLength(3.5)
+      .linkDirectionalArrowLength(dimensions === '3d' ? 3.5 : 4)
       .linkDirectionalArrowRelPos(1)
       .linkDirectionalArrowColor((l) => (EDGE_STYLE[l.type] || EDGE_STYLE.DEPENDS_ON).color)
       .linkDirectionalParticles((l) => (l === hoveredLink ? 3 : 0))
@@ -279,47 +306,76 @@
       })
       .onEngineStop(fitNow)
 
+    if (dimensions === '3d') {
+      graph
+        .showNavInfo(false)
+        .nodeThreeObject(meshFor)
+        .linkOpacity(0.5)
+    } else {
+      graph
+        .nodeCanvasObject((node, ctx, globalScale) =>
+          drawNode(ctx, node, {
+            mode: mode(),
+            globalScale,
+            selected: selected?.id === node.id,
+          }),
+        )
+        // The hit target is painted separately and made generous, so a short-term node
+        // drawn small is still comfortably clickable.
+        .nodePointerAreaPaint(paintPointerArea)
+    }
+
     applyData()
 
-    // Bloom is added once and left at strength 0 until asked for. An always-on glow is
-    // the single most common way a 3D graph becomes unreadable: it pushes every hue
-    // toward white, which is exactly the channel the colour encoding depends on.
-    bloomPass = new Bloom(undefined, 0, 0.7, 0.2)
-    bloomPass.strength = highlightReview ? 1.7 : 0
-    graph.postProcessingComposer().addPass(bloomPass)
+    if (dimensions === '3d') {
+      // Bloom is added once and left at strength 0 until asked for. An always-on glow is
+      // the single most common way a 3D graph becomes unreadable: it pushes every hue
+      // toward white, which is exactly the channel the colour encoding depends on.
+      bloomPass = new Bloom(undefined, 0, 0.7, 0.2)
+      bloomPass.strength = highlightReview ? 1.7 : 0
+      graph.postProcessingComposer().addPass(bloomPass)
+    } else {
+      bloomPass = null
+    }
     graph.width(container.clientWidth).height(container.clientHeight)
   }
 
-  /**
-   * Framing is driven by `onEngineStop`, not by a timer.
-   *
-   * The force layout expands and then contracts, so any fixed delay frames it mid-flight:
-   * fitting too early left the camera inside the graph once it spread, and fitting a
-   * little later left the graph a speck in the middle once it pulled together. Both were
-   * observed in successive renders of the same code. `onEngineStop` is the one signal
-   * that means "the layout has settled", so that is what aims the camera.
-   *
-   * It stops as soon as the viewer takes over: re-aiming the camera under someone who is
-   * navigating is worse than a bad first frame.
-   */
-  let frameFallback = null
+  let frameFallback = []
   /**
    * `onEngineStop` is the right signal — it means the layout has settled — but it is not
    * a guaranteed one: a simulation that never fully cools, or a tab that is throttled or
    * driven by an automation harness, may not deliver it at all, and the view is then left
-   * on the library's default camera with the graph a speck in the middle. So the settle
-   * signal aims the camera when it arrives, and a fallback timer aims it if it does not.
-   * Whichever runs first wins; the other is a no-op once the viewer has taken over.
+   * on the renderer's default camera with the graph a speck in the middle. So the settle
+   * signal frames the graph when it arrives, and a fallback timer frames it if it does
+   * not. Whichever runs first wins; the other is a no-op once the viewer has taken over.
    */
   function fitNow() {
-    clearTimeout(frameFallback)
+    clearFallbacks()
     if (userMoved) return
     frame(600)
   }
 
+  function clearFallbacks() {
+    for (const timer of frameFallback) clearTimeout(timer)
+    frameFallback = []
+  }
+
+  /**
+   * Several fits, not one, and this is why: the force layout expands and then contracts
+   * over a second or more, so a single fit at a fixed delay frames it mid-flight — too
+   * early and the camera ends up inside the cluster, a moment later and the graph is a
+   * speck once it pulls together. Both were observed. Staggering means one of them lands
+   * after the layout has settled, and re-fitting an already-framed graph is a no-op.
+   *
+   * `onEngineStop` is still the signal that matters when it arrives — it clears these.
+   * It just cannot be relied upon: a throttled tab or an automation harness may never
+   * deliver it, and then the view sits on the renderer's default zoom.
+   */
   function scheduleFrame() {
-    clearTimeout(frameFallback)
-    frameFallback = setTimeout(() => !userMoved && frame(600), 2500)
+    clearFallbacks()
+    frameFallback = [1200, 3000, 6000].map((delay) =>
+      setTimeout(() => !userMoved && frame(500), delay),
+    )
   }
 
   /**
@@ -334,6 +390,12 @@
    */
   function frame(ms = 600) {
     if (!graph) return
+    if (dimensions !== '3d') {
+      // The 2D fit is a plain bounding-box calculation with no camera to get wrong, and
+      // it behaves. The hand-rolled version below exists because the 3D one did not.
+      graph.zoomToFit(ms, 60)
+      return
+    }
     const nodes = graph.graphData().nodes
     if (!nodes.length) return
     let cx = 0, cy = 0, cz = 0
@@ -360,6 +422,12 @@
   })
 
   $effect(() => {
+    // Switching dimension swaps the whole renderer, and may have to fetch it first.
+    void dimensions
+    if (graph) swapRenderer()
+  })
+
+  $effect(() => {
     // Auto-orbit is a presentation mode, not a working one: a moving target is harder to
     // click and the motion tires you out. Off by default. Only OrbitControls implements
     // autoRotate — trackball and fly have no such property — so the toggle is disabled
@@ -374,6 +442,14 @@
   $effect(() => {
     void highlightReview
     refreshVisuals()
+  })
+
+  $effect(() => {
+    // The 2D canvas paints the selection halo, so it has to be told to repaint.
+    void selected
+    if (graph && dimensions !== '3d') graph.nodeCanvasObject((node, ctx, globalScale) =>
+      drawNode(ctx, node, { mode: mode(), globalScale, selected: selected?.id === node.id }),
+    )
   })
 
   $effect(() => {
@@ -393,7 +469,7 @@
   }
 
   onDestroy(() => {
-    clearTimeout(frameFallback)
+    clearFallbacks()
     resize?.disconnect()
     graph?._destructor?.()
   })
@@ -439,35 +515,46 @@
     <div class="position-absolute top-0 end-0 m-2 p-2 rounded d-flex flex-column gap-1 align-items-end"
          style="background: rgba(20,20,19,.72); color: #e8e8e4; backdrop-filter: blur(3px);">
       <div class="btn-group btn-group-sm">
-        {#each ['orbit', 'trackball', 'fly'] as kind}
-          <button
-            class="btn btn-sm {controlType === kind ? 'btn-secondary' : 'btn-outline-secondary'}"
-            onclick={() => (controlType = kind)}
-            title={kind === 'fly'
-              ? 'WASD flight. Good for getting inside a dense cluster; awkward for clicking things.'
-              : kind === 'orbit'
-                ? 'Drag to orbit, scroll to zoom. The predictable one for editing.'
-                : 'Trackball: free rotation with no fixed up-vector.'}
-          >
-            {kind}
-          </button>
-        {/each}
+        <button class="btn btn-sm {dimensions === '2d' ? 'btn-secondary' : 'btn-outline-secondary'}"
+                title="Flat. Size means tier, labels are readable, nothing hides behind anything."
+                onclick={() => (dimensions = '2d')}>2D</button>
+        <button class="btn btn-sm {dimensions === '3d' ? 'btn-secondary' : 'btn-outline-secondary'}"
+                title="Depth, at a cost: perspective makes a distant large node look like a near small one, so size stops meaning tier. Loads ~2 MB of renderer."
+                onclick={() => (dimensions = '3d')}>3D</button>
       </div>
-      <div class="form-check form-switch form-check-reverse small">
-        <input class="form-check-input" type="checkbox" id="orbit" bind:checked={autoOrbit}
-               disabled={controlType !== 'orbit'} />
-        <label class="form-check-label" for="orbit"
-               title={controlType === 'orbit'
-                 ? 'Slow rotation for presenting. Off while editing: a moving target is harder to click.'
-                 : 'Only orbit controls implement auto-rotation.'}>auto-orbit</label>
-      </div>
+      {#if dimensions === '3d'}
+        <div class="btn-group btn-group-sm">
+          {#each ['orbit', 'trackball', 'fly'] as kind}
+            <button
+              class="btn btn-sm {controlType === kind ? 'btn-secondary' : 'btn-outline-secondary'}"
+              onclick={() => (controlType = kind)}
+              title={kind === 'fly'
+                ? 'WASD flight. Good for getting inside a dense cluster; awkward for clicking things.'
+                : kind === 'orbit'
+                  ? 'Drag to orbit, scroll to zoom. The predictable one for editing.'
+                  : 'Trackball: free rotation with no fixed up-vector.'}
+            >
+              {kind}
+            </button>
+          {/each}
+        </div>
+        <div class="form-check form-switch form-check-reverse small">
+          <input class="form-check-input" type="checkbox" id="orbit" bind:checked={autoOrbit}
+                 disabled={controlType !== 'orbit'} />
+          <label class="form-check-label" for="orbit"
+                 title={controlType === 'orbit'
+                   ? 'Slow rotation for presenting. Off while editing: a moving target is harder to click.'
+                   : 'Only orbit controls implement auto-rotation.'}>auto-orbit</label>
+        </div>
+        <div class="form-check form-switch form-check-reverse small">
+          <input class="form-check-input" type="checkbox" id="glow" bind:checked={highlightReview} />
+          <label class="form-check-label" for="glow"
+                 title="Bloom, applied only to flagged nodes. A global glow would wash every hue toward white and destroy the colour encoding.">glow disputed</label>
+        </div>
+      {/if}
       <div class="form-check form-switch form-check-reverse small">
         <input class="form-check-input" type="checkbox" id="arch" bind:checked={showArchived} />
         <label class="form-check-label" for="arch">show archived</label>
-      </div>
-      <div class="form-check form-switch form-check-reverse small">
-        <input class="form-check-input" type="checkbox" id="glow" bind:checked={highlightReview} />
-        <label class="form-check-label" for="glow">glow disputed</label>
       </div>
       <button class="btn btn-sm btn-outline-light"
               title="Re-frame the whole graph"
