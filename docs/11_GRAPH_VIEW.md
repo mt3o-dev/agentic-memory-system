@@ -100,6 +100,41 @@ nodes are excluded by default — the first thing you see should not be mostly h
 an always-present **legend**, which is also the relief for the three light-mode steps that
 sit below 3:1 contrast.
 
+## 2b. Spacing and grouping — the layout is an encoding too
+
+The first layouts were an evenly-spread hairball, and the cause was treating every edge as
+the same kind of relationship. They are not:
+
+| edge | what it means | layout weight |
+|---|---|---|
+| `SCOPED_TO` | *membership* — this artifact belongs to this change | short and strong: it is what a group **is** |
+| `DEPENDS_ON` | content structure | medium |
+| `ABOUT` / `CONTRADICTS` | content, cross-cutting | medium, slack |
+| `HAS_FACET` | *findability only*, never walked by the retrieval walker | long and almost no pull |
+
+`HAS_FACET` is the one that mattered. It is 114 of 347 edges here, and a single facet —
+`/facet/retrieval` — touches **ten different change scopes**. At full strength it drags ten
+clusters into one point, which is precisely what a hairball is. It stays visible and stops
+steering.
+
+**Groups come from the data, not from a heuristic.** `SCOPED_TO` already partitions content
+into change scopes, so that is the grouping. Entities and facet values are deliberately
+*unscoped* in the data model — they outlive the change that named them — so they would have
+no group at all; they get one each of their own.
+
+Two things had to be got right, and both were got wrong first:
+
+- **Anchors, not centroids.** Pulling nodes toward their group's centroid holds a group
+  together and does nothing to keep groups *apart* — they overlap and the picture stays one
+  mesh. Groups are placed on a ring instead, sorted by id so the same graph arranges the
+  same way every time.
+- **Containment, not attraction.** A plain attractor pulls every member onto the anchor,
+  and for a group with many members that beats the repulsion holding them apart: the nine
+  facet values landed exactly on top of one another, nine labels stacked in one spot. A
+  node inside its group's allowance is now left alone and charge spaces it out; only one
+  that has wandered outside is pulled back. The allowance grows with the square root of
+  the group's size, because that is how the area a group needs grows.
+
 ## 3. Editing
 
 The panel edits what the GUI is allowed to edit — it is the privileged human surface, so

@@ -2976,16 +2976,19 @@ archived: false
 -> SCOPED_TO [node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759] @ 2026-09-08T09:28:33.234856+00:00
 -> SCOPED_TO [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
 -> SCOPED_TO [node:2bb6276b-cc08-49dc-bd9c-ed0d2890371b] @ 2026-09-08T08:53:58.368738+00:00
+-> SCOPED_TO [node:301dbe88-1a7c-4aac-ad60-48c8be46499e] @ 2026-09-08T09:39:59.117475+00:00
 -> SCOPED_TO [node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38] @ 2026-09-08T09:28:33.235771+00:00
 -> SCOPED_TO [node:405884b0-882b-4ed1-938a-0c7ab37ceadc] @ 2026-09-08T08:53:58.374658+00:00
 -> SCOPED_TO [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
 -> SCOPED_TO [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
 -> SCOPED_TO [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> SCOPED_TO [node:763bad97-ad5b-41c7-8b78-81e007d4fb08] @ 2026-09-08T09:39:59.114476+00:00
 -> SCOPED_TO [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
 -> SCOPED_TO [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
 -> SCOPED_TO [node:b13dfc27-aa63-4b91-a32d-b697f5dabf67] @ 2026-09-08T08:13:39.103069+00:00
 -> SCOPED_TO [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
 -> SCOPED_TO [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
+-> SCOPED_TO [node:eca32380-d17a-4add-a294-700375cbf6be] @ 2026-09-08T09:39:59.116480+00:00
 
 change scope: graph-3d-view
 ---
@@ -3012,15 +3015,18 @@ archived: false
 -> DEPENDS_ON [node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759] @ 2026-09-08T09:28:33.234856+00:00
 -> DEPENDS_ON [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
 -> DEPENDS_ON [node:2bb6276b-cc08-49dc-bd9c-ed0d2890371b] @ 2026-09-08T08:53:58.368738+00:00
+-> DEPENDS_ON [node:301dbe88-1a7c-4aac-ad60-48c8be46499e] @ 2026-09-08T09:39:59.117475+00:00
 -> DEPENDS_ON [node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38] @ 2026-09-08T09:28:33.235771+00:00
 -> DEPENDS_ON [node:405884b0-882b-4ed1-938a-0c7ab37ceadc] @ 2026-09-08T08:53:58.374658+00:00
 -> DEPENDS_ON [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
 -> DEPENDS_ON [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
 -> DEPENDS_ON [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> DEPENDS_ON [node:763bad97-ad5b-41c7-8b78-81e007d4fb08] @ 2026-09-08T09:39:59.114476+00:00
 -> DEPENDS_ON [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
 -> DEPENDS_ON [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
 -> DEPENDS_ON [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
 -> DEPENDS_ON [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
+-> DEPENDS_ON [node:eca32380-d17a-4add-a294-700375cbf6be] @ 2026-09-08T09:39:59.116480+00:00
 
 Add a 3D force-directed view of the graph to the GUI, with node and edge editing
 ---
@@ -3194,3 +3200,43 @@ archived: false
 -> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.236628+00:00
 
 A callback's argument order belongs to the library, and getting it wrong can fail silently. force-graph calls nodePointerAreaPaint with (node, colour, ctx); passing (ctx, node, colour) hands a node where a context belongs and throws 'beginPath is not a function' on the first frame — inside an async onMount that is swallowed as an unhandled rejection, leaving an empty canvas with no error anywhere on screen. Diagnosed over the DevTools protocol, which is the only thing that surfaced it.
+---
+[node:763bad97-ad5b-41c7-8b78-81e007d4fb08]
+type: decision
+tier: short-term
+path: /artifact/the-graph-view-weights-edges-differently
+created_at: 2026-09-08T09:39:59.114476+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:39:59.114476+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T09:39:59.114476+00:00
+
+The graph view weights edges differently in the FORCE LAYOUT because they mean different things. SCOPED_TO is membership — it is what a group is — so it is short and strong. HAS_FACET is findability only, never walked by the retrieval walker, and one facet in this graph touches TEN different change scopes; at full strength it drags ten clusters into one point, which is exactly what made the first layout a hairball. It keeps its distance and almost no pull: still visible, no longer steering.
+---
+[node:eca32380-d17a-4add-a294-700375cbf6be]
+type: constraint
+tier: short-term
+path: /artifact/to-make-groups-visible-in-a-force-layout
+created_at: 2026-09-08T09:39:59.116480+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:39:59.116480+00:00
+
+To make groups visible in a force layout, anchor them — do not pull to a centroid. A centroid attractor holds each group together and does nothing to keep groups APART, so they overlap and the picture stays one even mesh. Anchors placed deterministically (sorted by group id, evenly on a ring) fix the groups relative to each other, so separation is guaranteed rather than hoped for, and the same graph arranges the same way on every reload.
+---
+[node:301dbe88-1a7c-4aac-ad60-48c8be46499e]
+type: constraint
+tier: short-term
+path: /artifact/a-group-force-must-contain-not-attract
+created_at: 2026-09-08T09:39:59.117475+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:39:59.117475+00:00
+
+A group force must CONTAIN, not attract. A plain attractor pulls every member onto the anchor point, and for a group with many members that beats the repulsion holding them apart — the nine facet values landed exactly on top of one another, nine labels stacked in one spot. A node inside its group's allowance should be left completely alone so charge can space it out; only a node that has wandered outside is pulled back, in proportion to how far. The allowance grows with the square root of the group's size, because that is how the area a group needs grows with its membership.

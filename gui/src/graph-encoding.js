@@ -118,3 +118,138 @@ export function assignCurvature(links) {
   }
   return links
 }
+
+
+/**
+ * Per-edge-type layout weights — the thing that decides whether the picture has groups.
+ *
+ * The edge types do not describe one kind of relationship, and treating them alike is why
+ * the first layout was a single hairball. `SCOPED_TO` is *membership*: it ties a change's
+ * artifacts to their change, and it is what a group IS. `HAS_FACET` is the opposite —
+ * findability only, never walked by the retrieval walker — and one facet in this project's
+ * own graph touches **ten different change scopes**, so at full strength it drags ten
+ * clusters into one point. It gets distance and almost no pull: still visible, no longer
+ * steering.
+ */
+export const LINK_LAYOUT = {
+  SCOPED_TO: { distance: 45, strength: 0.9 },
+  DEPENDS_ON: { distance: 95, strength: 0.35 },
+  ABOUT: { distance: 120, strength: 0.18 },
+  CONTRADICTS: { distance: 130, strength: 0.14 },
+  CONSOLIDATES: { distance: 150, strength: 0.06 },
+  HAS_FACET: { distance: 260, strength: 0.02 },
+}
+
+export const LAYOUT = {
+  // Repulsion. The default is far too gentle for a graph this connected — nodes ended up
+  // overlapping in a ball where nothing could be told apart or clicked.
+  charge: -340,
+  chargeDistanceMax: 900,
+  // How hard a node that has wandered out of its group's region is pulled back.
+  cluster: 0.9,
+  // Room each group is given, per sqrt(member): the area a group needs grows with its
+  // membership, and inside that room repulsion is left to do the spacing.
+  groupRoom: 26,
+}
+
+/** Groups a node belongs to for layout: its change scope, or what it is instead. */
+export const GROUP = { DOMAIN: 'domain-entities', FACETS: 'facet-vocabulary' }
+
+/**
+ * Assign each node a layout group, mutating them in place (which is what the force needs).
+ *
+ * Membership comes from `SCOPED_TO`, because that is the edge that means "belongs to".
+ * Entities and facet values are deliberately unscoped in the data model — they outlive the
+ * change that named them — so they would otherwise have no group at all and drift through
+ * the middle of everything. They get their own.
+ */
+export function assignGroups(nodes, links) {
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  for (const node of nodes) {
+    if (node.type === 'slice') node.group = node.id
+    else if (node.type === 'entity') node.group = GROUP.DOMAIN
+    else if (node.type === 'facet_value') node.group = GROUP.FACETS
+    else node.group = null
+  }
+  for (const link of links) {
+    if (link.type !== 'SCOPED_TO') continue
+    const member = byId.get(endpointId(link.target))
+    const slice = byId.get(endpointId(link.source))
+    if (member && slice && slice.type === 'slice') member.group = slice.id
+  }
+  return nodes
+}
+
+/**
+ * Deterministic anchor per group, placed evenly on a circle.
+ *
+ * The first attempt pulled each node toward its group's *centroid*, which holds a group
+ * together and does nothing whatever to keep groups apart — they simply overlap, and the
+ * picture stays one even mesh. Anchors fix the groups in place relative to each other, so
+ * separation is guaranteed rather than hoped for.
+ *
+ * Groups are sorted by id before being placed, so the same graph produces the same
+ * arrangement every time: a layout that reshuffles on reload cannot be learned, and this
+ * project treats determinism as a property worth having everywhere else too.
+ */
+export function groupAnchors(nodes, radius) {
+  const groups = [...new Set(nodes.map((n) => n.group).filter(Boolean))].sort()
+  const anchors = new Map()
+  if (!groups.length) return anchors
+  // Grows with the group count so a busy graph does not crowd its own rings together.
+  const r = radius ?? Math.max(200, 72 * Math.sqrt(groups.length))
+  groups.forEach((group, index) => {
+    const angle = (index / groups.length) * 2 * Math.PI
+    anchors.set(group, { x: Math.cos(angle) * r, y: Math.sin(angle) * r })
+  })
+  return anchors
+}
+
+/**
+ * Keep each group in its own region — without collapsing it to a point.
+ *
+ * A plain attractor pulls every member onto the anchor, and for a group with many members
+ * that beats the repulsion holding them apart: the nine facet values landed exactly on top
+ * of one another, nine labels stacked in one place. So this is a *containment* force. A
+ * node inside its group's allowance is left entirely alone, and charge spreads it out as
+ * usual; only a node that has wandered outside is pulled back, in proportion to how far.
+ *
+ * The allowance grows with the square root of the group's size, which is how the area a
+ * group needs grows with its membership.
+ *
+ * Only x and y are constrained. In 3D the third axis stays free, so a group reads as a
+ * cloud in a fixed place rather than a flat disc.
+ */
+export function clusterForce(strength = LAYOUT.cluster) {
+  let nodes = []
+  let anchors = new Map()
+  let allowance = new Map()
+  function force(alpha) {
+    const k = alpha * strength
+    for (const node of nodes) {
+      const anchor = anchors.get(node.group)
+      if (!anchor) continue
+      const dx = anchor.x - (node.x || 0)
+      const dy = anchor.y - (node.y || 0)
+      const distance = Math.hypot(dx, dy)
+      const allowed = allowance.get(node.group) || 0
+      if (distance <= allowed || distance === 0) continue
+      const pull = (k * (distance - allowed)) / distance
+      node.vx += dx * pull
+      node.vy += dy * pull
+    }
+  }
+  force.initialize = (initial) => {
+    nodes = initial
+    anchors = groupAnchors(initial)
+    const counts = new Map()
+    for (const node of initial) {
+      if (!node.group) continue
+      counts.set(node.group, (counts.get(node.group) || 0) + 1)
+    }
+    allowance = new Map(
+      [...counts].map(([group, count]) => [group, LAYOUT.groupRoom * Math.sqrt(count)]),
+    )
+  }
+  return force
+}

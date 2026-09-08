@@ -3,6 +3,12 @@ import {
   CLASS_COLORS,
   CLASS_OF,
   EDGE_STYLE,
+  GROUP,
+  LAYOUT,
+  LINK_LAYOUT,
+  assignGroups,
+  clusterForce,
+  groupAnchors,
   SHAPE_OF,
   STATUS,
   TIER_SIZE,
@@ -167,5 +173,173 @@ describe('endpointId', () => {
   it('accepts both the id and the hydrated node', () => {
     expect(endpointId('abc')).toBe('abc')
     expect(endpointId({ id: 'abc' })).toBe('abc')
+  })
+})
+
+describe('layout groups', () => {
+  const g = (id, type, over = {}) => ({ id, type, tier: 'short-term', ...over })
+  const scoped = (slice, member) => ({ source: slice, target: member, type: 'SCOPED_TO' })
+
+  it('groups an artifact with the change it belongs to', () => {
+    const nodes = [g('s1', 'slice'), g('a', 'decision'), g('b', 'constraint')]
+    assignGroups(nodes, [scoped('s1', 'a'), scoped('s1', 'b')])
+    expect(nodes[1].group).toBe('s1')
+    expect(nodes[2].group).toBe('s1')
+  })
+
+  it('keeps two changes apart', () => {
+    const nodes = [g('s1', 'slice'), g('s2', 'slice'), g('a', 'decision'), g('b', 'decision')]
+    assignGroups(nodes, [scoped('s1', 'a'), scoped('s2', 'b')])
+    expect(nodes[2].group).not.toBe(nodes[3].group)
+  })
+
+  it('gives a change scope its own group so it sits with its members', () => {
+    const nodes = [g('s1', 'slice')]
+    assignGroups(nodes, [])
+    expect(nodes[0].group).toBe('s1')
+  })
+
+  it('gives the unscoped classes a home of their own', () => {
+    // Entities and facet values are deliberately unscoped in the data model — they
+    // outlive the change that named them — so without this they drift through the middle.
+    const nodes = [g('e', 'entity'), g('f', 'facet_value')]
+    assignGroups(nodes, [])
+    expect(nodes[0].group).toBe(GROUP.DOMAIN)
+    expect(nodes[1].group).toBe(GROUP.FACETS)
+    expect(nodes[0].group).not.toBe(nodes[1].group)
+  })
+
+  it('ignores a SCOPED_TO edge that does not come from a slice', () => {
+    const nodes = [g('x', 'decision'), g('a', 'decision')]
+    assignGroups(nodes, [{ source: 'x', target: 'a', type: 'SCOPED_TO' }])
+    expect(nodes[1].group).toBeNull()
+  })
+
+  it('works after the layout has hydrated link endpoints into objects', () => {
+    const nodes = [g('s1', 'slice'), g('a', 'decision')]
+    assignGroups(nodes, [{ source: { id: 's1' }, target: { id: 'a' }, type: 'SCOPED_TO' }])
+    expect(nodes[1].group).toBe('s1')
+  })
+})
+
+describe('link layout weights', () => {
+  it('covers every edge type', () => {
+    for (const type of EDGE_TYPES) expect(LINK_LAYOUT[type], type).toBeDefined()
+  })
+
+  it('holds a change together and lets findability edges go slack', () => {
+    // SCOPED_TO is membership — it is what a group is. HAS_FACET is findability only and
+    // one facet here reaches ten scopes, so at full strength it drags them into one blob.
+    expect(LINK_LAYOUT.SCOPED_TO.strength).toBeGreaterThan(LINK_LAYOUT.DEPENDS_ON.strength)
+    expect(LINK_LAYOUT.HAS_FACET.strength).toBeLessThan(LINK_LAYOUT.DEPENDS_ON.strength / 5)
+    expect(LINK_LAYOUT.HAS_FACET.distance).toBeGreaterThan(LINK_LAYOUT.SCOPED_TO.distance * 3)
+  })
+
+  it('pushes nodes apart rather than pulling them together', () => {
+    expect(LAYOUT.charge).toBeLessThan(0)
+  })
+})
+
+describe('group anchors', () => {
+  const n = (id, group) => ({ id, group })
+
+  it('places every group somewhere distinct', () => {
+    const anchors = groupAnchors([n('a', 'g1'), n('b', 'g2'), n('c', 'g3')])
+    const places = [...anchors.values()].map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`)
+    expect(new Set(places).size).toBe(3)
+  })
+
+  it('is deterministic: the same graph arranges the same way every time', () => {
+    // A layout that reshuffles on reload cannot be learned, and determinism is a property
+    // this project holds everywhere else.
+    const nodes = [n('a', 'g2'), n('b', 'g1'), n('c', 'g3')]
+    const first = groupAnchors(nodes)
+    const second = groupAnchors([...nodes].reverse())
+    for (const key of first.keys()) expect(second.get(key)).toEqual(first.get(key))
+  })
+
+  it('ignores ungrouped nodes', () => {
+    expect(groupAnchors([n('a', null), n('b', undefined)]).size).toBe(0)
+  })
+
+  it('spreads further as groups multiply, so rings do not crowd', () => {
+    const few = groupAnchors(Array.from({ length: 3 }, (_, i) => n(`n${i}`, `g${i}`)))
+    const many = groupAnchors(Array.from({ length: 30 }, (_, i) => n(`n${i}`, `g${i}`)))
+    const spread = (a) => Math.max(...[...a.values()].map((p) => Math.hypot(p.x, p.y)))
+    expect(spread(many)).toBeGreaterThan(spread(few))
+  })
+})
+
+describe('the cluster force', () => {
+  const withPos = (id, group, x, y) => ({ id, group, x, y, vx: 0, vy: 0 })
+  const run = (nodes, alpha = 1) => {
+    const force = clusterForce(1)
+    force.initialize(nodes)
+    force(alpha)
+    return nodes
+  }
+
+  it('leaves a node that is inside its group’s room completely alone', () => {
+    // The point of a containment force: a plain attractor collapses a group onto one
+    // spot, which is exactly what stacked nine facet labels in one place.
+    const anchor = groupAnchors([withPos('a', 'g1', 0, 0)]).get('g1')
+    const nodes = run([withPos('a', 'g1', anchor.x, anchor.y)])
+    expect(nodes[0].vx).toBe(0)
+    expect(nodes[0].vy).toBe(0)
+  })
+
+  it('pulls back a node that has wandered out of its region', () => {
+    const anchor = groupAnchors([withPos('a', 'g1', 0, 0)]).get('g1')
+    const nodes = run([withPos('a', 'g1', anchor.x + 900, anchor.y)])
+    expect(nodes[0].vx).toBeLessThan(0)
+  })
+
+  it('pulls harder the further out a node has drifted', () => {
+    const anchor = groupAnchors([withPos('a', 'g1', 0, 0)]).get('g1')
+    const near = run([withPos('a', 'g1', anchor.x + 200, anchor.y)])
+    const far = run([withPos('a', 'g1', anchor.x + 900, anchor.y)])
+    expect(Math.abs(far[0].vx)).toBeGreaterThan(Math.abs(near[0].vx))
+  })
+
+  it('gives a bigger group more room', () => {
+    const small = [withPos('a', 'g1', 0, 0)]
+    const big = Array.from({ length: 16 }, (_, i) => withPos(`n${i}`, 'g1', 0, 0))
+    const roomOf = (nodes) => {
+      const anchor = groupAnchors(nodes).get('g1')
+      // Walk outward until the force starts acting: that distance is the allowance.
+      for (let d = 5; d < 400; d += 5) {
+        const probe = nodes.map((n) => ({ ...n, x: anchor.x + d, y: anchor.y, vx: 0, vy: 0 }))
+        const force = clusterForce(1)
+        force.initialize(probe)
+        force(1)
+        if (probe[0].vx !== 0) return d
+      }
+      return Infinity
+    }
+    expect(roomOf(big)).toBeGreaterThan(roomOf(small))
+  })
+
+  it('keeps two groups in different places, which is what keeps them apart', () => {
+    const nodes = run([withPos('a', 'g1', 0, 0), withPos('b', 'g2', 0, 0)])
+    expect([nodes[0].vx, nodes[0].vy]).not.toEqual([nodes[1].vx, nodes[1].vy])
+  })
+
+  it('leaves an ungrouped node alone', () => {
+    const nodes = run([withPos('a', null, 900, 900), withPos('b', 'g1', 0, 0)])
+    expect(nodes[0].vx).toBe(0)
+    expect(nodes[0].vy).toBe(0)
+  })
+
+  it('does not touch the third dimension', () => {
+    const nodes = [{ id: 'a', group: 'g1', x: 900, y: 900, z: 5, vx: 0, vy: 0, vz: 0 }]
+    run(nodes)
+    expect(nodes[0].vz).toBe(0)
+  })
+
+  it('scales with alpha, so it fades as the layout settles', () => {
+    const anchor = groupAnchors([withPos('a', 'g1', 0, 0)]).get('g1')
+    const hot = run([withPos('a', 'g1', anchor.x + 900, anchor.y)], 1)
+    const cold = run([withPos('a', 'g1', anchor.x + 900, anchor.y)], 0.1)
+    expect(Math.abs(hot[0].vx)).toBeGreaterThan(Math.abs(cold[0].vx))
   })
 })

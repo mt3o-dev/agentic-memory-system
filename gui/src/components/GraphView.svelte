@@ -2,8 +2,9 @@
   import { onMount, onDestroy } from 'svelte'
   import { get, post } from '../api.js'
   import {
-    CLASS_COLORS, CLASS_LABEL, CLASS_OF, EDGE_STYLE, SHAPE_OF, STATUS, TIER_SIZE,
-    assignCurvature, colorFor, endpointId, sizeFor,
+    CLASS_COLORS, CLASS_LABEL, CLASS_OF, EDGE_STYLE, LAYOUT, LINK_LAYOUT, SHAPE_OF,
+    STATUS, TIER_SIZE, assignCurvature, assignGroups, clusterForce, colorFor, endpointId,
+    sizeFor,
   } from '../graph-encoding.js'
   import { drawNode, paintPointerArea } from '../graph-draw.js'
 
@@ -68,6 +69,7 @@
     try {
       const payload = await get(`/api/graph${showArchived ? '?archived=1' : ''}`)
       assignCurvature(payload.links)
+      assignGroups(payload.nodes, payload.links)
       data = payload
       if (graph) applyData()
     } catch (err) {
@@ -325,6 +327,7 @@
         .nodePointerAreaPaint(paintPointerArea)
     }
 
+    tuneLayout()
     applyData()
 
     if (dimensions === '3d') {
@@ -338,6 +341,24 @@
       bloomPass = null
     }
     graph.width(container.clientWidth).height(container.clientHeight)
+  }
+
+  /**
+   * Spacing and grouping. Both were asked for, and both come from here rather than from
+   * anything drawn: the default forces produce an evenly-spread hairball because they
+   * treat every edge as the same kind of relationship, when SCOPED_TO means "belongs to"
+   * and HAS_FACET means "is findable under" — and one facet here reaches ten scopes.
+   */
+  function tuneLayout() {
+    const charge = graph.d3Force('charge')
+    if (charge) charge.strength(LAYOUT.charge).distanceMax(LAYOUT.chargeDistanceMax)
+    const link = graph.d3Force('link')
+    if (link) {
+      link
+        .distance((l) => (LINK_LAYOUT[l.type] || LINK_LAYOUT.DEPENDS_ON).distance)
+        .strength((l) => (LINK_LAYOUT[l.type] || LINK_LAYOUT.DEPENDS_ON).strength)
+    }
+    graph.d3Force('cluster', clusterForce())
   }
 
   let frameFallback = []
@@ -373,7 +394,10 @@
    */
   function scheduleFrame() {
     clearFallbacks()
-    frameFallback = [1200, 3000, 6000].map((delay) =>
+    // The last one is deliberately late: anchoring the groups makes the layout keep
+    // expanding for several seconds, and a fit that stops at six leaves the graph
+    // overflowing its own frame.
+    frameFallback = [1200, 3000, 6000, 11000, 18000].map((delay) =>
       setTimeout(() => !userMoved && frame(500), delay),
     )
   }
