@@ -3,8 +3,10 @@
  * what the view draws can be asserted instead of squinted at.
  */
 import { describe, expect, it } from 'vitest'
-import { POLYGON, drawNode, labelFor, paintPointerArea, tracePolygon } from './graph-draw.js'
-import { STATUS, TIER_SIZE, sizeFor } from './graph-encoding.js'
+import {
+  MIN_HIT_RADIUS, POLYGON, drawNode, labelFor, paintPointerArea, tracePolygon,
+} from './graph-draw.js'
+import { EDGE_STYLE, STATUS, TIER_SIZE, sizeFor } from './graph-encoding.js'
 
 /** Records every call and property set, so a drawing can be inspected after the fact. */
 function recordingContext() {
@@ -185,5 +187,50 @@ describe('the context is left as it was found', () => {
     drawNode(ctx, node({ needs_review: true, tier: 'lifetime', archived: true }))
     expect(called(ctx, 'save')).toHaveLength(1)
     expect(called(ctx, 'restore')).toHaveLength(1)
+  })
+})
+
+describe('the hit target — why nodes felt unclickable', () => {
+  it('is at least a comfortable size on screen however far out you are zoomed', () => {
+    // The old radius was ~3 screen pixels at a fitted zoom: you had to hit a three-pixel
+    // disc. Dividing the floor by globalScale turns a screen distance into graph units.
+    const ctx = recordingContext()
+    paintPointerArea(node({ tier: 'short-term' }), '#abc', ctx, 0.2)
+    const radius = called(ctx, 'arc')[0].args[2]
+    expect(radius * 0.2).toBeGreaterThanOrEqual(MIN_HIT_RADIUS - 0.001)
+  })
+
+  it('grows with the mark once the mark is the bigger of the two', () => {
+    const ctx = recordingContext()
+    paintPointerArea(node({ tier: 'lifetime' }), '#abc', ctx, 4)
+    expect(called(ctx, 'arc')[0].args[2]).toBeGreaterThan(sizeFor(node({ tier: 'lifetime' })))
+  })
+
+  it('never collapses when the scale is missing or zero', () => {
+    for (const scale of [undefined, 0]) {
+      const ctx = recordingContext()
+      paintPointerArea(node(), '#abc', ctx, scale)
+      expect(called(ctx, 'arc')[0].args[2]).toBeGreaterThanOrEqual(MIN_HIT_RADIUS)
+    }
+  })
+})
+
+describe('edge styles are told apart without spending hues', () => {
+  it('gives the non-status types distinct dash patterns', () => {
+    const neutral = Object.entries(EDGE_STYLE).filter(([type]) => type !== 'CONTRADICTS')
+    const patterns = neutral.map(([, s]) => JSON.stringify(s.dash))
+    expect(new Set(patterns).size).toBe(neutral.length)
+  })
+
+  it('names every type for the legend', () => {
+    for (const [type, style] of Object.entries(EDGE_STYLE)) {
+      expect(style.label, type).toBeTruthy()
+    }
+  })
+
+  it('draws membership and findability more faintly than content', () => {
+    expect(EDGE_STYLE.SCOPED_TO.width).toBeLessThan(EDGE_STYLE.DEPENDS_ON.width)
+    expect(EDGE_STYLE.HAS_FACET.width).toBeLessThan(EDGE_STYLE.DEPENDS_ON.width)
+    expect(EDGE_STYLE.CONTRADICTS.width).toBeGreaterThan(EDGE_STYLE.DEPENDS_ON.width)
   })
 })

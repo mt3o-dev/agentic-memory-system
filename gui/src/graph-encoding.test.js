@@ -3,12 +3,13 @@ import {
   CLASS_COLORS,
   CLASS_OF,
   EDGE_STYLE,
-  GROUP,
   LAYOUT,
   LINK_LAYOUT,
   assignGroups,
   clusterForce,
+  detectCommunities,
   groupAnchors,
+  nearestNode,
   SHAPE_OF,
   STATUS,
   TIER_SIZE,
@@ -103,13 +104,22 @@ describe('size', () => {
     expect(at('long-term')).toBeLessThan(at('lifetime'))
   })
 
-  it('lets degree nudge size without letting it outrank tier', () => {
-    // A hub should read as a hub; it must not read as a promoted foundation. This is the
-    // property that keeps two channels from fighting over the same visual weight.
-    const busyShortTerm = sizeFor({ tier: 'short-term', degree: 200 })
-    const quietMidTerm = sizeFor({ tier: 'mid-term', degree: 0 })
-    expect(busyShortTerm).toBeGreaterThan(sizeFor({ tier: 'short-term', degree: 0 }))
-    expect(busyShortTerm).toBeLessThan(quietMidTerm)
+  it('says tier and nothing else', () => {
+    // Size used to carry a degree component too, which muddied the one thing it is for: a
+    // busy short-term note and a quiet mid-term one came out nearly the same size.
+    // Connectivity is expressed by the layout now, which is where it belongs.
+    expect(sizeFor({ tier: 'short-term', degree: 200 })).toBe(sizeFor({ tier: 'short-term', degree: 0 }))
+  })
+
+  it('is big enough to see and to hit', () => {
+    // The old range (3.2 to 7.4 graph units) drew two-pixel dots against link distances of
+    // 45 to 260, and made the four tiers indistinguishable.
+    expect(TIER_SIZE['short-term']).toBeGreaterThanOrEqual(6)
+    // Each step is clearly bigger than the last, not marginally.
+    const steps = TIERS.map((tier) => TIER_SIZE[tier])
+    for (let i = 1; i < steps.length; i += 1) {
+      expect(steps[i]).toBeGreaterThan(steps[i - 1] * 1.3)
+    }
   })
 
   it('treats an unknown tier as the smallest rather than crashing', () => {
@@ -176,49 +186,84 @@ describe('endpointId', () => {
   })
 })
 
-describe('layout groups', () => {
-  const g = (id, type, over = {}) => ({ id, type, tier: 'short-term', ...over })
-  const scoped = (slice, member) => ({ source: slice, target: member, type: 'SCOPED_TO' })
+describe('communities — grouping by what is linked, not by what type a node is', () => {
+  const n = (id) => ({ id })
+  const link = (source, target, type = 'DEPENDS_ON') => ({ source, target, type })
 
-  it('groups an artifact with the change it belongs to', () => {
-    const nodes = [g('s1', 'slice'), g('a', 'decision'), g('b', 'constraint')]
-    assignGroups(nodes, [scoped('s1', 'a'), scoped('s1', 'b')])
-    expect(nodes[1].group).toBe('s1')
-    expect(nodes[2].group).toBe('s1')
+  it('puts a densely connected set in one community', () => {
+    const nodes = ['a', 'b', 'c'].map(n)
+    const labels = detectCommunities(nodes, [link('a', 'b'), link('b', 'c'), link('a', 'c')])
+    expect(new Set([...labels.values()]).size).toBe(1)
   })
 
-  it('keeps two changes apart', () => {
-    const nodes = [g('s1', 'slice'), g('s2', 'slice'), g('a', 'decision'), g('b', 'decision')]
-    assignGroups(nodes, [scoped('s1', 'a'), scoped('s2', 'b')])
-    expect(nodes[2].group).not.toBe(nodes[3].group)
+  it('keeps two unconnected clusters apart', () => {
+    const nodes = ['a', 'b', 'c', 'd'].map(n)
+    const labels = detectCommunities(nodes, [link('a', 'b'), link('c', 'd')])
+    expect(labels.get('a')).toBe(labels.get('b'))
+    expect(labels.get('c')).toBe(labels.get('d'))
+    expect(labels.get('a')).not.toBe(labels.get('c'))
   })
 
-  it('gives a change scope its own group so it sits with its members', () => {
-    const nodes = [g('s1', 'slice')]
-    assignGroups(nodes, [])
-    expect(nodes[0].group).toBe('s1')
+  it('is not fooled into merging clusters by a findability edge', () => {
+    // This is the whole reason edges are weighted. HAS_FACET is findability only, and one
+    // facet in this project's graph touches ten different change scopes — let it vote at
+    // full strength and every community collapses into one.
+    const nodes = ['a', 'b', 'c', 'd', 'facet'].map(n)
+    const labels = detectCommunities(nodes, [
+      link('a', 'b', 'SCOPED_TO'),
+      link('c', 'd', 'SCOPED_TO'),
+      link('a', 'facet', 'HAS_FACET'),
+      link('c', 'facet', 'HAS_FACET'),
+    ])
+    expect(labels.get('a')).not.toBe(labels.get('c'))
   })
 
-  it('gives the unscoped classes a home of their own', () => {
-    // Entities and facet values are deliberately unscoped in the data model — they
-    // outlive the change that named them — so without this they drift through the middle.
-    const nodes = [g('e', 'entity'), g('f', 'facet_value')]
-    assignGroups(nodes, [])
-    expect(nodes[0].group).toBe(GROUP.DOMAIN)
-    expect(nodes[1].group).toBe(GROUP.FACETS)
-    expect(nodes[0].group).not.toBe(nodes[1].group)
+  it('groups by connection, not by node type', () => {
+    // Two decisions from unrelated changes are not a group; a decision and the constraint
+    // it depends on are.
+    const nodes = [
+      { id: 'd1', type: 'decision' }, { id: 'c1', type: 'constraint' },
+      { id: 'd2', type: 'decision' }, { id: 'c2', type: 'constraint' },
+    ]
+    const labels = detectCommunities(nodes, [
+      link('d1', 'c1', 'SCOPED_TO'),
+      link('d2', 'c2', 'SCOPED_TO'),
+    ])
+    expect(labels.get('d1')).toBe(labels.get('c1'))
+    expect(labels.get('d1')).not.toBe(labels.get('d2'))
   })
 
-  it('ignores a SCOPED_TO edge that does not come from a slice', () => {
-    const nodes = [g('x', 'decision'), g('a', 'decision')]
-    assignGroups(nodes, [{ source: 'x', target: 'a', type: 'SCOPED_TO' }])
-    expect(nodes[1].group).toBeNull()
+  it('is deterministic — the same graph groups the same way every time', () => {
+    const nodes = ['a', 'b', 'c', 'd'].map(n)
+    const links = [link('a', 'b'), link('b', 'c'), link('c', 'd')]
+    const first = detectCommunities(nodes, links)
+    const second = detectCommunities([...nodes].reverse(), [...links].reverse())
+    for (const id of first.keys()) expect(second.get(id)).toBe(first.get(id))
+  })
+
+  it('leaves an unconnected node in a community of its own', () => {
+    const labels = detectCommunities(['a', 'b', 'lonely'].map(n), [link('a', 'b')])
+    expect(labels.get('lonely')).toBe('lonely')
+    expect(labels.get('lonely')).not.toBe(labels.get('a'))
+  })
+
+  it('copes with an edge pointing at a node that is not shown', () => {
+    // Filters hide nodes; their edges can outlive them for a frame.
+    const labels = detectCommunities([n('a')], [link('a', 'gone')])
+    expect(labels.get('a')).toBe('a')
+  })
+
+  it('assignGroups writes the community onto each node', () => {
+    const nodes = ['a', 'b'].map(n)
+    assignGroups(nodes, [link('a', 'b')])
+    expect(nodes[0].group).toBe(nodes[1].group)
+    expect(nodes[0].group).toBeTruthy()
   })
 
   it('works after the layout has hydrated link endpoints into objects', () => {
-    const nodes = [g('s1', 'slice'), g('a', 'decision')]
-    assignGroups(nodes, [{ source: { id: 's1' }, target: { id: 'a' }, type: 'SCOPED_TO' }])
-    expect(nodes[1].group).toBe('s1')
+    const nodes = ['a', 'b'].map(n)
+    assignGroups(nodes, [{ source: { id: 'a' }, target: { id: 'b' }, type: 'DEPENDS_ON' }])
+    expect(nodes[0].group).toBe(nodes[1].group)
   })
 })
 
@@ -341,5 +386,40 @@ describe('the cluster force', () => {
     const hot = run([withPos('a', 'g1', anchor.x + 900, anchor.y)], 1)
     const cold = run([withPos('a', 'g1', anchor.x + 900, anchor.y)], 0.1)
     expect(Math.abs(hot[0].vx)).toBeGreaterThan(Math.abs(cold[0].vx))
+  })
+})
+
+describe('hit testing — why nodes felt unclickable', () => {
+  const at = (id, x, y, tier = 'short-term') => ({ id, x, y, tier })
+
+  it('finds the node under the point', () => {
+    const nodes = [at('a', 0, 0), at('b', 100, 0)]
+    expect(nearestNode(nodes, 3, 3, 16).id).toBe('a')
+  })
+
+  it('finds nothing when the click is in open space', () => {
+    expect(nearestNode([at('a', 0, 0)], 400, 400, 16)).toBeNull()
+  })
+
+  it('picks the closer of two candidates', () => {
+    const nodes = [at('a', 0, 0), at('b', 20, 0)]
+    expect(nearestNode(nodes, 14, 0, 30).id).toBe('b')
+  })
+
+  it('breaks ties by id, so a click between two never flickers', () => {
+    const nodes = [at('z', 0, 0), at('a', 20, 0)]
+    expect(nearestNode(nodes, 10, 0, 30).id).toBe('a')
+    expect(nearestNode([...nodes].reverse(), 10, 0, 30).id).toBe('a')
+  })
+
+  it('always lets you click a node’s own mark, even outside the radius', () => {
+    // A lifetime node is drawn large; its own body must be clickable whatever the
+    // screen-space radius works out to at that zoom.
+    const big = at('big', 0, 0, 'lifetime')
+    expect(nearestNode([big], TIER_SIZE.lifetime - 1, 0, 2).id).toBe('big')
+  })
+
+  it('ignores nodes the layout has not positioned yet', () => {
+    expect(nearestNode([{ id: 'a', tier: 'short-term' }], 0, 0, 16)).toBeNull()
   })
 })

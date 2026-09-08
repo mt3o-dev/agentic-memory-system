@@ -102,40 +102,78 @@ sit below 3:1 contrast.
 
 ## 2b. Spacing and grouping — the layout is an encoding too
 
-The first layouts were an evenly-spread hairball, and the cause was treating every edge as
-the same kind of relationship. They are not:
+**Groups are communities, not types.** Grouping by node type is not a grouping: it puts a
+decision from one change beside an unrelated decision from another purely because both are
+decisions. What belongs together is what is *linked* together, so the view runs weighted
+label propagation over the edges and groups by the result. On this project's own graph that
+finds **22 communities across 161 nodes, no singletons**, and every change scope lands in
+exactly one of them — the structure was in the data all along.
 
-| edge | what it means | layout weight |
+Edges are weighted by what they mean, which is what makes it work:
+
+| edge | means | weight |
 |---|---|---|
-| `SCOPED_TO` | *membership* — this artifact belongs to this change | short and strong: it is what a group **is** |
+| `SCOPED_TO` | *membership* — belongs to this change | dominant |
 | `DEPENDS_ON` | content structure | medium |
-| `ABOUT` / `CONTRADICTS` | content, cross-cutting | medium, slack |
-| `HAS_FACET` | *findability only*, never walked by the retrieval walker | long and almost no pull |
+| `ABOUT` / `CONTRADICTS` | content, cross-cutting | slack |
+| `HAS_FACET` | *findability only*, never walked by the retrieval walker | almost nothing |
 
-`HAS_FACET` is the one that mattered. It is 114 of 347 edges here, and a single facet —
-`/facet/retrieval` — touches **ten different change scopes**. At full strength it drags ten
-clusters into one point, which is precisely what a hairball is. It stays visible and stops
-steering.
+`HAS_FACET` is the one that mattered: it is 114 of 347 edges here and a single facet,
+`/facet/retrieval`, touches **ten different change scopes**. Let it vote at full strength
+and every community merges into one — which is what a hairball is.
 
-**Groups come from the data, not from a heuristic.** `SCOPED_TO` already partitions content
-into change scopes, so that is the grouping. Entities and facet values are deliberately
-*unscoped* in the data model — they outlive the change that named them — so they would have
-no group at all; they get one each of their own.
+Label propagation rather than something cleverer because it is O(edges) per round, needs no
+tuning, and — nodes visited in sorted order, ties broken by the smallest label — is
+**deterministic**, so the same graph groups the same way on every reload.
 
-Two things had to be got right, and both were got wrong first:
+**Groups are placed, not merely attracted.** Two earlier attempts were wrong in instructive
+ways. Pulling nodes to their group's *centroid* holds a group together and does nothing to
+keep groups apart, so they overlap and the picture stays one mesh — groups are anchored on
+a ring instead, sorted by id. And a plain *attractor* pulls every member onto the anchor,
+which for a large group beats the repulsion holding them apart: the nine facet values
+landed exactly on top of one another, nine labels stacked in one spot. It is a
+**containment** force — inside its allowance a node is untouched and repulsion does the
+spacing; only one that has wandered out is pulled back.
 
-- **Anchors, not centroids.** Pulling nodes toward their group's centroid holds a group
-  together and does nothing to keep groups *apart* — they overlap and the picture stays one
-  mesh. Groups are placed on a ring instead, sorted by id so the same graph arranges the
-  same way every time.
-- **Containment, not attraction.** A plain attractor pulls every member onto the anchor,
-  and for a group with many members that beats the repulsion holding them apart: the nine
-  facet values landed exactly on top of one another, nine labels stacked in one spot. A
-  node inside its group's allowance is now left alone and charge spaces it out; only one
-  that has wandered outside is pulled back. The allowance grows with the square root of
-  the group's size, because that is how the area a group needs grows.
+**Nodes may not overlap.** A `forceCollide` sized from each node's own radius. This is
+partly spacing and mostly clickability: a node underneath another cannot be reached however
+generous the hit radius, because the one on top is always nearer.
 
-## 3. Editing
+## 2c. Why nodes were hard to click, measured
+
+The complaint was real and the cause was not where it looked. Two things were wrong.
+
+**The marks were tiny.** Node radii were 3.2-7.4 *graph units* against link distances of 45
+to 260 — about two screen pixels at a fitted zoom. The four tiers were also
+indistinguishable at that size, so the size channel was carrying nothing. Roughly tripled,
+with wider gaps between steps, and the degree component removed so **size means lifespan
+tier and nothing else**.
+
+**`nodePointerAreaPaint` does not do what its signature says.** It is documented as
+`(node, colour, ctx, globalScale)` and painting into it defines the click target. Painting
+a disc of exactly 12 screen pixels — verified by logging the computed radius against the
+live scale — produced an actual clickable target measured at **4 pixels wide**. Scanning a
+horizontal line of clicks across the canvas and recording the runs that opened the editor is
+what showed it; nothing else would have.
+
+So the 2D view hit-tests itself: convert the click to graph coordinates, take the nearest
+node within a comfortable radius, tie-break by id. It is a few lines, it is under our
+control, and `nearestNode` is a pure function with tests. 3D keeps the library's raycasting,
+which works.
+
+Measured on the same 357-click grid over the same graph:
+
+| | targets opened |
+|---|---|
+| before | 7 |
+| own hit-test | 13 |
+| plus no-overlap collision | **21** |
+
+Still not every node on a coarse grid — the graph is clustered and much of the canvas is
+empty — but the widest measured target went from 4 px to 20 px, and tripling the hit rate
+is the difference the complaint was about.
+
+## 3. Editing## 3. Editing
 
 The panel edits what the GUI is allowed to edit — it is the privileged human surface, so
 the operations the agent surface forbids live here and every one of them is journaled:

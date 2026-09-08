@@ -36,6 +36,10 @@ function makeGraph() {
       return proxy
     },
     camera: () => ({ fov: 50 }),
+    // jsdom gives the container a zero-origin rect, so screen and graph coordinates line
+    // up one-to-one and a click at (x, y) lands on the node at (x, y).
+    screen2GraphCoords: (x, y) => ({ x, y }),
+    zoom: () => 1,
     controls: () => ({}),
     postProcessingComposer: () => ({ addPass: () => {} }),
     cameraPosition: () => proxy,
@@ -84,12 +88,12 @@ const NODES = [
   {
     id: 'n1', type: 'decision', tier: 'short-term', path: '/artifact/one',
     body: 'The first decision.', needs_review: false, archived: false,
-    degree: 1, trust_weight: 1, retrieval_weight: 1,
+    degree: 1, trust_weight: 1, retrieval_weight: 1, x: 40, y: 60,
   },
   {
     id: 'n2', type: 'constraint', tier: 'mid-term', path: '/artifact/two',
     body: 'The second.', needs_review: true, archived: false,
-    degree: 1, trust_weight: 0.4, retrieval_weight: 1,
+    degree: 1, trust_weight: 0.4, retrieval_weight: 1, x: 400, y: 300,
   },
 ]
 const LINKS = [{ source: 'n1', target: 'n2', type: 'DEPENDS_ON' }]
@@ -115,9 +119,24 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/**
+ * Click through the component's own hit-testing rather than by calling the library's
+ * handler, because in 2D the library's handler is deliberately inert: its pointer-area
+ * canvas gave a four-pixel target however large a disc was painted into it, so the view
+ * picks nodes itself. Testing the path that is actually used is the point.
+ */
 const clickNode = async (node) => {
-  await waitFor(() => expect(handlers.onNodeClick).toBeTypeOf('function'))
-  handlers.onNodeClick(node)
+  // Wait for the renderer to be built and fed, not just for the DOM: the mount is async
+  // and a click before it lands hits a view with no graph to pick from.
+  await waitFor(() => expect(graphData).not.toBeNull())
+  const surface = await waitFor(() => {
+    const el = document.querySelector('.position-absolute.top-0.start-0.bottom-0.end-0')
+    expect(el).toBeTruthy()
+    return el
+  })
+  surface.dispatchEvent(
+    new MouseEvent('click', { bubbles: true, clientX: node.x, clientY: node.y }),
+  )
 }
 
 describe('loading', () => {

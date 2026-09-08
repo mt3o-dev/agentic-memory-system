@@ -137,18 +137,29 @@ export function drawNode(ctx, node, { mode = 'dark', globalScale = 1, selected =
   return drawn
 }
 
+/** Below this many screen pixels a target is a coin toss, whatever the zoom. */
+export const MIN_HIT_RADIUS = 12
+
 /**
- * The click target: generous, and independent of how small the mark is drawn.
+ * The click target, in graph units — and never smaller than {@link MIN_HIT_RADIUS} on
+ * screen, whatever the zoom.
+ *
+ * This is why nodes felt unclickable. The radius used to be `max(size * 1.8, 6)` in graph
+ * units, and with the old sizes that was about three screen pixels at a fitted zoom: you
+ * had to hit a three-pixel disc. Dividing the floor by `globalScale` converts a screen
+ * distance into graph units, so the target stays the same comfortable size on screen as
+ * you zoom out.
  *
  * The argument order is the library's, not a choice — `nodePointerAreaPaint` calls back
- * with `(node, colour, ctx)`. Getting it wrong hands a node where a context belongs and
- * throws `beginPath is not a function` on the first frame, which inside an async mount is
- * swallowed and leaves an empty canvas with no error on screen.
+ * with `(node, colour, ctx, globalScale)`. Getting it wrong hands a node where a context
+ * belongs and throws `beginPath is not a function` on the first frame, which inside an
+ * async mount is swallowed and leaves an empty canvas with no error on screen.
  */
-export function paintPointerArea(node, color, ctx) {
+export function paintPointerArea(node, color, ctx, globalScale = 1) {
+  const radius = Math.max(sizeFor(node) * 1.35, MIN_HIT_RADIUS / (globalScale || 1))
   ctx.fillStyle = color
   ctx.beginPath()
-  ctx.arc(node.x, node.y, Math.max(sizeFor(node) * 1.8, 6), 0, 2 * Math.PI)
+  ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
   ctx.fill()
 }
 

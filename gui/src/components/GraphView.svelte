@@ -4,7 +4,7 @@
   import {
     CLASS_COLORS, CLASS_LABEL, CLASS_OF, EDGE_STYLE, LAYOUT, LINK_LAYOUT, SHAPE_OF,
     STATUS, TIER_SIZE, assignCurvature, assignGroups, clusterForce, colorFor, endpointId,
-    sizeFor,
+    nearestNode, sizeFor,
   } from '../graph-encoding.js'
   import { drawNode, paintPointerArea } from '../graph-draw.js'
 
@@ -136,6 +136,30 @@
     if (!graph) return
     if (dimensions === '3d') graph.nodeThreeObject(meshFor).nodeColor((n) => colorFor(n, mode()))
     if (bloomPass) bloomPass.strength = highlightReview ? 1.7 : 0
+  }
+
+  /** Comfortable click radius, in screen pixels. */
+  const CLICK_RADIUS = 16
+
+  /**
+   * Hit-test clicks ourselves in 2D.
+   *
+   * `nodePointerAreaPaint` is documented to define the click target and, measured, does
+   * not: a 12-screen-pixel disc painted per node produced an actual target about four
+   * pixels wide, so a node was only clickable dead-centre. Converting the click to graph
+   * coordinates and finding the nearest node is a few lines, is under our control, and is
+   * testable. 3D keeps the library's raycasting, which works.
+   */
+  function pickNode(event) {
+    if (!graph || dimensions === '3d') return
+    const box = container.getBoundingClientRect()
+    const point = graph.screen2GraphCoords(event.clientX - box.left, event.clientY - box.top)
+    if (!point) return
+    const scale = graph.zoom?.() || 1
+    const node = nearestNode(graph.graphData().nodes, point.x, point.y, CLICK_RADIUS / scale)
+    userMoved = true
+    if (node) select(node)
+    else select(null)
   }
 
   async function select(node) {
@@ -297,11 +321,17 @@
       .linkDirectionalArrowRelPos(1)
       .linkDirectionalArrowColor((l) => (EDGE_STYLE[l.type] || EDGE_STYLE.DEPENDS_ON).color)
       .linkDirectionalParticles((l) => (l === hoveredLink ? 3 : 0))
+      // In 2D our own handler does the picking; letting the library fire too would
+      // select twice and fight over the camera.
       .onNodeClick((n) => {
-        userMoved = true
-        select(n)
+        if (dimensions === '3d') {
+          userMoved = true
+          select(n)
+        }
       })
-      .onBackgroundClick(() => select(null))
+      .onBackgroundClick(() => {
+        if (dimensions === '3d') select(null)
+      })
       .onLinkHover((l) => {
         hoveredLink = l
         graph.linkDirectionalParticles((x) => (x === l ? 3 : 0))
@@ -315,6 +345,9 @@
         .linkOpacity(0.5)
     } else {
       graph
+        // Dash patterns tell the edge types apart without spending hues on them, which
+        // the node palette has already used up. 3D has no equivalent and stays width-only.
+        .linkLineDash((l) => (EDGE_STYLE[l.type] || EDGE_STYLE.DEPENDS_ON).dash)
         .nodeCanvasObject((node, ctx, globalScale) =>
           drawNode(ctx, node, {
             mode: mode(),
@@ -349,7 +382,14 @@
    * treat every edge as the same kind of relationship, when SCOPED_TO means "belongs to"
    * and HAS_FACET means "is findable under" — and one facet here reaches ten scopes.
    */
-  function tuneLayout() {
+  async function tuneLayout() {
+    // Collision: nodes may not overlap, full stop. Overlap is what made some nodes
+    // unclickable — a node underneath another cannot be reached however generous the hit
+    // radius is, because the one on top is always nearer. It is also the cheapest way to
+    // get the spacing that was asked for, since it acts only where nodes actually touch.
+    const { forceCollide } = await import('d3-force')
+    graph.d3Force('collide', forceCollide((n) => sizeFor(n) * 1.55).iterations(2))
+
     const charge = graph.d3Force('charge')
     if (charge) charge.strength(LAYOUT.charge).distanceMax(LAYOUT.chargeDistanceMax)
     const link = graph.d3Force('link')
@@ -503,7 +543,8 @@
   <div class="flex-grow-1 position-relative border rounded overflow-hidden">
     <div bind:this={container} class="position-absolute top-0 start-0 bottom-0 end-0"
          onpointerdowncapture={() => (userMoved = true)}
-         onwheelcapture={() => (userMoved = true)}></div>
+         onwheelcapture={() => (userMoved = true)}
+         onclickcapture={pickNode}></div>
 
     {#if loading}
       <div class="position-absolute top-50 start-50 translate-middle text-secondary small">
@@ -533,7 +574,20 @@
         ></span>
         <span>disputed (ring + red)</span>
       </div>
-      <div class="text-secondary mt-1">shape = type · size = tier</div>
+      <div class="text-secondary mt-1">shape = type · size = lifespan tier</div>
+      <div class="mt-1 pt-1 border-top border-secondary">
+        {#each Object.entries(EDGE_STYLE) as [type, style]}
+          <div class="d-flex align-items-center gap-2">
+            <svg width="26" height="6" aria-hidden="true">
+              <line x1="0" y1="3" x2="26" y2="3"
+                    stroke={style.color}
+                    stroke-width={Math.max(1, style.width)}
+                    stroke-dasharray={style.dash ? style.dash.join(' ') : ''} />
+            </svg>
+            <span>{style.label}</span>
+          </div>
+        {/each}
+      </div>
     </div>
 
     <div class="position-absolute top-0 end-0 m-2 p-2 rounded d-flex flex-column gap-1 align-items-end"
