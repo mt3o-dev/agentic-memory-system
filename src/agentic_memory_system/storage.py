@@ -1356,7 +1356,12 @@ class MemoryStore:
             (node, self._score_node(node, _HOP_HALFLIFE / (depths[node.id] + _HOP_HALFLIFE), now))
             for node, _ in raw
         ]
-        return sorted(scored, key=lambda x: x[1], reverse=True)
+        # Ties break by id, as they do in recall_multi and traverse. Retrieval is a pure
+        # function (MT3-20), and "same graph, same query, same ranking" has to survive two
+        # nodes scoring identically — otherwise the order is whatever the walk happened to
+        # produce. (It does not rescue scores that merely differ in the last few bits;
+        # those are not ties, and no sort can make them stable across architectures.)
+        return sorted(scored, key=lambda x: (-x[1], x[0].id))
 
     # --- multi-seed retrieval (Slice 8: PPR with goal-dominant seed weights) ---
 

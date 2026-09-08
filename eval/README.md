@@ -177,6 +177,26 @@ Both were bugs in the measurement rather than in the system:
    anyway. Queries now carry an `expect` of `first` or `demoted`, and `success` is scored
    against it.
 
+## Determinism has a floor, and it is not zero
+
+The harness is deterministic in the sense that matters — same graph, same query, same
+ranking — but two caveats are worth knowing before writing an assertion against it.
+
+**Scores drift with time.** The `recency` term is computed against `now`, so the same
+query scores about **4e-7** differently a second later. Nothing about the graph changed.
+
+**Ties are not always ties.** Two nodes in the benchmark corpus score within **9e-10** of
+each other. `recall_multi` breaks *exact* ties by node id, which no amount of float noise
+can disturb — but a pair separated by a billionth is not an exact tie, and which one sorts
+first can differ between x86 and ARM.
+
+A test that asserts a *position in a ranking* therefore asserts a coin flip whenever the
+margin is small, and will pass locally and fail in CI. Assert the mechanism instead: the
+test for the staleness penalty now scores the same node with and without its flag rather
+than checking that it is "not first". That version also turned out to be passing for the
+wrong reason — the flagged node outranks its unflagged rival in the same scope, and only
+looked demoted because an unrelated node tied above it.
+
 ## Results
 
 `eval/results/<date>-<change-id>.md`, **appended, never overwritten** — a benchmark

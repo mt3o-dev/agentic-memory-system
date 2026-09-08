@@ -2986,10 +2986,12 @@ archived: false
 -> SCOPED_TO [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
 -> SCOPED_TO [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
 -> SCOPED_TO [node:763bad97-ad5b-41c7-8b78-81e007d4fb08] @ 2026-09-08T09:39:59.114476+00:00
+-> SCOPED_TO [node:8a936e3d-dec9-4baf-94c7-f3fa3b0e93b3] @ 2026-09-08T10:07:06.215051+00:00
 -> SCOPED_TO [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
 -> SCOPED_TO [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
 -> SCOPED_TO [node:b13dfc27-aa63-4b91-a32d-b697f5dabf67] @ 2026-09-08T08:13:39.103069+00:00
 -> SCOPED_TO [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+-> SCOPED_TO [node:c73afe20-faad-45a2-ae15-e7fe2fdcffe6] @ 2026-09-08T10:07:06.212492+00:00
 -> SCOPED_TO [node:c75efeb4-ba54-4c4b-91f7-a57b59606e01] @ 2026-09-08T10:01:11.006052+00:00
 -> SCOPED_TO [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
 -> SCOPED_TO [node:eca32380-d17a-4add-a294-700375cbf6be] @ 2026-09-08T09:39:59.116480+00:00
@@ -3029,9 +3031,11 @@ archived: false
 -> DEPENDS_ON [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
 -> DEPENDS_ON [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
 -> DEPENDS_ON [node:763bad97-ad5b-41c7-8b78-81e007d4fb08] @ 2026-09-08T09:39:59.114476+00:00
+-> DEPENDS_ON [node:8a936e3d-dec9-4baf-94c7-f3fa3b0e93b3] @ 2026-09-08T10:07:06.215051+00:00
 -> DEPENDS_ON [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
 -> DEPENDS_ON [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
 -> DEPENDS_ON [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+-> DEPENDS_ON [node:c73afe20-faad-45a2-ae15-e7fe2fdcffe6] @ 2026-09-08T10:07:06.212492+00:00
 -> DEPENDS_ON [node:c75efeb4-ba54-4c4b-91f7-a57b59606e01] @ 2026-09-08T10:01:11.006052+00:00
 -> DEPENDS_ON [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
 -> DEPENDS_ON [node:eca32380-d17a-4add-a294-700375cbf6be] @ 2026-09-08T09:39:59.116480+00:00
@@ -3300,3 +3304,30 @@ archived: false
 -> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T10:01:11.007729+00:00
 
 Node radius must be chosen relative to the LINK DISTANCES of the layout, not in the abstract. Radii of 3.2 to 7.4 graph units against link distances of 45 to 260 drew two-pixel dots at a fitted zoom, which made the four lifespan tiers indistinguishable and the click target about three pixels. Size also now carries tier alone — the small degree component it used to include muddied the one thing size is for.
+---
+[node:c73afe20-faad-45a2-ae15-e7fe2fdcffe6]
+type: constraint
+tier: short-term
+path: /artifact/never-assert-a-position-in-a-ranking-in
+created_at: 2026-09-08T10:07:06.212492+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T10:07:06.212492+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T10:07:06.212492+00:00
+
+Never assert a POSITION IN A RANKING in a test. Retrieval scores carry a recency term computed against now, so the same query scores about 4e-7 differently a second later, and two nodes in the benchmark corpus sit 9e-10 apart — a margin float noise inverts between x86 and ARM. Such a test passes locally and fails in CI. Assert the mechanism instead: score the same node with and without its flag. The version that asserted 'the flagged node is not ranked first' was also passing for the wrong reason — the flagged node outranks its unflagged rival in the same scope and only looked demoted because an unrelated node tied above it.
+---
+[node:8a936e3d-dec9-4baf-94c7-f3fa3b0e93b3]
+type: constraint
+tier: short-term
+path: /artifact/every-retrieval-sort-breaks-ties-by-node
+created_at: 2026-09-08T10:07:06.215051+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T10:07:06.215051+00:00
+
+Every retrieval sort breaks ties by node id, including single-seed recall (which did not). 'Same graph, same query, same ranking' has to survive two nodes scoring identically, or their order is whatever the traversal happened to produce. It does NOT rescue scores that merely differ in their last few bits: those are not ties and no sort makes them stable across architectures — that is a property of the assertion, not of the sort.
