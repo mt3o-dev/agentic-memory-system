@@ -55,7 +55,7 @@ _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
     id          TEXT PRIMARY KEY,
     node_id     TEXT NOT NULL REFERENCES nodes(id),
-    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted','content_edited','weight_set','entity_proposed','entity_confirmed','entity_retired','consolidated')),
+    type        TEXT NOT NULL CHECK(type IN ('contradiction_raised','contradiction_cleared','confirmation_added','manual_review','tier_change','slice_activated','slice_deactivated','archived','reactivated','used','noted','content_edited','weight_set','entity_proposed','entity_confirmed','entity_retired','consolidated','edge_removed')),
     weight      REAL NOT NULL,
     polarity    INTEGER NOT NULL CHECK(polarity IN (-1, 1)),
     source      TEXT NOT NULL,
@@ -308,7 +308,7 @@ class MemoryStore:
         # Guard on the NEWEST allowed type (like the nodes/edges migrations): a DB whose
         # CHECK already lists an earlier new type but predates 'consolidated' must still
         # rebuild, or the entity/consolidation inserts would hit a CHECK failure.
-        if row is None or row[0] is None or "'consolidated'" in row[0]:
+        if row is None or row[0] is None or "'edge_removed'" in row[0]:
             return
         self._rebuild_table(
             "events",
@@ -366,6 +366,89 @@ class MemoryStore:
                 (edge.source_id, edge.target_id, edge.type.value, created_at.isoformat()),
             )
         return edge.model_copy(update={"created_at": created_at})
+
+    def delete_edge(
+        self, source_id: str, target_id: str, type: EdgeType, *, source: str, reason: str
+    ) -> bool:
+        """Privileged edge removal, journaled. Returns False if the edge was not there.
+
+        Deliberately absent from the agent surface: an agent may *assert* a relationship
+        (``link``) and may contradict a node, but removing an edge is retraction — it
+        deletes the only record that the relationship was ever claimed, which is not a
+        thing that should happen without a human. The GUI is where it lives, alongside
+        tier promotion and flag clearing.
+
+        The event is written against the **source** node, because an edge is an assertion
+        made from it, at weight 0 so it stays trust-neutral under the accumulation folds
+        — the same choice ``sweep`` makes for archived/reactivated. Without it this would
+        be the one destructive operation in the system that leaves no trace, in a store
+        whose entire premise is that state changes are recoverable from the journal.
+        """
+        with self._conn:
+            cursor = self._conn.execute(
+                "DELETE FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
+                (source_id, target_id, type.value),
+            )
+            if cursor.rowcount == 0:
+                return False
+            self._conn.execute(
+                "INSERT INTO events (id, node_id, type, weight, polarity, source, reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(uuid.uuid4()),
+                    source_id,
+                    EventType.edge_removed.value,
+                    0.0,
+                    1,
+                    source,
+                    f"removed {type.value} -> {target_id}" + (f": {reason}" if reason else ""),
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        return True
+
+    def graph_view(self, *, include_archived: bool = False) -> dict:
+        """Nodes and edges in one payload, for a whole-graph view.
+
+        A force-directed layout needs every node and every edge at once, which no existing
+        read gives: ``list_nodes`` has no edges and ``node_detail`` has one node's. Degree
+        is computed here rather than in the client because the client would otherwise walk
+        the edge list per node to size anything by it.
+
+        Archived nodes are excluded by default. They are the dormant remains of merged
+        changes and including them by default would make the first thing a person sees
+        mostly history — but they are one query parameter away, because a view that cannot
+        show you what went dormant is not much of an audit surface.
+        """
+        where = "" if include_archived else " WHERE archived = 0"
+        nodes = [
+            {
+                "id": r[0], "type": r[1], "tier": r[2], "path": r[3],
+                "body": r[4][:280], "created_at": r[5], "needs_review": bool(r[6]),
+                "retrieval_weight": r[7], "trust_weight": r[8], "archived": bool(r[9]),
+                "degree": 0,
+            }
+            for r in self._conn.execute(
+                "SELECT id, type, tier, path, body, created_at, needs_review, "
+                f"retrieval_weight, trust_weight, archived FROM nodes{where} ORDER BY id"
+            )
+        ]
+        alive = {n["id"] for n in nodes}
+        by_id = {n["id"]: n for n in nodes}
+        links = []
+        for source_id, target_id, etype, created_at in self._conn.execute(
+            "SELECT source_id, target_id, type, created_at FROM edges ORDER BY source_id, target_id, type"
+        ):
+            # An edge to a hidden node would be a line into empty space.
+            if source_id not in alive or target_id not in alive:
+                continue
+            links.append({
+                "source": source_id, "target": target_id,
+                "type": etype, "created_at": created_at,
+            })
+            by_id[source_id]["degree"] += 1
+            by_id[target_id]["degree"] += 1
+        return {"nodes": nodes, "links": links}
 
     def _latest_severity(self, node_id: str) -> float:
         """Weight of the most recent contradiction_raised event, or 1.0 if none.

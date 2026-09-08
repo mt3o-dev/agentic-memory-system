@@ -634,3 +634,88 @@ def test_recompute_all_journals_nothing(tmp_path):
 
     assert store._conn.execute("SELECT count(*) FROM events").fetchone()[0] == before
     store.close()
+
+
+# --- the 3D view's data and edit surface ---
+
+
+def _graph_fixture(tmp_path):
+    store = MemoryStore(tmp_path / "graph.db")
+    surface = AgentSurface(store)
+    goal = surface.create_change("demo", "seed")["goal_node_id"]
+    a = surface.capture_artifact("Decision A.", "decision", goal)["node_id"]
+    b = surface.capture_artifact("Decision B.", "decision", goal)["node_id"]
+    surface.link(a, b, "DEPENDS_ON", reason="a needs b")
+    return store, goal, a, b
+
+
+def test_graph_view_returns_nodes_and_links_in_one_payload(tmp_path):
+    store, goal, a, b = _graph_fixture(tmp_path)
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    body = client.get("/api/graph").json()
+    ids = {n["id"] for n in body["nodes"]}
+    assert {goal, a, b} <= ids
+    assert any(l["source"] == a and l["target"] == b and l["type"] == "DEPENDS_ON"
+               for l in body["links"])
+    store.close()
+
+
+def test_graph_view_carries_the_fields_the_encoding_needs(tmp_path):
+    """Colour, shape, size and status all read off the payload — no second round trip."""
+    store, goal, a, b = _graph_fixture(tmp_path)
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    node = next(n for n in client.get("/api/graph").json()["nodes"] if n["id"] == a)
+    for field in ("type", "tier", "path", "needs_review", "archived", "degree", "trust_weight"):
+        assert field in node, field
+    assert node["degree"] >= 1
+
+
+def test_graph_view_hides_archived_by_default_and_drops_their_edges(tmp_path):
+    """An edge to a hidden node would be a line into empty space."""
+    store, goal, a, b = _graph_fixture(tmp_path)
+    store.set_archived(b, True, source="test", reason="dormant")
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+
+    default = client.get("/api/graph").json()
+    assert b not in {n["id"] for n in default["nodes"]}
+    assert all(l["target"] != b for l in default["links"])
+
+    with_archived = client.get("/api/graph?archived=1").json()
+    assert b in {n["id"] for n in with_archived["nodes"]}
+    store.close()
+
+
+def test_an_edge_can_be_removed_and_the_removal_is_journaled(tmp_path):
+    store, goal, a, b = _graph_fixture(tmp_path)
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    before = len(store.read_events(a))
+
+    response = client.post("/api/edges/delete",
+                           json={"source": a, "target": b, "type": "DEPENDS_ON"})
+    assert response.status_code == 200
+    assert all(l["source"] != a or l["target"] != b
+               for l in client.get("/api/graph").json()["links"])
+
+    events = store.read_events(a)
+    assert len(events) == before + 1
+    removal = events[-1]
+    assert removal.type is EventType.edge_removed
+    assert removal.weight == 0.0, "an edge removal must not move trust"
+    assert b in removal.reason
+    store.close()
+
+
+def test_removing_an_edge_that_is_not_there_is_a_404_not_a_silent_ok(tmp_path):
+    store, goal, a, b = _graph_fixture(tmp_path)
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    assert client.post("/api/edges/delete",
+                       json={"source": b, "target": a, "type": "CONTRADICTS"}).status_code == 404
+    store.close()
+
+
+def test_an_unknown_edge_type_is_rejected(tmp_path):
+    store, goal, a, b = _graph_fixture(tmp_path)
+    client = TestClient(create_app(store, evaluator=LLMEvaluator()))
+    assert client.post("/api/edges/delete",
+                       json={"source": a, "target": b, "type": "NONSENSE"}).status_code == 400
+    store.close()

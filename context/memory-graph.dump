@@ -2962,3 +2962,130 @@ archived: false
 -> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T20:05:25.910026+00:00
 
 A real graph with no gold labels can still falsify a claim, as long as the claim predicts a DIFFERENCE rather than a correct answer. Both 'seeds matter more on dense scopes' and 'the swap does not change the top answer' are difference claims, so measuring disagreement between two configurations tests them without anyone deciding what the right answer was. Correctness questions still need the labelled synthetic corpus — which is the division of labour the harness design proposed, arrived at from the other direction.
+---
+[node:34772cf6-c458-4c4f-a438-c640eb4409c1]
+type: slice
+tier: short-term
+path: /change/graph-3d-view
+created_at: 2026-09-08T08:13:39.103069+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
+-> SCOPED_TO [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
+-> SCOPED_TO [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
+-> SCOPED_TO [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> SCOPED_TO [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
+-> SCOPED_TO [node:b13dfc27-aa63-4b91-a32d-b697f5dabf67] @ 2026-09-08T08:13:39.103069+00:00
+-> SCOPED_TO [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+
+change scope: graph-3d-view
+---
+[event:3ab91910-9688-41df-9d2a-d7178cf092cd]
+node_id: 34772cf6-c458-4c4f-a438-c640eb4409c1
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-08T08:13:39.104803+00:00
+
+create_change graph-3d-view
+---
+[node:b13dfc27-aa63-4b91-a32d-b697f5dabf67]
+type: goal
+tier: short-term
+path: /goal/graph-3d-view
+created_at: 2026-09-08T08:13:39.103069+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
+-> DEPENDS_ON [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
+-> DEPENDS_ON [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
+-> DEPENDS_ON [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> DEPENDS_ON [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
+-> DEPENDS_ON [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+
+Add a 3D force-directed view of the graph to the GUI, with node and edge editing
+---
+[node:b7598820-0b28-47a0-afed-6ae7172631c1]
+type: constraint
+tier: short-term
+path: /artifact/a-force-directed-graph-is-an-all-pairs-c
+created_at: 2026-09-08T08:32:43.002477+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.002477+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T08:32:43.002477+00:00
+
+A force-directed graph is an ALL-PAIRS colour form — any two nodes can end up adjacent on screen, like a scatter plot — so it is capped at THREE categorical hues, not the eight an adjacent-pairs form allows. One hue per node type (seven) fails the gate outright: green vs orange is dE 3.2 for a protanope and magenta vs orange is 12.9 for normal vision, against floors of 8 and 15. Node TYPE is therefore carried by shape and node CLASS (asserts / names / structure) by the three validated hues.
+---
+[node:a1c98973-c6e2-4acc-9508-443a4d9c52b9]
+type: decision
+tier: short-term
+path: /artifact/in-the-3d-view-bloom-is-off-by-default
+created_at: 2026-09-08T08:32:43.005453+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.005453+00:00
+
+In the 3D view, bloom is off by default and selective when on. As a global effect it pushes every hue toward white, destroying the exact channel the colour encoding depends on — it is the fastest way to make a 3D graph pretty and unreadable at once. It earns a place only as a highlighter: 'glow disputed' makes flagged nodes emit, so the effect marks the review queue. Auto-orbit is off for the same class of reason: a moving target is harder to click, and this view is for editing, not presenting.
+---
+[node:754d4902-201d-4aee-aad3-3d7f6afcb3d5]
+type: constraint
+tier: short-term
+path: /artifact/parallel-edges-in-the-graph-view-must-be
+created_at: 2026-09-08T08:32:43.006371+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.006371+00:00
+
+Parallel edges in the graph view must be curved. Two nodes can carry both a DEPENDS_ON and a CONTRADICTS — precisely the pair the review queue exists for — and drawn straight they occupy the same line, so one silently disappears and cannot be clicked. Curvature is assigned per parallel group. Directional arrows are equally non-optional: every edge type is directed and A CONTRADICTS B flags B, not A, so an undirected picture misstates the data.
+---
+[node:204443aa-b18f-4dea-b9cb-d30eda0402ac]
+type: decision
+tier: short-term
+path: /artifact/delete-edge-is-privileged-and-journaled
+created_at: 2026-09-08T08:32:43.007446+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.007446+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-08T08:32:43.007446+00:00
+
+delete_edge is privileged and journaled, and deliberately absent from the agent surface. An agent may assert a relationship and may contradict a node, but removing an edge is RETRACTION — it deletes the only record that the relationship was ever claimed. The event is written against the SOURCE node, because an edge is an assertion made from it, at weight 0 so it stays trust-neutral under the accumulation folds. Without it this would be the one destructive operation in the system leaving no trace.
+---
+[node:75340014-d97f-4d66-ab33-05243497d256]
+type: constraint
+tier: short-term
+path: /artifact/do-not-trust-a-force-graph-library-s-zoo
+created_at: 2026-09-08T08:32:43.008589+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T08:32:43.008589+00:00
+
+Do not trust a force-graph library's zoomToFit, and do not trust a single settle signal. The layout expands and then contracts, so the same code framed the camera INSIDE the cluster in one render and left the graph a speck in an empty canvas in the next. The view computes the centroid and bounding radius itself and places the camera at the distance the vertical field of view requires. It is triggered by onEngineStop with a TIMER FALLBACK, because that event does not arrive in a throttled or automated tab and without the fallback the view sits on the library's default camera.
+---
+[node:528b6fe7-fba9-41fa-b693-5b3edc08d695]
+type: decision
+tier: short-term
+path: /artifact/the-3d-view-is-code-split-behind-a-dynam
+created_at: 2026-09-08T08:32:43.009654+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-08T08:32:43.009654+00:00
+
+The 3D view is code-split behind a dynamic import. three.js (736 kB) and 3d-force-graph (812 kB) are several times the size of the rest of the GUI, so loading them eagerly would make every tab pay for one. Measured: the main bundle went from 157.4 kB to 159.8 kB, and the heavy chunks load only when the Graph tab is opened.

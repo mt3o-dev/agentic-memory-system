@@ -14,8 +14,10 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "3d-force-graph": "^1.80.0",
     "bootstrap": "^5.3.3",
     "dompurify": "^3.2.0",
-    "marked": "^15.0.0"
+    "marked": "^15.0.0",
+    "three": "^0.185.1"
   }
 }
