@@ -2962,3 +2962,372 @@ archived: false
 -> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-06T20:05:25.910026+00:00
 
 A real graph with no gold labels can still falsify a claim, as long as the claim predicts a DIFFERENCE rather than a correct answer. Both 'seeds matter more on dense scopes' and 'the swap does not change the top answer' are difference claims, so measuring disagreement between two configurations tests them without anyone deciding what the right answer was. Correctness questions still need the labelled synthetic corpus — which is the division of labour the harness design proposed, arrived at from the other direction.
+---
+[node:34772cf6-c458-4c4f-a438-c640eb4409c1]
+type: slice
+tier: short-term
+path: /change/graph-3d-view
+created_at: 2026-09-08T08:13:39.103069+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> SCOPED_TO [node:0ded3d03-48b7-45ba-81a1-35ce0d0c2b51] @ 2026-09-08T08:53:58.375571+00:00
+-> SCOPED_TO [node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759] @ 2026-09-08T09:28:33.234856+00:00
+-> SCOPED_TO [node:1401677f-e93b-4578-b69a-c37d206a1d73] @ 2026-09-08T10:01:11.003947+00:00
+-> SCOPED_TO [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
+-> SCOPED_TO [node:2bb6276b-cc08-49dc-bd9c-ed0d2890371b] @ 2026-09-08T08:53:58.368738+00:00
+-> SCOPED_TO [node:301dbe88-1a7c-4aac-ad60-48c8be46499e] @ 2026-09-08T09:39:59.117475+00:00
+-> SCOPED_TO [node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38] @ 2026-09-08T09:28:33.235771+00:00
+-> SCOPED_TO [node:405884b0-882b-4ed1-938a-0c7ab37ceadc] @ 2026-09-08T08:53:58.374658+00:00
+-> SCOPED_TO [node:43d5605e-3bfe-424e-ba45-9ebadb94dcfe] @ 2026-09-08T10:01:11.007729+00:00
+-> SCOPED_TO [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
+-> SCOPED_TO [node:65df1884-dd5f-4615-a975-d79fd80cd2bb] @ 2026-09-08T10:01:11.006916+00:00
+-> SCOPED_TO [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
+-> SCOPED_TO [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> SCOPED_TO [node:763bad97-ad5b-41c7-8b78-81e007d4fb08] @ 2026-09-08T09:39:59.114476+00:00
+-> SCOPED_TO [node:8a936e3d-dec9-4baf-94c7-f3fa3b0e93b3] @ 2026-09-08T10:07:06.215051+00:00
+-> SCOPED_TO [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
+-> SCOPED_TO [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
+-> SCOPED_TO [node:b13dfc27-aa63-4b91-a32d-b697f5dabf67] @ 2026-09-08T08:13:39.103069+00:00
+-> SCOPED_TO [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+-> SCOPED_TO [node:c73afe20-faad-45a2-ae15-e7fe2fdcffe6] @ 2026-09-08T10:07:06.212492+00:00
+-> SCOPED_TO [node:c75efeb4-ba54-4c4b-91f7-a57b59606e01] @ 2026-09-08T10:01:11.006052+00:00
+-> SCOPED_TO [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
+-> SCOPED_TO [node:eca32380-d17a-4add-a294-700375cbf6be] @ 2026-09-08T09:39:59.116480+00:00
+
+change scope: graph-3d-view
+---
+[event:3ab91910-9688-41df-9d2a-d7178cf092cd]
+node_id: 34772cf6-c458-4c4f-a438-c640eb4409c1
+type: slice_activated
+weight: 0.0
+polarity: 1
+source: agent-surface
+created_at: 2026-09-08T08:13:39.104803+00:00
+
+create_change graph-3d-view
+---
+[node:b13dfc27-aa63-4b91-a32d-b697f5dabf67]
+type: goal
+tier: short-term
+path: /goal/graph-3d-view
+created_at: 2026-09-08T08:13:39.103069+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> DEPENDS_ON [node:0ded3d03-48b7-45ba-81a1-35ce0d0c2b51] @ 2026-09-08T08:53:58.375571+00:00
+-> DEPENDS_ON [node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759] @ 2026-09-08T09:28:33.234856+00:00
+-> DEPENDS_ON [node:1401677f-e93b-4578-b69a-c37d206a1d73] @ 2026-09-08T10:01:11.003947+00:00
+-> DEPENDS_ON [node:204443aa-b18f-4dea-b9cb-d30eda0402ac] @ 2026-09-08T08:32:43.007446+00:00
+-> DEPENDS_ON [node:2bb6276b-cc08-49dc-bd9c-ed0d2890371b] @ 2026-09-08T08:53:58.368738+00:00
+-> DEPENDS_ON [node:301dbe88-1a7c-4aac-ad60-48c8be46499e] @ 2026-09-08T09:39:59.117475+00:00
+-> DEPENDS_ON [node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38] @ 2026-09-08T09:28:33.235771+00:00
+-> DEPENDS_ON [node:405884b0-882b-4ed1-938a-0c7ab37ceadc] @ 2026-09-08T08:53:58.374658+00:00
+-> DEPENDS_ON [node:43d5605e-3bfe-424e-ba45-9ebadb94dcfe] @ 2026-09-08T10:01:11.007729+00:00
+-> DEPENDS_ON [node:528b6fe7-fba9-41fa-b693-5b3edc08d695] @ 2026-09-08T08:32:43.009654+00:00
+-> DEPENDS_ON [node:65df1884-dd5f-4615-a975-d79fd80cd2bb] @ 2026-09-08T10:01:11.006916+00:00
+-> DEPENDS_ON [node:75340014-d97f-4d66-ab33-05243497d256] @ 2026-09-08T08:32:43.008589+00:00
+-> DEPENDS_ON [node:754d4902-201d-4aee-aad3-3d7f6afcb3d5] @ 2026-09-08T08:32:43.006371+00:00
+-> DEPENDS_ON [node:763bad97-ad5b-41c7-8b78-81e007d4fb08] @ 2026-09-08T09:39:59.114476+00:00
+-> DEPENDS_ON [node:8a936e3d-dec9-4baf-94c7-f3fa3b0e93b3] @ 2026-09-08T10:07:06.215051+00:00
+-> DEPENDS_ON [node:962decf7-5f5c-4f53-bf0a-8109e6742bb5] @ 2026-09-08T09:28:33.236628+00:00
+-> DEPENDS_ON [node:a1c98973-c6e2-4acc-9508-443a4d9c52b9] @ 2026-09-08T08:32:43.005453+00:00
+-> DEPENDS_ON [node:b7598820-0b28-47a0-afed-6ae7172631c1] @ 2026-09-08T08:32:43.002477+00:00
+-> DEPENDS_ON [node:c73afe20-faad-45a2-ae15-e7fe2fdcffe6] @ 2026-09-08T10:07:06.212492+00:00
+-> DEPENDS_ON [node:c75efeb4-ba54-4c4b-91f7-a57b59606e01] @ 2026-09-08T10:01:11.006052+00:00
+-> DEPENDS_ON [node:d413b50e-6ce6-46fa-ad83-f4d590284a2e] @ 2026-09-08T09:28:33.232008+00:00
+-> DEPENDS_ON [node:eca32380-d17a-4add-a294-700375cbf6be] @ 2026-09-08T09:39:59.116480+00:00
+
+Add a 3D force-directed view of the graph to the GUI, with node and edge editing
+---
+[node:b7598820-0b28-47a0-afed-6ae7172631c1]
+type: constraint
+tier: short-term
+path: /artifact/a-force-directed-graph-is-an-all-pairs-c
+created_at: 2026-09-08T08:32:43.002477+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.002477+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T08:32:43.002477+00:00
+
+A force-directed graph is an ALL-PAIRS colour form — any two nodes can end up adjacent on screen, like a scatter plot — so it is capped at THREE categorical hues, not the eight an adjacent-pairs form allows. One hue per node type (seven) fails the gate outright: green vs orange is dE 3.2 for a protanope and magenta vs orange is 12.9 for normal vision, against floors of 8 and 15. Node TYPE is therefore carried by shape and node CLASS (asserts / names / structure) by the three validated hues.
+---
+[node:a1c98973-c6e2-4acc-9508-443a4d9c52b9]
+type: decision
+tier: short-term
+path: /artifact/in-the-3d-view-bloom-is-off-by-default
+created_at: 2026-09-08T08:32:43.005453+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.005453+00:00
+
+In the 3D view, bloom is off by default and selective when on. As a global effect it pushes every hue toward white, destroying the exact channel the colour encoding depends on — it is the fastest way to make a 3D graph pretty and unreadable at once. It earns a place only as a highlighter: 'glow disputed' makes flagged nodes emit, so the effect marks the review queue. Auto-orbit is off for the same class of reason: a moving target is harder to click, and this view is for editing, not presenting.
+---
+[node:754d4902-201d-4aee-aad3-3d7f6afcb3d5]
+type: constraint
+tier: short-term
+path: /artifact/parallel-edges-in-the-graph-view-must-be
+created_at: 2026-09-08T08:32:43.006371+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.006371+00:00
+
+Parallel edges in the graph view must be curved. Two nodes can carry both a DEPENDS_ON and a CONTRADICTS — precisely the pair the review queue exists for — and drawn straight they occupy the same line, so one silently disappears and cannot be clicked. Curvature is assigned per parallel group. Directional arrows are equally non-optional: every edge type is directed and A CONTRADICTS B flags B, not A, so an undirected picture misstates the data.
+---
+[node:204443aa-b18f-4dea-b9cb-d30eda0402ac]
+type: decision
+tier: short-term
+path: /artifact/delete-edge-is-privileged-and-journaled
+created_at: 2026-09-08T08:32:43.007446+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:32:43.007446+00:00
+-> HAS_FACET [node:d0b815e4-5f91-4e65-83a2-04444a4d74ca] @ 2026-09-08T08:32:43.007446+00:00
+
+delete_edge is privileged and journaled, and deliberately absent from the agent surface. An agent may assert a relationship and may contradict a node, but removing an edge is RETRACTION — it deletes the only record that the relationship was ever claimed. The event is written against the SOURCE node, because an edge is an assertion made from it, at weight 0 so it stays trust-neutral under the accumulation folds. Without it this would be the one destructive operation in the system leaving no trace.
+---
+[node:75340014-d97f-4d66-ab33-05243497d256]
+type: constraint
+tier: short-term
+path: /artifact/do-not-trust-a-force-graph-library-s-zoo
+created_at: 2026-09-08T08:32:43.008589+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T08:32:43.008589+00:00
+
+Do not trust a force-graph library's zoomToFit, and do not trust a single settle signal. The layout expands and then contracts, so the same code framed the camera INSIDE the cluster in one render and left the graph a speck in an empty canvas in the next. The view computes the centroid and bounding radius itself and places the camera at the distance the vertical field of view requires. It is triggered by onEngineStop with a TIMER FALLBACK, because that event does not arrive in a throttled or automated tab and without the fallback the view sits on the library's default camera.
+---
+[node:528b6fe7-fba9-41fa-b693-5b3edc08d695]
+type: decision
+tier: short-term
+path: /artifact/the-3d-view-is-code-split-behind-a-dynam
+created_at: 2026-09-08T08:32:43.009654+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:c7bdc219-b9f2-4f03-8bf8-0588e4468eac] @ 2026-09-08T08:32:43.009654+00:00
+
+The 3D view is code-split behind a dynamic import. three.js (736 kB) and 3d-force-graph (812 kB) are several times the size of the rest of the GUI, so loading them eagerly would make every tab pay for one. Measured: the main bundle went from 157.4 kB to 159.8 kB, and the heavy chunks load only when the Graph tab is opened.
+---
+[node:2bb6276b-cc08-49dc-bd9c-ed0d2890371b]
+type: decision
+tier: short-term
+path: /artifact/the-gui-is-tested-with-vitest-and-the-s
+created_at: 2026-09-08T08:53:58.368738+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:53:58.368738+00:00
+
+The GUI is tested with vitest, and the split is deliberate: jsdom has no WebGL, so the geometry, camera and post-processing are unreachable by any JS test and stay verified by rendering the page and looking at it. What vitest covers is the half that can CORRUPT DATA — which endpoint each control calls, with what payload, and whether the safety gates hold. Testing what a test can actually see beats a suite that mounts a canvas and asserts nothing about it.
+---
+[node:405884b0-882b-4ed1-938a-0c7ab37ceadc]
+type: constraint
+tier: short-term
+path: /artifact/the-benchmark-palette-hexes-are-pinned-b
+created_at: 2026-09-08T08:53:58.374658+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:53:58.374658+00:00
+
+The benchmark palette hexes are pinned by a test, not just documented. They are slots 1-3 of a validated palette that passes the all-pairs CVD and normal-vision gates; anyone tidying a hex is silently re-opening a check that was already run, and a comment does not stop that. The same test asserts exactly three categorical hues, because a fourth would fail the all-pairs floors on the documented palette.
+---
+[node:0ded3d03-48b7-45ba-81a1-35ce0d0c2b51]
+type: constraint
+tier: short-term
+path: /artifact/a-chainable-builder-mock-must-return-the
+created_at: 2026-09-08T08:53:58.375571+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T08:53:58.375571+00:00
+
+A chainable builder mock must return the PROXY, not the underlying target object. Returning the target breaks the chain at the second call — the plain object has none of the methods — and in an async onMount the resulting TypeError is swallowed as an unhandled rejection, so every test fails with 'nothing happened' and no error. The same trap catches arrow functions used as constructors: `new` on an arrow throws, and the component calls the library with `new`.
+---
+[node:d413b50e-6ce6-46fa-ad83-f4d590284a2e]
+type: decision
+tier: short-term
+path: /artifact/the-graph-view-is-2d-by-default-and-3d-o
+created_at: 2026-09-08T09:28:33.232008+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.232008+00:00
+
+The graph view is 2D by default and 3D only on request, because PERSPECTIVE DESTROYS THE SIZE CHANNEL: size carries tier, and under a perspective projection apparent size is size x distance, so a lifetime node at the back is indistinguishable from a short-term node at the front. The channel is not weakened, it is gone. Occlusion hides content outright, and labels cannot be shown at rest without z-fighting, so the 3D view is unlabelled and every node must be hovered to be identified. 3D buys room to untangle a dense graph, which matters at a scale this graph is nowhere near. The 2D renderer is 90 kB against ~1.5 MB for 3D plus three.js.
+---
+[node:10485ec7-7e09-4f2c-8fa5-9d16fbdd7759]
+type: constraint
+tier: short-term
+path: /artifact/a-label-visibility-threshold-based-on-zo
+created_at: 2026-09-08T09:28:33.234856+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.234856+00:00
+
+A label-visibility threshold based on zoom must mean 'zoomed into a neighbourhood', not merely 'zoomed in'. A whole-graph view that has just been fitted already sits well above a modest threshold, so 1.6 labelled all 124 nodes at once and turned the centre into unreadable mush. The bar is whether nodes are far enough apart on screen that a hundred labels will not collide, which is several times higher. Promoted nodes (long-term, lifetime) are always labelled — there are few of them and they are the ones worth reading at a glance.
+---
+[node:3fce361c-3c9a-4caa-bd7d-64ad89d4bb38]
+type: constraint
+tier: short-term
+path: /artifact/force-layout-framing-must-be-staggered-a
+created_at: 2026-09-08T09:28:33.235771+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.235771+00:00
+
+Force-layout framing must be staggered across several delays, not fired once. The layout expands and then contracts over a second or more, so a single fit frames it mid-flight: too early puts the camera inside the cluster, a moment later leaves the graph a speck in an empty canvas. Both were observed, in both the 2D and 3D renderers. onEngineStop is the signal that means 'settled' and cancels the rest when it arrives, but it cannot be relied on — a throttled tab or an automation harness may never deliver it.
+---
+[node:962decf7-5f5c-4f53-bf0a-8109e6742bb5]
+type: constraint
+tier: short-term
+path: /artifact/a-callback-s-argument-order-belongs-to-t
+created_at: 2026-09-08T09:28:33.236628+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:28:33.236628+00:00
+
+A callback's argument order belongs to the library, and getting it wrong can fail silently. force-graph calls nodePointerAreaPaint with (node, colour, ctx); passing (ctx, node, colour) hands a node where a context belongs and throws 'beginPath is not a function' on the first frame — inside an async onMount that is swallowed as an unhandled rejection, leaving an empty canvas with no error anywhere on screen. Diagnosed over the DevTools protocol, which is the only thing that surfaced it.
+---
+[node:763bad97-ad5b-41c7-8b78-81e007d4fb08]
+type: decision
+tier: short-term
+path: /artifact/the-graph-view-weights-edges-differently
+created_at: 2026-09-08T09:39:59.114476+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:39:59.114476+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T09:39:59.114476+00:00
+
+The graph view weights edges differently in the FORCE LAYOUT because they mean different things. SCOPED_TO is membership — it is what a group is — so it is short and strong. HAS_FACET is findability only, never walked by the retrieval walker, and one facet in this graph touches TEN different change scopes; at full strength it drags ten clusters into one point, which is exactly what made the first layout a hairball. It keeps its distance and almost no pull: still visible, no longer steering.
+---
+[node:eca32380-d17a-4add-a294-700375cbf6be]
+type: constraint
+tier: short-term
+path: /artifact/to-make-groups-visible-in-a-force-layout
+created_at: 2026-09-08T09:39:59.116480+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:39:59.116480+00:00
+
+To make groups visible in a force layout, anchor them — do not pull to a centroid. A centroid attractor holds each group together and does nothing to keep groups APART, so they overlap and the picture stays one even mesh. Anchors placed deterministically (sorted by group id, evenly on a ring) fix the groups relative to each other, so separation is guaranteed rather than hoped for, and the same graph arranges the same way on every reload.
+---
+[node:301dbe88-1a7c-4aac-ad60-48c8be46499e]
+type: constraint
+tier: short-term
+path: /artifact/a-group-force-must-contain-not-attract
+created_at: 2026-09-08T09:39:59.117475+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T09:39:59.117475+00:00
+
+A group force must CONTAIN, not attract. A plain attractor pulls every member onto the anchor point, and for a group with many members that beats the repulsion holding them apart — the nine facet values landed exactly on top of one another, nine labels stacked in one spot. A node inside its group's allowance should be left completely alone so charge can space it out; only a node that has wandered outside is pulled back, in proportion to how far. The allowance grows with the square root of the group's size, because that is how the area a group needs grows with its membership.
+---
+[node:1401677f-e93b-4578-b69a-c37d206a1d73]
+type: constraint
+tier: short-term
+path: /artifact/force-graph-s-nodepointerareapaint-does
+created_at: 2026-09-08T10:01:11.003947+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T10:01:11.003947+00:00
+
+force-graph's nodePointerAreaPaint does NOT define the click target the way its signature implies. Painting a disc of exactly 12 screen pixels per node — verified by logging the computed radius against the live zoom — produced an actual clickable target measured at 4 pixels wide, so nodes were only selectable dead-centre. The 2D view hit-tests itself instead: screen2GraphCoords, then nearest node within a radius, ties broken by id. Measured on a 357-click grid the hit rate went 7 -> 13 with own hit-testing and 7 -> 21 once collision stopped nodes overlapping.
+---
+[node:c75efeb4-ba54-4c4b-91f7-a57b59606e01]
+type: decision
+tier: short-term
+path: /artifact/groups-in-the-graph-view-are-communities
+created_at: 2026-09-08T10:01:11.006052+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T10:01:11.006052+00:00
+
+Groups in the graph view are COMMUNITIES found by weighted label propagation over the edges, not node types. Grouping by type is not a grouping — it puts a decision from one change beside an unrelated decision from another because both are decisions. Edges are weighted by meaning: SCOPED_TO (membership) dominates, HAS_FACET (findability) counts for almost nothing. On this project's graph that yields 22 communities over 161 nodes with no singletons, and every change scope lands in exactly one — the structure was already in the data.
+---
+[node:65df1884-dd5f-4615-a975-d79fd80cd2bb]
+type: constraint
+tier: short-term
+path: /artifact/nodes-in-a-force-layout-must-not-be-allo
+created_at: 2026-09-08T10:01:11.006916+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T10:01:11.006916+00:00
+
+Nodes in a force layout must not be allowed to overlap, and forceCollide sized from each node's own radius is the fix. This is mostly a clickability property rather than an aesthetic one: a node underneath another cannot be reached however generous the hit radius is, because the one on top is always nearer to the click.
+---
+[node:43d5605e-3bfe-424e-ba45-9ebadb94dcfe]
+type: constraint
+tier: short-term
+path: /artifact/node-radius-must-be-chosen-relative-to-t
+created_at: 2026-09-08T10:01:11.007729+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T10:01:11.007729+00:00
+
+Node radius must be chosen relative to the LINK DISTANCES of the layout, not in the abstract. Radii of 3.2 to 7.4 graph units against link distances of 45 to 260 drew two-pixel dots at a fitted zoom, which made the four lifespan tiers indistinguishable and the click target about three pixels. Size also now carries tier alone — the small degree component it used to include muddied the one thing size is for.
+---
+[node:c73afe20-faad-45a2-ae15-e7fe2fdcffe6]
+type: constraint
+tier: short-term
+path: /artifact/never-assert-a-position-in-a-ranking-in
+created_at: 2026-09-08T10:07:06.212492+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:775f9ad3-3734-4b06-8c0f-e1e899547b3f] @ 2026-09-08T10:07:06.212492+00:00
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T10:07:06.212492+00:00
+
+Never assert a POSITION IN A RANKING in a test. Retrieval scores carry a recency term computed against now, so the same query scores about 4e-7 differently a second later, and two nodes in the benchmark corpus sit 9e-10 apart — a margin float noise inverts between x86 and ARM. Such a test passes locally and fails in CI. Assert the mechanism instead: score the same node with and without its flag. The version that asserted 'the flagged node is not ranked first' was also passing for the wrong reason — the flagged node outranks its unflagged rival in the same scope and only looked demoted because an unrelated node tied above it.
+---
+[node:8a936e3d-dec9-4baf-94c7-f3fa3b0e93b3]
+type: constraint
+tier: short-term
+path: /artifact/every-retrieval-sort-breaks-ties-by-node
+created_at: 2026-09-08T10:07:06.215051+00:00
+needs_review: false
+retrieval_weight: 1.0
+trust_weight: 1.0
+archived: false
+-> HAS_FACET [node:ac7287ee-97a0-4725-9a12-1441b544f6a9] @ 2026-09-08T10:07:06.215051+00:00
+
+Every retrieval sort breaks ties by node id, including single-seed recall (which did not). 'Same graph, same query, same ranking' has to survive two nodes scoring identically, or their order is whatever the traversal happened to produce. It does NOT rescue scores that merely differ in their last few bits: those are not ties and no sort makes them stable across architectures — that is a property of the assertion, not of the sort.

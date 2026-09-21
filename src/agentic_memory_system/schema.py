@@ -87,6 +87,10 @@ class EventType(str, Enum):
     entity_retired = "entity_retired"
     # Journaled on the minted abstraction and on every instance it consolidates.
     consolidated = "consolidated"
+    # An edge removed by a human on the privileged surface. Journaled against the SOURCE
+    # node, because an edge is an assertion made from it; weight 0 keeps it trust-neutral
+    # under the accumulation folds, exactly as archived/reactivated are.
+    edge_removed = "edge_removed"
 
 
 class Event(BaseModel):

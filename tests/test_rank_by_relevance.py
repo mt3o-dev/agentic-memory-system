@@ -85,3 +85,26 @@ def test_recall_recency_ordering(store):
 
 def test_recall_empty_on_missing_seed(store):
     assert store.recall("no-such-id") == []
+
+
+def test_equal_scores_rank_by_id_so_the_order_is_reproducible(store):
+    """Retrieval is a pure function, which has to survive two nodes scoring the same.
+
+    Without a tie-break the order of equal-scoring nodes is whatever the traversal
+    happened to produce. (This cannot rescue scores that merely differ in their last few
+    bits — those are not ties, and no sort makes them stable across architectures.)
+    """
+    seed = store.write_node(_node("/seed", "The seed."))
+    # Identical twins at the same depth. `created_at` has to be pinned: nodes built a
+    # microsecond apart differ in the recency term, and then they are not tied at all —
+    # which is exactly the distinction this test exists to draw.
+    born = datetime.now(timezone.utc)
+    left = store.write_node(_node("/left", "Same in every respect.", created_at=born))
+    right = store.write_node(_node("/right", "Same in every respect.", created_at=born))
+    for target in (left, right):
+        store.write_edge(
+            Edge(source_id=seed.id, target_id=target.id, type=EdgeType.depends_on)
+        )
+
+    order = [node.id for node, _ in store.recall(seed.id) if node.id in {left.id, right.id}]
+    assert order == sorted(order)

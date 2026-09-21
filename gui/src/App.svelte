@@ -6,7 +6,19 @@
   import Domain from './components/Domain.svelte'
   import Recall from './components/Recall.svelte'
 
-  let tab = $state('browse')
+  // The tab lives in the URL hash, so a view is a link you can send someone — and so the
+  // 3D view can be opened directly instead of only by clicking through.
+  const TAB_KEYS = ['browse', 'graph', 'review', 'domain', 'changes', 'recall']
+  const hashTab = () => {
+    const key = (globalThis.location?.hash || '').replace('#', '')
+    return TAB_KEYS.includes(key) ? key : 'browse'
+  }
+  let tab = $state(hashTab())
+  $effect(() => {
+    if (globalThis.location && globalThis.location.hash !== `#${tab}`) {
+      globalThis.history.replaceState(null, '', `#${tab}`)
+    }
+  })
   let selectedId = $state(null)
   let health = $state(null)
   let info = $state(null)
@@ -65,8 +77,19 @@
     refreshHealth()
   })
 
+  // The graph view is code-split: the force-graph runtime is a large fraction of this
+  // app's weight, and the 3D renderer several times more again, so someone who never
+  // opens the tab should not pay for either in the initial load.
+  let GraphView = $state(null)
+  $effect(() => {
+    if (tab === 'graph' && !GraphView) {
+      import('./components/GraphView.svelte').then((m) => (GraphView = m.default))
+    }
+  })
+
   const tabs = [
     ['browse', 'Browse'],
+    ['graph', 'Graph'],
     ['review', 'Review'],
     ['domain', 'Domain'],
     ['changes', 'Changes'],
@@ -205,6 +228,12 @@
     <Changes {openNode} onchanged={refreshHealth} />
   {:else if tab === 'recall'}
     <Recall {openNode} />
+  {:else if tab === 'graph'}
+    {#if GraphView}
+      <GraphView onSelect={(id) => (selectedId = id ?? selectedId)} />
+    {:else}
+      <div class="text-secondary small py-5 text-center">loading the graph view…</div>
+    {/if}
   {/if}
 </main>
 

@@ -100,15 +100,31 @@ def test_stage_one_finds_the_exact_matches_and_misses_the_paraphrases(built):
     ), "if hashed bag-of-words ever handles paraphrase, this corpus stopped being hard"
 
 
-def test_a_flagged_node_is_demoted_but_not_hidden(built):
-    """TrustTermPenalty's documented job: faintly present, neither absent nor undamped."""
+def test_a_flagged_node_is_penalised_but_not_hidden(built):
+    """TrustTermPenalty's documented job: reachable, and scored down for being disputed.
+
+    This asserts the penalty directly — the same node, with and without its flag — rather
+    than a position in the ranking. The previous version asserted "not ranked first", and
+    that was wrong twice over. The gap between first and second here is about 1e-9, a
+    floating-point tie whose winner differs between x86 and ARM, so it failed in CI and
+    passed locally. And it was passing for the wrong reason anyway: the flagged node
+    outranks its unflagged rival in the same scope (0.668 vs 0.425, PPR mass dominating a
+    0.3 penalty) and only looked demoted because an unrelated node tied above it.
+    """
     goal = built.goals["caching"]
-    results = harness._ranked(
-        built.store.recall_multi("how long is a product page cached", goal), goal
-    )
-    ranked_ids = [node.id for node, _ in results]
-    assert built.nodes["cache-ttl"] in ranked_ids, "the flagged node vanished"
-    assert ranked_ids[0] != built.nodes["cache-ttl"], "the flagged node was not demoted"
+    flagged = built.nodes["cache-ttl"]
+    query = "how long is a product page cached"
+
+    def score_of(node_id):
+        return {n.id: s for n, s in built.store.recall_multi(query, goal)}.get(node_id)
+
+    with_flag = score_of(flagged)
+    assert with_flag is not None, "the flagged node vanished — it must stay reachable"
+
+    built.store.clear_contradiction(flagged, source="test", reason="measure the penalty")
+    without_flag = score_of(flagged)
+
+    assert without_flag > with_flag, "the review flag cost the node nothing"
 
 
 def test_the_ablation_matrix_actually_varies_the_weights(built):

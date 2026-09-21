@@ -36,7 +36,7 @@ from . import locking, sync
 from .agent_surface import AgentSurface, AgentSurfaceError
 from .evaluator import LLMEvaluator
 from .resolver import RulesResolver
-from .schema import Event, EventType, Node, NodeType, Tier
+from .schema import EdgeType, Event, EventType, Node, NodeType, Tier
 from .storage import MemoryStore
 
 _DIST = Path(__file__).resolve().parents[2] / "gui" / "dist"
@@ -566,6 +566,31 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
         trust = store.recompute_trust(node.id)
         return JSONResponse({"ok": True, "trust_weight": trust})
 
+    async def graph_view(request: Request) -> JSONResponse:
+        """Whole-graph payload for the 3D view: every node, every edge, one round trip."""
+        include_archived = request.query_params.get("archived") in ("1", "true", "yes")
+        return JSONResponse(store.graph_view(include_archived=include_archived))
+
+    async def delete_edge(request: Request) -> JSONResponse:
+        """Remove one edge. Privileged and journaled — see MemoryStore.delete_edge."""
+        p = await request.json()
+        try:
+            edge_type = EdgeType(str(p.get("type", "")))
+        except ValueError:
+            return JSONResponse(
+                {"error": f"unknown edge type {p.get('type')!r}"}, status_code=400
+            )
+        removed = store.delete_edge(
+            str(p.get("source", "")),
+            str(p.get("target", "")),
+            edge_type,
+            source="gui",
+            reason=str(p.get("reason", "removed via GUI")),
+        )
+        if not removed:
+            return JSONResponse({"error": "no such edge"}, status_code=404)
+        return JSONResponse({"ok": True})
+
     async def recompute_all_trust(request: Request) -> JSONResponse:
         """Fold every node's journal at once — the cleanup form of the per-node button.
 
@@ -717,6 +742,8 @@ def create_app(store: MemoryStore, evaluator: LLMEvaluator | None = None) -> Sta
         Route("/api/nodes", list_nodes, methods=["GET"]),
         Route("/api/nodes", create_artifact, methods=["POST"]),
         Route("/api/edges", create_edge, methods=["POST"]),
+        Route("/api/edges/delete", delete_edge, methods=["POST"]),
+        Route("/api/graph", graph_view),
         Route("/api/nodes/{node_id}", node_detail),
         Route("/api/nodes/{node_id}/body", edit_body, methods=["POST"]),
         Route("/api/nodes/{node_id}/weights", set_weights, methods=["POST"]),
